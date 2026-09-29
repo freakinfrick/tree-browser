@@ -1,4 +1,5 @@
 //! Arena-backed file tree with lazy directory loading.
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -10,10 +11,12 @@ pub struct Node {
     pub is_dir: bool,
     /// Own mtime (lstat). Recursive mtime for dirs lives in the mtime cache.
     pub mtime: SystemTime,
-    /// Recursive (newest beneath, walk complete, newest ignoring dotfiles),
-    /// copied from the mtime cache when results land, so per-frame code
-    /// never hashes paths.
-    pub rec: Option<(SystemTime, bool, SystemTime)>,
+    /// Own size in bytes (lstat); 0 for dirs, whose total lives in `rec`.
+    pub size: u64,
+    /// Recursive (newest beneath, walk complete, newest ignoring dotfiles,
+    /// bytes beneath), copied from the mtime cache when results land, so
+    /// per-frame code never hashes paths.
+    pub rec: Option<(SystemTime, bool, SystemTime, u64)>,
     pub parent: Option<usize>,
     /// None = not read yet.
     pub children: Option<Vec<usize>>,
@@ -22,10 +25,79 @@ pub struct Node {
     pub last: Option<usize>,
 }
 
+/// What a folder's entries are ordered by.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SortKey {
+    Name,
+    /// Newest first, by heat (recursive for folders).
+    Modified,
+    /// Largest first, by recursive size for folders.
+    Size,
+    /// Folders first, then by extension.
+    Type,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Sort {
+    pub key: SortKey,
+    /// Flip the key's natural direction.
+    pub rev: bool,
+}
+
+impl Default for Sort {
+    fn default() -> Sort {
+        Sort { key: SortKey::Name, rev: false }
+    }
+}
+
+impl Sort {
+    /// Parse `name`, `modified`, `size` or `type`, with a leading `-` to reverse.
+    pub fn parse(s: &str) -> Option<Sort> {
+        let (rev, word) = match s.strip_prefix('-') {
+            Some(w) => (true, w),
+            None => (false, s),
+        };
+        let key = match word {
+            "name" => SortKey::Name,
+            "modified" | "mtime" | "time" => SortKey::Modified,
+            "size" => SortKey::Size,
+            "type" | "ext" => SortKey::Type,
+            _ => return None,
+        };
+        Some(Sort { key, rev })
+    }
+
+    /// Next key in the `o` cycle, in its natural direction.
+    pub fn next(self) -> Sort {
+        let key = match self.key {
+            SortKey::Name => SortKey::Modified,
+            SortKey::Modified => SortKey::Size,
+            SortKey::Size => SortKey::Type,
+            SortKey::Type => SortKey::Name,
+        };
+        Sort { key, rev: false }
+    }
+
+    /// Status bar text, e.g. "largest first".
+    pub fn describe(self) -> &'static str {
+        match (self.key, self.rev) {
+            (SortKey::Name, false) => "name a–z",
+            (SortKey::Name, true) => "name z–a",
+            (SortKey::Modified, false) => "newest first",
+            (SortKey::Modified, true) => "oldest first",
+            (SortKey::Size, false) => "largest first",
+            (SortKey::Size, true) => "smallest first",
+            (SortKey::Type, false) => "type a–z",
+            (SortKey::Type, true) => "type z–a",
+        }
+    }
+}
+
 pub struct Tree {
     pub nodes: Vec<Node>,
     pub root: usize,
     pub show_hidden: bool,
+    pub sort: Sort,
     /// Always visible even when hidden (the root..cursor path), so the
     /// cursor can never sit inside something invisible.
     pub reveal: HashSet<usize>,
@@ -40,9 +112,11 @@ fn display_name(path: &Path) -> String {
 
 fn make(path: PathBuf, parent: Option<usize>) -> Node {
     let meta = fs::symlink_metadata(&path).ok();
+    let is_dir = meta.as_ref().is_some_and(|m| m.is_dir());
     Node {
         name: display_name(&path),
-        is_dir: meta.as_ref().is_some_and(|m| m.is_dir()),
+        is_dir,
+        size: meta.as_ref().filter(|_| !is_dir).map_or(0, |m| m.len()),
         mtime: meta.and_then(|m| m.modified().ok()).unwrap_or(SystemTime::UNIX_EPOCH),
         path,
         rec: None,
@@ -53,20 +127,79 @@ fn make(path: PathBuf, parent: Option<usize>) -> Node {
     }
 }
 
-/// A directory's entries, sorted case-insensitively, dirs and files mixed.
+/// A directory's entries, unordered: the tree sorts them.
 fn listing(dir: &Path) -> Vec<PathBuf> {
-    let mut paths: Vec<PathBuf> =
-        fs::read_dir(dir).map(|rd| rd.filter_map(|e| e.ok().map(|e| e.path())).collect()).unwrap_or_default();
-    paths.sort_by_key(|p| display_name(p).to_lowercase());
-    paths
+    fs::read_dir(dir).map(|rd| rd.filter_map(|e| e.ok().map(|e| e.path())).collect()).unwrap_or_default()
+}
+
+/// Lowercased extension, "" for none (dotfiles like `.bashrc` have none).
+fn ext(name: &str) -> String {
+    Path::new(name).extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default()
 }
 
 impl Tree {
     pub fn new(path: &Path) -> Tree {
-        Tree { nodes: vec![make(path.to_path_buf(), None)], root: 0, show_hidden: false, reveal: HashSet::new() }
+        Tree {
+            nodes: vec![make(path.to_path_buf(), None)],
+            root: 0,
+            show_hidden: false,
+            sort: Sort::default(),
+            reveal: HashSet::new(),
+        }
     }
 
-    /// Read a directory's entries once. Sorted case-insensitively, dirs and files mixed.
+    /// Bytes at or under the node: a file's own size, a folder's walked
+    /// total (0 until its walk lands).
+    pub fn size(&self, id: usize) -> u64 {
+        let n = &self.nodes[id];
+        match n.rec {
+            Some(r) if n.is_dir => r.3,
+            _ => n.size,
+        }
+    }
+
+    /// Where `a` goes relative to its sibling `b` under the current sort.
+    /// Name (case-insensitive, then exact) breaks ties, so the order is total.
+    pub fn cmp(&self, a: usize, b: usize) -> Ordering {
+        let (x, y) = (&self.nodes[a], &self.nodes[b]);
+        let by_key = match self.sort.key {
+            SortKey::Name => Ordering::Equal,
+            SortKey::Modified => self.heat(b).cmp(&self.heat(a)),
+            SortKey::Size => self.size(b).cmp(&self.size(a)),
+            SortKey::Type => y.is_dir.cmp(&x.is_dir).then_with(|| ext(&x.name).cmp(&ext(&y.name))),
+        };
+        let o = by_key
+            .then_with(|| x.name.to_lowercase().cmp(&y.name.to_lowercase()))
+            .then_with(|| x.name.cmp(&y.name));
+        if self.sort.rev { o.reverse() } else { o }
+    }
+
+    /// Put a loaded folder's entries in sort order. Returns true if it moved any.
+    fn sort_kids(&mut self, id: usize) -> bool {
+        let Some(mut kids) = self.nodes[id].children.take() else { return false };
+        let before = kids.clone();
+        kids.sort_by(|&a, &b| self.cmp(a, b));
+        let moved = kids != before;
+        self.nodes[id].children = Some(kids);
+        moved
+    }
+
+    /// Re-sort every loaded folder still reachable from the root, after the
+    /// sort changes or the heat or sizes it sorts by do. Returns true if
+    /// anything moved.
+    pub fn resort(&mut self) -> bool {
+        let mut moved = false;
+        let mut stack = vec![self.root];
+        while let Some(id) = stack.pop() {
+            moved |= self.sort_kids(id);
+            if let Some(kids) = &self.nodes[id].children {
+                stack.extend(kids.iter().copied().filter(|&k| self.nodes[k].children.is_some()));
+            }
+        }
+        moved
+    }
+
+    /// Read a directory's entries once, in sort order.
     pub fn load(&mut self, id: usize) {
         if self.nodes[id].children.is_some() || !self.nodes[id].is_dir {
             return;
@@ -79,6 +212,7 @@ impl Tree {
             })
             .collect();
         self.nodes[id].children = Some(kids);
+        self.sort_kids(id);
     }
 
     /// Drop a directory's loaded children so the next load re-reads the disk.
@@ -92,30 +226,35 @@ impl Tree {
     /// Re-read a loaded directory in place: entries still there keep their
     /// nodes (fold state, last cursor, animation), new ones are added, gone
     /// ones dropped (left in the arena, unreachable). Returns true if the
-    /// entries changed rather than just their mtimes.
+    /// entries changed rather than just their mtimes, sizes or order.
     pub fn refresh(&mut self, id: usize) -> bool {
         let Some(old) = self.nodes[id].children.clone() else { return false };
         let by_path: HashMap<PathBuf, usize> = old.iter().map(|&k| (self.nodes[k].path.clone(), k)).collect();
         let mut kids = Vec::new();
+        let (mut kept, mut added) = (0, false);
         for p in listing(&self.nodes[id].path) {
             let fresh = make(p, Some(id));
             match by_path.get(&fresh.path) {
-                // Same kind: refresh the mtime, keep everything else.
+                // Same kind: refresh the mtime and size, keep everything else.
                 Some(&k) if self.nodes[k].is_dir == fresh.is_dir => {
                     self.nodes[k].mtime = fresh.mtime;
+                    self.nodes[k].size = fresh.size;
                     kids.push(k);
+                    kept += 1;
                 }
                 _ => {
                     self.nodes.push(fresh);
                     kids.push(self.nodes.len() - 1);
+                    added = true;
                 }
             }
         }
-        let changed = kids != old;
+        let changed = added || kept != old.len();
         if self.nodes[id].last.is_some_and(|l| !kids.contains(&l)) {
             self.nodes[id].last = None;
         }
         self.nodes[id].children = Some(kids);
+        self.sort_kids(id);
         changed
     }
 
@@ -154,10 +293,10 @@ impl Tree {
     pub fn heat(&self, id: usize) -> SystemTime {
         let n = &self.nodes[id];
         match n.rec {
-            Some((all, _, _)) if self.show_hidden => all.max(n.mtime),
+            Some((all, ..)) if self.show_hidden => all.max(n.mtime),
             // Visible view ignores the dir's own mtime (dotfile churn bumps
             // it) unless nothing visible exists beneath at all.
-            Some((_, _, vis)) if vis > SystemTime::UNIX_EPOCH => vis,
+            Some((_, _, vis, _)) if vis > SystemTime::UNIX_EPOCH => vis,
             _ => n.mtime,
         }
     }
@@ -184,6 +323,8 @@ impl Tree {
         n.expanded = true;
         n.last = Some(old);
         self.root = new;
+        // The old root carries walked heat and size its fresh stand-in lacked.
+        self.sort_kids(new);
         true
     }
 
