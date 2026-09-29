@@ -67,7 +67,8 @@ pub fn label(p: &Picker) -> &'static str {
 
 /// Picker override for testing and for terminals that answer the query wrongly:
 /// TB_GRAPHICS=halfblocks|sixel|kitty|iterm2|off.
-pub fn picker() -> Option<Picker> {
+/// Returns the picker and what the terminal claimed (for `i` to switch back to).
+pub fn picker() -> Option<(Picker, ProtocolType)> {
     let force = std::env::var("TB_GRAPHICS").unwrap_or_default().to_ascii_lowercase();
     if force == "off" {
         return None;
@@ -81,14 +82,19 @@ pub fn picker() -> Option<Picker> {
     } else {
         Picker::from_query_stdio().unwrap_or_else(|_| Picker::from_fontsize((10, 20)))
     };
+    let detected = p.protocol_type();
     match force.as_str() {
         "halfblocks" => p.set_protocol_type(ProtocolType::Halfblocks),
         "sixel" => p.set_protocol_type(ProtocolType::Sixel),
         "kitty" => p.set_protocol_type(ProtocolType::Kitty),
         "iterm2" => p.set_protocol_type(ProtocolType::Iterm2),
+        // herdr answers "kitty" for every attached client, whatever terminal it
+        // draws into (Konsole 21.12 then prints the image data as text). Start safe;
+        // `i` switches to the claimed protocol.
+        _ if std::env::var_os("HERDR_ENV").is_some() => p.set_protocol_type(ProtocolType::Halfblocks),
         _ => {}
     }
-    Some(p)
+    Some((p, detected))
 }
 
 impl Media {

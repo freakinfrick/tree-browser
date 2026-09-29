@@ -50,6 +50,7 @@ first/last. Formats the `image` crate can't decode go through ImageMagick
 `convert`. Pixels use whatever the terminal answers to the startup query:
 kitty graphics (Ghostty, Kitty, herdr), sixel, iTerm2; otherwise unicode
 half-blocks, which work in any truecolor terminal (Termius, tmux). `i` flips
-between pixels and half-blocks: herdr claims kitty for every attached client,
-so a phone attached to the same session needs `i` (or `TB_GRAPHICS=halfblocks`).
-Inside tmux the query is skipped and half-blocks are used.
+between pixels and half-blocks. Inside herdr tb starts in half-blocks: herdr
+claims kitty for every attached client whatever terminal it draws into, so
+press `i` (or set `TB_GRAPHICS=kitty`) when that terminal really is
+Ghostty/Kitty. Inside tmux the query is skipped and half-blocks are used.

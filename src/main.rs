@@ -336,9 +336,9 @@ fn main() -> std::io::Result<()> {
     }));
     execute!(stdout(), EnableMouseCapture)?;
     // Query after entering the alternate screen, before reading events.
-    app.picker = media::picker();
-    if let Some(p) = &app.picker {
-        app.detected = p.protocol_type();
+    if let Some((p, detected)) = media::picker() {
+        app.picker = Some(p);
+        app.detected = detected;
     }
 
     let mut dirty = true;
