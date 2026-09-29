@@ -29,6 +29,8 @@ pub struct Media {
     /// Decoded current page; the protocol is built from it at draw time (needs the picker).
     img: Option<DynamicImage>,
     proto: Option<StatefulProtocol>,
+    /// Area and cell size the protocol was built for.
+    built: (Rect, Rect),
     /// Pixel size of the current page.
     pub dims: Option<(u32, u32)>,
     pub err: Option<String>,
@@ -98,7 +100,7 @@ impl Media {
             return None;
         }
         let mut m =
-            Media { path: path.to_path_buf(), pdf, pages: 1, page: 0, img: None, proto: None, dims: None, err: None };
+            Media { path: path.to_path_buf(), pdf, pages: 1, page: 0, img: None, proto: None, built: Default::default(), dims: None, err: None };
         if pdf {
             m.pages = stdout(Command::new("pdfinfo").arg(path))
                 .ok()
@@ -173,18 +175,20 @@ impl Media {
 
     /// Draw the current page scaled to fit `area`, centered.
     pub fn render(&mut self, f: &mut Frame, area: Rect, picker: &Picker) {
-        if self.proto.is_none() {
+        if self.proto.is_none() || self.built.0 != area {
             let Some(img) = &self.img else { return };
-            self.proto = Some(picker.new_resize_protocol(img.clone()));
+            // Scale to whole cells, cropping the sliver (< 1 cell) that doesn't fit:
+            // a partly covered edge cell would otherwise blend with transparent black.
+            let (fw, fh) = (picker.font_size().0 as f32, picker.font_size().1 as f32);
+            let s = (area.width as f32 * fw / img.width() as f32).min(area.height as f32 * fh / img.height() as f32);
+            let cw = ((img.width() as f32 * s / fw) as u16).clamp(1, area.width);
+            let ch = ((img.height() as f32 * s / fh) as u16).clamp(1, area.height);
+            let fitted = img.resize_to_fill(cw as u32 * fw as u32, ch as u32 * fh as u32, FilterType::Triangle);
+            let cells = Rect { x: area.x + (area.width - cw) / 2, y: area.y + (area.height - ch) / 2, width: cw, height: ch };
+            self.proto = Some(picker.new_resize_protocol(fitted));
+            self.built = (area, cells);
         }
         let Some(proto) = &mut self.proto else { return };
-        let resize = Resize::Scale(Some(FilterType::Triangle));
-        let fit = proto.size_for(resize.clone(), area);
-        let r = Rect {
-            x: area.x + area.width.saturating_sub(fit.width) / 2,
-            y: area.y + area.height.saturating_sub(fit.height) / 2,
-            ..fit
-        };
-        f.render_stateful_widget(StatefulImage::default().resize(resize), r, proto);
+        f.render_stateful_widget(StatefulImage::default().resize(Resize::Fit(None)), self.built.1, proto);
     }
 }
