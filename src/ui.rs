@@ -1,9 +1,12 @@
 //! Rendering: animated tree canvas, status bar, preview popup, help overlay.
 use std::collections::HashSet;
+use std::fs::File;
 use std::io::{Read, Write};
+use std::os::fd::{FromRawFd, OwnedFd};
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::time::SystemTime;
+use std::sync::mpsc::{self, Receiver, TryRecvError};
+use std::time::{Instant, SystemTime};
 
 use ansi_to_tui::IntoText;
 use ratatui::buffer::Buffer;
@@ -308,6 +311,15 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         height: 1,
     };
     if let Some(pv) = &mut app.preview {
+        if let Some(rx) = &pv.pending {
+            match rx.try_recv() {
+                Ok(t) => (pv.text, pv.pending) = (t, None),
+                Err(TryRecvError::Empty) => moving = true,
+                Err(TryRecvError::Disconnected) => {
+                    (pv.text, pv.pending) = (Text::from(vec![Line::from(""), Line::from("  (preview failed)")]), None)
+                }
+            }
+        }
         let target = if pv.closing { 0.0 } else { 1.0 };
         moving |= pv.open.step(target, POPUP_T, dt);
         let p = pv.open.v.clamp(0.0, 1.0);
@@ -343,7 +355,22 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
                 app.graphics_shown = true;
             } else {
                 let sy = pv.sy.v.round().max(0.0) as u16;
-                f.render_widget(Paragraph::new(pv.text.clone()).block(block).scroll((sy, 0)), area);
+                if pv.pending.is_some() {
+                    let spin = SPINNER[(pv.born.elapsed().as_millis() / 80) as usize % SPINNER.len()];
+                    let row = Line::from(vec![
+                        Span::styled(format!("{spin} "), Style::new().fg(to_color(LINE_ROUTE))),
+                        Span::styled(pv.loading, Style::new().fg(to_color(MUTED))),
+                    ])
+                    .centered();
+                    let pad = vec![Line::from(""); (area.height as usize).saturating_sub(3) / 2];
+                    let text = Text::from(pad.into_iter().chain([row]).collect::<Vec<_>>());
+                    f.render_widget(Paragraph::new(text).block(block), area);
+                } else {
+                    // Only the visible rows: cloning a whole long file every frame is what lags.
+                    let rows = area.height.saturating_sub(2) as usize;
+                    let lines: Vec<Line> = pv.text.lines.iter().skip(sy as usize).take(rows).cloned().collect();
+                    f.render_widget(Paragraph::new(lines).block(block), area);
+                }
                 if max > 0 && p > 0.9 && pv.media.is_none() {
                     let mut st = ScrollbarState::new(max as usize).position(sy as usize);
                     f.render_stateful_widget(
@@ -532,6 +559,9 @@ fn help(f: &mut Frame, t: f32) {
     );
 }
 
+/// Braille spinner (ratatui's throbber set).
+const SPINNER: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
 pub fn popup(r: Rect) -> Rect {
     let w = (r.width as u32 * 9 / 10) as u16;
     let h = (r.height as u32 * 9 / 10) as u16;
@@ -550,11 +580,49 @@ pub struct Preview {
     pub closing: bool,
     /// Image / PDF pages; `text` is then only the caption shown while it can't draw.
     pub media: Option<Media>,
+    /// Text still rendering on a worker (glow on a long file takes a while); spinner meanwhile.
+    pub pending: Option<Receiver<Text<'static>>>,
+    pub born: Instant,
+    /// Spinner caption while pending.
+    pub loading: &'static str,
 }
 
 fn run(cmd: &mut Command) -> Option<Vec<u8>> {
     let out = cmd.output().ok()?;
     (out.status.success() && !out.stdout.is_empty()).then_some(out.stdout)
+}
+
+/// Run `cmd` with `input` on stdin and a pseudo-terminal as stdout. glow only
+/// uses its real 256-color palette when it sees a terminal; piped, it drops to 16 colors.
+fn run_tty(mut cmd: Command, input: Vec<u8>, width: u16) -> Option<Vec<u8>> {
+    let (mut m, mut s) = (0, 0);
+    let ws = libc::winsize { ws_row: 50, ws_col: width, ws_xpixel: 0, ws_ypixel: 0 };
+    unsafe {
+        if libc::openpty(&mut m, &mut s, std::ptr::null_mut(), std::ptr::null(), &ws) != 0 {
+            return None;
+        }
+        // Raw: no \n -> \r\n translation, no echo.
+        let mut t = std::mem::zeroed::<libc::termios>();
+        libc::tcgetattr(s, &mut t);
+        libc::cfmakeraw(&mut t);
+        libc::tcsetattr(s, libc::TCSANOW, &t);
+    }
+    let (mut master, slave) = unsafe { (File::from_raw_fd(m), OwnedFd::from_raw_fd(s)) };
+    let mut child = cmd.stdin(Stdio::piped()).stdout(Stdio::from(slave)).stderr(Stdio::null()).spawn().ok()?;
+    // Our copy of the slave lives in `cmd`; drop it so the master sees EOF when the child exits.
+    drop(cmd);
+    let mut stdin = child.stdin.take()?;
+    let feed = std::thread::spawn(move || stdin.write_all(&input));
+    let mut out = Vec::new();
+    // Linux reports the closed slave as EIO: that's the end of output, not a failure.
+    let _ = master.read_to_end(&mut out);
+    let _ = feed.join();
+    let ok = child.wait().ok()?.success();
+    (ok && !out.is_empty()).then_some(out)
+}
+
+fn is_md(path: &Path) -> bool {
+    path.extension().is_some_and(|e| e.eq_ignore_ascii_case("md") || e.eq_ignore_ascii_case("markdown"))
 }
 
 /// First 2 MiB of a file.
@@ -569,7 +637,6 @@ fn head(path: &Path) -> Vec<u8> {
 impl Preview {
     /// Whole file, colored: glow for markdown, bat otherwise, plain text as last resort.
     pub fn load(path: &Path, width: u16) -> Preview {
-        let w = width.saturating_sub(3).max(20).to_string();
         let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         let title = format!("{name} · {}", human(size));
@@ -578,6 +645,7 @@ impl Preview {
             let _ = f.take(8192).read_to_end(&mut first);
         }
         let media = if size == 0 { None } else { Media::open(path) };
+        let mut pending = None;
         let text = if let Some(m) = &media {
             let what = match (&m.err, m.dims) {
                 (Some(e), _) => format!("  can't render · {e}"),
@@ -587,39 +655,56 @@ impl Preview {
             Text::from(vec![Line::from(""), Line::from(what)])
         } else if size == 0 {
             Text::from(vec![Line::from(""), Line::from("  (empty file)")])
-        } else if first.contains(&0) {
+        } else {
+            let (tx, rx) = mpsc::channel();
+            let path = path.to_path_buf();
+            std::thread::spawn(move || tx.send(Preview::render(&path, width, size, &first)));
+            pending = Some(rx);
+            Text::default()
+        };
+        Preview {
+            title,
+            text,
+            scroll: 0,
+            sy: Damped::new(0.0),
+            page: 1,
+            open: Damped::new(0.0),
+            closing: false,
+            media,
+            pending,
+            born: Instant::now(),
+            loading: if is_md(path) { "rendering markdown" } else { "loading" },
+        }
+    }
+
+    /// Text files, colored: glow for markdown, bat otherwise, plain text as last resort.
+    /// Runs on a worker thread.
+    fn render(path: &Path, width: u16, size: u64, first: &[u8]) -> Text<'static> {
+        let w = width.saturating_sub(3).max(20);
+        if first.contains(&0) {
             let kind = run(Command::new("file").arg("-b").arg(path))
                 .map(|b| String::from_utf8_lossy(&b).trim().to_string())
                 .unwrap_or_else(|| "binary".into());
-            Text::from(vec![
+            return Text::from(vec![
                 Line::from(""),
                 Line::from(format!("  binary file · {}", human(size))),
                 Line::from(format!("  {kind}")),
-            ])
-        } else {
-            let is_md = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("md") || e.eq_ignore_ascii_case("markdown"));
+            ]);
+        }
+        {
             // glow is a snap and can't open paths outside $HOME: feed it stdin.
             let glow = || {
-                let md = head(path);
-                let mut child = Command::new("glow")
-                    .args(["-s", "dark", "-w", &w, "-"])
-                    .env("CLICOLOR_FORCE", "1")
-                    .stdin(Stdio::piped())
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::null())
-                    .spawn()
-                    .ok()?;
-                child.stdin.take()?.write_all(&md).ok()?;
-                let out = child.wait_with_output().ok()?;
-                (out.status.success() && !out.stdout.is_empty()).then_some(out.stdout)
+                let mut cmd = Command::new("glow");
+                cmd.args(["-s", "dark", "-w", &w.to_string(), "-"]);
+                run_tty(cmd, head(path), w)
             };
             let bat = || {
                 run(Command::new("bat")
                     .args(["--color=always", "--style=numbers", "--paging=never", "--wrap=character"])
-                    .args(["--line-range", ":5000", "--terminal-width", &w])
+                    .args(["--line-range", ":5000", "--terminal-width", &w.to_string()])
                     .arg(path))
             };
-            let raw = if is_md { glow().or_else(bat) } else { bat() }.unwrap_or_else(|| head(path));
+            let raw = if is_md(path) { glow().or_else(bat) } else { bat() }.unwrap_or_else(|| head(path));
             let mut t = raw.into_text().unwrap_or_else(|_| Text::raw(String::from_utf8_lossy(&raw).into_owned()));
             // Reset/black backgrounds from glow/bat would punch holes in the popup.
             let clear = |st: &mut Style| {
@@ -634,7 +719,31 @@ impl Preview {
                 }
             }
             t
-        };
-        Preview { title, text, scroll: 0, sy: Damped::new(0.0), page: 1, open: Damped::new(0.0), closing: false, media }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tty_output_is_raw_and_complete() {
+        // 200 KiB through the pty: nothing lost, no \n -> \r\n translation.
+        let input: Vec<u8> = (0..20_000).flat_map(|i| format!("line {i:05}\n").into_bytes()).collect();
+        let out = run_tty(Command::new("cat"), input.clone(), 80).unwrap();
+        assert_eq!(out, input);
+    }
+
+    #[test]
+    fn glow_gets_its_256_color_palette() {
+        if Command::new("glow").arg("--version").output().is_err() {
+            return;
+        }
+        let mut glow = Command::new("glow");
+        glow.args(["-s", "dark", "-w", "60", "-"]);
+        let out = run_tty(glow, b"# Title\n\nbody\n".to_vec(), 60);
+        let out = String::from_utf8_lossy(&out.unwrap()).into_owned();
+        assert!(out.contains("38;5;"), "expected 256-color escapes, got {out:?}");
     }
 }
