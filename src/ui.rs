@@ -596,9 +596,10 @@ fn run(cmd: &mut Command) -> Option<Vec<u8>> {
 /// uses its real 256-color palette when it sees a terminal; piped, it drops to 16 colors.
 fn run_tty(mut cmd: Command, input: Vec<u8>, width: u16) -> Option<Vec<u8>> {
     let (mut m, mut s) = (0, 0);
-    let ws = libc::winsize { ws_row: 50, ws_col: width, ws_xpixel: 0, ws_ypixel: 0 };
+    let mut ws = libc::winsize { ws_row: 50, ws_col: width, ws_xpixel: 0, ws_ypixel: 0 };
     unsafe {
-        if libc::openpty(&mut m, &mut s, std::ptr::null_mut(), std::ptr::null(), &ws) != 0 {
+        // *mut, not *const: macOS declares termp/winp mutable, Linux takes either.
+        if libc::openpty(&mut m, &mut s, std::ptr::null_mut(), std::ptr::null_mut(), &raw mut ws) != 0 {
             return None;
         }
         // Raw: no \n -> \r\n translation, no echo.

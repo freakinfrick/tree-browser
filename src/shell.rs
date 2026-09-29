@@ -51,8 +51,8 @@ pub fn run(term: &mut DefaultTerminal, dir: &Path, sel: &Path, what: &Run) -> io
 
     let (int, quit) = unsafe {
         (
-            libc::signal(libc::SIGINT, shrug as libc::sighandler_t),
-            libc::signal(libc::SIGQUIT, shrug as libc::sighandler_t),
+            libc::signal(libc::SIGINT, shrug as *const () as libc::sighandler_t),
+            libc::signal(libc::SIGQUIT, shrug as *const () as libc::sighandler_t),
         )
     };
     let start = Instant::now();
