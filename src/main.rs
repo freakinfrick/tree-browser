@@ -300,23 +300,27 @@ impl App {
         }
     }
 
-    /// Entries in the cursor's column whose name contains `q`, case-insensitively.
+    /// Entries in the cursor's column whose name contains `q` (smart case).
     fn matches(&self, q: &str) -> Vec<usize> {
-        let q = q.to_lowercase();
-        self.siblings().into_iter().filter(|&k| self.tree.nodes[k].name.to_lowercase().contains(&q)).collect()
+        self.siblings().into_iter().filter(|&k| hit(&self.tree.nodes[k].name, q).is_some()).collect()
     }
 
     /// Where typing `q` lands: the first name starting with it, else the first containing it.
     pub fn find(&self, q: &str) -> Option<usize> {
         let m = self.matches(q);
-        let lq = q.to_lowercase();
-        m.iter().copied().find(|&k| self.tree.nodes[k].name.to_lowercase().starts_with(&lq)).or(m.first().copied())
+        m.iter().copied().find(|&k| hit(&self.tree.nodes[k].name, q).is_some_and(|r| r.start == 0)).or(m.first().copied())
     }
 
-    /// n / N: next or previous match after the cursor, wrapping.
-    fn find_next(&mut self, dir: isize) {
-        let m = self.matches(&self.last_search);
-        if self.last_search.is_empty() || m.is_empty() {
+    /// Cursor's place among the matches of `q` (1-based, 0 when off them) and their count.
+    pub fn match_pos(&self, q: &str) -> (usize, usize) {
+        let m = self.matches(q);
+        (m.iter().position(|&k| k == self.cursor).map_or(0, |i| i + 1), m.len())
+    }
+
+    /// Next or previous match of `q` after the cursor, wrapping.
+    fn cycle(&mut self, q: &str, dir: isize) {
+        let m = self.matches(q);
+        if q.is_empty() || m.is_empty() {
             return;
         }
         let sib = self.siblings();
@@ -331,11 +335,30 @@ impl App {
         }
     }
 
+    /// n / N: next or previous match of the last find.
+    fn find_next(&mut self, dir: isize) {
+        let q = self.last_search.clone();
+        self.cycle(&q, dir);
+    }
+
     /// Line editing for the `/` prompt; the cursor follows the query as it's typed.
     fn search_key(&mut self, code: KeyCode, mods: KeyModifiers) {
         let Some(s) = &mut self.search else { return };
         let ctrl = mods.contains(KeyModifiers::CONTROL);
         let origin = s.origin;
+        // Step through the matches without leaving the prompt.
+        let step = match code {
+            KeyCode::Tab | KeyCode::Down => 1,
+            KeyCode::Char('n') if ctrl => 1,
+            KeyCode::BackTab | KeyCode::Up if !s.query.is_empty() => -1,
+            KeyCode::Char('p') if ctrl => -1,
+            _ => 0,
+        };
+        if step != 0 {
+            let q = s.query.clone();
+            self.cycle(&q, step);
+            return;
+        }
         match code {
             KeyCode::Enter => {
                 if !s.query.is_empty() {
@@ -350,7 +373,14 @@ impl App {
             KeyCode::Backspace => {
                 s.query.pop();
             }
+            // Up on an empty line recalls the last find.
+            KeyCode::Up => s.query = self.last_search.clone(),
             KeyCode::Char('u') if ctrl => s.query.clear(),
+            KeyCode::Char('w') if ctrl => {
+                let t = s.query.trim_end_matches(|c: char| !c.is_alphanumeric());
+                let keep = t.trim_end_matches(char::is_alphanumeric).len();
+                s.query.truncate(keep);
+            }
             KeyCode::Char(c) if !ctrl => s.query.push(c),
             _ => return,
         }
@@ -523,6 +553,27 @@ impl App {
     }
 }
 
+/// Byte range of `q` in `name`. Smart case: an uppercase letter in `q` makes it exact.
+pub fn hit(name: &str, q: &str) -> Option<std::ops::Range<usize>> {
+    if q.is_empty() {
+        return None;
+    }
+    let exact = q.chars().any(char::is_uppercase);
+    let fold = |c: char| if exact { c } else { c.to_lowercase().next().unwrap_or(c) };
+    let want: Vec<char> = q.chars().map(fold).collect();
+    name.char_indices().find_map(|(i, _)| {
+        let mut it = name[i..].char_indices();
+        for &w in &want {
+            match it.next() {
+                Some((_, c)) if fold(c) == w => {}
+                _ => return None,
+            }
+        }
+        let end = it.next().map_or(name.len(), |(j, _)| i + j);
+        Some(i..end)
+    })
+}
+
 fn restore() {
     let _ = execute!(stdout(), DisableMouseCapture);
     ratatui::restore();
@@ -664,7 +715,9 @@ mod tests {
     use std::fs;
 
     fn app_in(files: &[&str]) -> App {
-        let root = std::env::temp_dir().join(format!("tb-search-{}", std::process::id()));
+        static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let root = std::env::temp_dir().join(format!("tb-search-{}-{n}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join("d")).unwrap();
         for f in files {
@@ -708,5 +761,41 @@ mod tests {
         assert_eq!(at(&app), "beta", "wraps");
         typed(&mut app, "N");
         assert_eq!(at(&app), "zebra-b");
+    }
+
+    #[test]
+    fn hit_is_smart_case_and_char_aligned() {
+        assert_eq!(hit("Bravo.txt", "rav"), Some(1..4));
+        assert_eq!(hit("Bravo.txt", "b"), Some(0..1));
+        assert_eq!(hit("Bravo.txt", "B"), Some(0..1));
+        assert_eq!(hit("bravo", "B"), None, "uppercase in the query means exact case");
+        assert_eq!(hit("naïve.md", "ÏV"), None);
+        assert_eq!(hit("naïve.md", "ïv"), Some(2..5));
+        assert_eq!(hit("NAÏVE", "ïv"), Some(2..5));
+        assert_eq!(hit("x", ""), None);
+    }
+
+    #[test]
+    fn search_cycles_while_typing_and_recalls() {
+        let mut app = app_in(&["alpha", "beta", "Bravo.txt", "zebra-b"]);
+        typed(&mut app, "/b");
+        assert_eq!(app.match_pos("b"), (1, 3));
+        app.key(KeyCode::Tab, KeyModifiers::NONE);
+        assert_eq!(at(&app), "Bravo.txt");
+        assert_eq!(app.match_pos("b"), (2, 3));
+        app.key(KeyCode::Down, KeyModifiers::NONE);
+        assert_eq!(at(&app), "zebra-b");
+        app.key(KeyCode::Up, KeyModifiers::NONE);
+        assert_eq!(at(&app), "Bravo.txt");
+        app.key(KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(at(&app), "Bravo.txt", "enter keeps the cycled match");
+
+        typed(&mut app, "/B");
+        assert_eq!(at(&app), "Bravo.txt", "smart case skips beta");
+        app.key(KeyCode::Char('w'), KeyModifiers::CONTROL);
+        assert_eq!(app.search.as_ref().unwrap().query, "");
+        app.key(KeyCode::Up, KeyModifiers::NONE);
+        assert_eq!(app.search.as_ref().unwrap().query, "b", "up on an empty line recalls the last find");
+        app.key(KeyCode::Esc, KeyModifiers::NONE);
     }
 }

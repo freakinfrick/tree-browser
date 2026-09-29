@@ -33,6 +33,7 @@ const ROUTE_TEXT: Rgb = [238.0, 240.0, 250.0];
 const PILL: Rgb = [34.0, 39.0, 72.0];
 const DOT: Rgb = [255.0, 58.0, 58.0];
 const MUTED: Rgb = [110.0, 118.0, 150.0];
+const MATCH_BG: Rgb = [92.0, 70.0, 22.0];
 
 /// Seconds for the camera to (mostly) arrive; slower than nodes so the eye
 /// sees the tree move before the view recenters.
@@ -249,6 +250,9 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
     order.sort_by_key(|(_, a)| !a.ghost);
     app.hits.clear();
     let mut visible_dirs = Vec::new();
+    // While finding, the matched text lights up in the cursor's column.
+    let finding = app.search.as_ref().map(|s| s.query.as_str()).filter(|q| !q.is_empty());
+    let column = app.tree.nodes[app.cursor].parent;
     for (&id, a) in order {
         let (x, y) = a.pos();
         let (sx, sy) = (x - ox, y - oy);
@@ -261,6 +265,10 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             style = style.add_modifier(Modifier::BOLD);
         }
         put(buf, canvas, sx, sy, &a.label, style);
+        if let Some(r) = finding.filter(|_| !a.ghost && node.parent == column).and_then(|q| crate::hit(&a.label, q)) {
+            let lit = Style::new().fg(to_color(mix(BG, FLASH, a.alpha))).bg(to_color(mix(BG, MATCH_BG, a.alpha)));
+            put(buf, canvas, sx + a.label[..r.start].width() as i32, sy, &a.label[r], lit.add_modifier(Modifier::BOLD));
+        }
         // Bud: a closed folder that may still hold something.
         let bud = node.is_dir && !node.expanded && node.children.as_ref().is_none_or(|k| !k.is_empty());
         if bud && !a.ghost {
@@ -529,26 +537,33 @@ fn prompt_bar(f: &mut Frame, app: &App, area: Rect, line: &str) {
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-/// `/` query: `/ text█`, plus "no match" when nothing in the column contains it.
+/// `/` query: `/ text█  2/5`, or "no match" when nothing in the column contains it.
 fn search_bar(f: &mut Frame, app: &App, area: Rect, q: &str) {
-    let miss = !q.is_empty() && app.find(q).is_none();
-    let hint = if miss { "  no match · esc back " } else { "  enter keep · esc back · n N next " };
+    let (at, n) = app.match_pos(q);
+    let count = match (q.is_empty(), n) {
+        (true, _) => String::new(),
+        (false, 0) => "  no match".into(),
+        _ => format!("  {at}/{n}"),
+    };
+    let hint = if q.is_empty() || n > 0 { "  tab ↑↓ cycle · enter keep · esc back " } else { "  esc back " };
     let spans = vec![
         Span::styled(" / ", Style::new().fg(to_color(LINE_ROUTE)).add_modifier(Modifier::BOLD)),
         Span::styled(q, Style::new().fg(to_color(ROUTE_TEXT))),
         Span::styled(" ", Style::new().add_modifier(Modifier::REVERSED)),
+        Span::styled(count, Style::new().fg(to_color(if n > 0 { LINE_ROUTE } else { DOT }))),
         Span::styled(hint, Style::new().fg(to_color(MUTED))),
     ];
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-const KEYS: [(&str, &str); 18] = [
+const KEYS: [(&str, &str); 19] = [
     ("h j k l / arrows", "move"),
     ("l / enter", "open folder · preview file"),
     ("space / tab", "fold / unfold"),
     ("J K / pgup pgdn", "jump 10"),
     ("g G", "first / last sibling"),
     ("/ n N", "find in column · next / previous"),
+    ("tab ↑↓ while /", "cycle matches · Caps = exact case"),
     ("-", "re-root one level up"),
     ("c", "collapse other branches"),
     (".", "show / hide dotfiles"),
