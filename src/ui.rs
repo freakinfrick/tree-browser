@@ -423,6 +423,9 @@ fn status_bar(f: &mut Frame, app: &App, area: Rect) {
     if let Some(line) = &app.prompt {
         return prompt_bar(f, app, area, line);
     }
+    if let Some(s) = &app.search {
+        return search_bar(f, app, area, &s.query);
+    }
     let cur = &app.tree.nodes[app.cursor];
     let t = app.heat_of(app.cursor);
     let partial = cur.rec.is_some_and(|c| !c.1);
@@ -526,12 +529,26 @@ fn prompt_bar(f: &mut Frame, app: &App, area: Rect, line: &str) {
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-const KEYS: [(&str, &str); 17] = [
+/// `/` query: `/ text█`, plus "no match" when nothing in the column contains it.
+fn search_bar(f: &mut Frame, app: &App, area: Rect, q: &str) {
+    let miss = !q.is_empty() && app.find(q).is_none();
+    let hint = if miss { "  no match · esc back " } else { "  enter keep · esc back · n N next " };
+    let spans = vec![
+        Span::styled(" / ", Style::new().fg(to_color(LINE_ROUTE)).add_modifier(Modifier::BOLD)),
+        Span::styled(q, Style::new().fg(to_color(ROUTE_TEXT))),
+        Span::styled(" ", Style::new().add_modifier(Modifier::REVERSED)),
+        Span::styled(hint, Style::new().fg(to_color(MUTED))),
+    ];
+    f.render_widget(Paragraph::new(Line::from(spans)), area);
+}
+
+const KEYS: [(&str, &str); 18] = [
     ("h j k l / arrows", "move"),
     ("l / enter", "open folder · preview file"),
     ("space / tab", "fold / unfold"),
     ("J K / pgup pgdn", "jump 10"),
     ("g G", "first / last sibling"),
+    ("/ n N", "find in column · next / previous"),
     ("-", "re-root one level up"),
     ("c", "collapse other branches"),
     (".", "show / hide dotfiles"),
