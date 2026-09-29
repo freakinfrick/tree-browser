@@ -1,0 +1,10 @@
+[mirror] session start viewer=samwise
+[mirror] vision: the Shire, trees being cut down, a new mill, smoke
+[mirror] viewer reaction: "I must go home!" (did not go home)
+[mirror] session start viewer=frodo
+[mirror] vision: a ship on a grey sea, sailing into the West
+[mirror] vision: an Eye, lidless, rimmed with fire
+[mirror] warning: viewer leaning too close; Ring swinging toward water
+[mirror] note: some things shown have not yet come to pass
+[mirror] note: some never will
+[mirror] session end

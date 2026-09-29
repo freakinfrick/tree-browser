@@ -1,0 +1,12 @@
+tower:
+  name: Orthanc
+  material: "black stone, unbreakable"
+  floors: 500
+  keys: 1   # held by: Saruman (until further notice)
+ring_of_isengard:
+  gates: 1
+  furnaces: 12
+  trees_remaining: few
+policy:
+  alliance: "Mordor (it's complicated)"
+  colours: white    # changed to "many colours"; nobody liked it

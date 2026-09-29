@@ -1,0 +1,10 @@
+# HELP eye_awake_seconds_total Seconds the Eye has been awake.
+# TYPE eye_awake_seconds_total counter
+eye_awake_seconds_total 94670856000
+# HELP eye_focus Where the Eye is looking (1 = yes).
+# TYPE eye_focus gauge
+eye_focus{target="black_gate"} 1
+eye_focus{target="mount_doom"} 0
+# HELP nazgul_active Number of Nazgûl on duty.
+# TYPE nazgul_active gauge
+nazgul_active 9

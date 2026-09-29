@@ -1,0 +1,11 @@
+{
+  "office": "Hobbiton Quick Post",
+  "date": "2968-09-20",
+  "items": [
+    {"to": "Rivendell, attn. Bilbo", "from": "F. Baggins", "kind": "letter", "priority": "normal"},
+    {"to": "Buckland", "from": "M. Brandybuck", "kind": "parcel", "contents": "mushrooms (declared)"},
+    {"to": "Sackville, Hardbottle", "from": "Bag End", "kind": "parcel", "contents": "silver spoons (returned)", "note": "all 12"},
+    {"to": "Tookborough", "from": "P. Took", "kind": "letter", "contents": "I'm fine, don't worry, back soon"},
+    {"to": "Minas Tirith", "from": "unknown", "kind": "letter", "status": "no such address in the Shire system"}
+  ]
+}

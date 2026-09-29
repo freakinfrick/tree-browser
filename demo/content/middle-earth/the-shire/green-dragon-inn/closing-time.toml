@@ -1,0 +1,14 @@
+[inn]
+name = "The Green Dragon"
+village = "Bywater"
+
+[hours]
+open = "11:00"
+last_orders = "22:45"
+close = "23:00"
+market_day_extension_minutes = 30
+
+[rules]
+max_pints_per_took = 4
+songs_after_close = false
+tables_are_for_standing_on = false  # see: Pippin, Merry

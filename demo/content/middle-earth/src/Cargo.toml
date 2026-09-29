@@ -1,0 +1,8 @@
+[package]
+name = "fellowship"
+version = "0.9.0"
+edition = "2021"
+
+[dependencies]
+one-ring = { version = "1", optional = true }  # do not enable
+lembas = "0.3"

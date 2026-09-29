@@ -1,0 +1,12 @@
+{
+  "station": "Caradhras (Redhorn) summit",
+  "issued": "2019-01-12T06:00:00Z",
+  "forecast": [
+    {"hour": 6,  "snow_cm": 5,  "wind_kmh": 40, "note": "unpleasant"},
+    {"hour": 12, "snow_cm": 30, "wind_kmh": 70, "note": "the mountain does not like you"},
+    {"hour": 18, "snow_cm": 80, "wind_kmh": 95, "note": "stones falling, possibly thrown"},
+    {"hour": 24, "snow_cm": 140, "wind_kmh": 60, "note": "turn back"}
+  ],
+  "advice": "Take the pass only if you enjoy being buried. Consider the road under the mountain.",
+  "read_by_fellowship": false
+}

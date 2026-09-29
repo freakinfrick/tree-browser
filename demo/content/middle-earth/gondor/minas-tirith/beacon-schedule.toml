@@ -1,0 +1,28 @@
+# Beacons of Gondor: light in order, west from Minas Tirith.
+[[beacon]]
+name = "Amon Dîn"
+lit = false
+[[beacon]]
+name = "Eilenach"
+lit = false
+[[beacon]]
+name = "Nardol"
+lit = false
+[[beacon]]
+name = "Erelas"
+lit = false
+[[beacon]]
+name = "Min-Rimmon"
+lit = false
+[[beacon]]
+name = "Calenhad"
+lit = false
+[[beacon]]
+name = "Halifirien"
+lit = false
+note = "Rohan answers"
+
+[policy]
+who_may_order_lighting = "the Steward"
+has_the_steward_ordered_it = false
+workaround = "a hobbit climbs up and lights it"

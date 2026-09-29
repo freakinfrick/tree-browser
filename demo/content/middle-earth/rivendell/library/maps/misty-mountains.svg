@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400">
+  <rect width="800" height="400" fill="#efe3c2"/>
+  <g fill="none" stroke="#5b4630" stroke-width="3" stroke-linejoin="round">
+    <path d="M40 330 L110 180 L150 250 L210 110 L270 260 L320 150 L380 290"/>
+    <path d="M360 300 L430 120 L480 230 L540 90 L600 250 L650 160 L720 320"/>
+    <path d="M540 90 L560 130 M430 120 L445 150 M210 110 L225 145" stroke-width="2"/>
+  </g>
+  <path d="M60 360 C 200 330, 330 380, 470 350 S 700 330, 780 360" stroke="#3b6aa0" stroke-width="4" fill="none"/>
+  <circle cx="160" cy="300" r="7" fill="#8a1c1c"/>
+  <circle cx="610" cy="300" r="7" fill="#8a1c1c"/>
+  <path d="M167 300 C 300 260, 480 330, 603 300" stroke="#8a1c1c" stroke-width="2" stroke-dasharray="8 6" fill="none"/>
+  <g font-family="serif" fill="#3a2a18">
+    <text x="400" y="40" text-anchor="middle" font-size="30">The Misty Mountains</text>
+    <text x="540" y="75" text-anchor="middle" font-size="18">Caradhras</text>
+    <text x="150" y="325" text-anchor="middle" font-size="16">Rivendell</text>
+    <text x="610" y="325" text-anchor="middle" font-size="16">Lórien</text>
+    <text x="400" y="385" text-anchor="middle" font-size="14" font-style="italic">route: under, not over (see moria/)</text>
+  </g>
+</svg>
