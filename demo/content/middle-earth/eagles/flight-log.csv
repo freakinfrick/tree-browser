@@ -1,0 +1,5 @@
+flight,date,from,to,payload,pilot,clearance,notes
+1,2941,the burning trees,the Carrock,"13 dwarves, 1 burglar, 1 wizard",Gwaihir,Manwë,"first rescue; set expectations nobody read"
+2,3019-02,Orthanc (the pinnacle),Edoras (by night),"1 wizard (Gandalf the Grey)",Gwaihir,Manwë,"prisoner extraction; the prisoner asked no questions and was not offered a schedule"
+3,3019-03-25,Mount Doom (the Cracks),the Black Gate (field),"2 hobbits (Frodo, Sam)",Gwaihir + Landroval + Meneldor,Manwë,"the one everyone asked for; carried out of the smoke, not into it"
+4,3019-03-25,the Black Gate (Morannon),over the battle,"the Eagles of the North (squadron)",Gwaihir,Manwë,"air cover against the winged Nazgûl; not a taxi, the second time"

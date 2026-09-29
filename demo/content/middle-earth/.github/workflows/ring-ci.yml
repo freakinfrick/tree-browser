@@ -1,0 +1,70 @@
+name: ring-ci
+
+# The pipeline that ships the Age. Runs on every push to Middle-earth.
+# The final deploy job requires a human reviewer (the Council) and passes
+# only if the ring is destroyed.
+
+on:
+  push:
+    branches: [third-age, fourth-age]
+  pull_request:
+    branches: [third-age]
+
+jobs:
+  build:
+    name: forge
+    runs-on: shire-2
+    steps:
+      - uses: actions/checkout@v3
+      - run: make breakfast
+      - run: cargo build --manifest-path src/Cargo.toml --release
+
+  test:
+    name: trial
+    needs: build
+    runs-on: rivendell-1
+    steps:
+      - uses: actions/checkout@v3
+      - name: riddle
+        run: cargo test --manifest-path src/Cargo.toml lock::tests::riddle
+      - name: wall repairs
+        run: cargo run --manifest-path src/Cargo.toml
+      - name: do not follow the lights
+        run: |
+          test -f dead-marshes/do-not-follow-the-lights.txt
+          echo "guide rating: 5/5 (creepy but correct)"
+
+  security-scan:
+    name: the-eye
+    needs: build
+    runs-on: barad-dur
+    steps:
+      - uses: actions/checkout@v3
+      - name: scan for the ring
+        run: |
+          grep -ri "ring" . && echo "CVE-3018-0001 present" || echo "ring not found (good)"
+
+  provenance:
+    name: the-archive
+    needs: build
+    runs-on: rivendell-1
+    steps:
+      - uses: actions/checkout@v3
+      - name: who said it
+        run: |
+          grep -rE '"[^"]+" — ' . | wc -l | xargs -I{} echo "attributed quotes in the archive: {}"
+      - name: do not read the recipe out loud
+        run: echo "no one did. good."
+
+  deploy:
+    name: cast-into-fire
+    needs: [test, security-scan]
+    runs-on: mount-doom
+    if: github.ref == 'refs/heads/third-age'
+    environment:
+      name: the-crack-of-doom
+      reviewers:
+        - gollum        # he would have kept it; do not merge his review
+    steps:
+      - run: echo "one ring -> 0x0000"
+      - run: make destroy-ring

@@ -1,0 +1,29 @@
+# gandalf-reboot.log — service: istari/gandalf (see `../rivendell/istari/dossier.md`)
+
+3019-01-15 20:31:22 CRIT process gandalf.the.grey crashed (cause: balrog) at bridge_of_khazad_dum
+3019-01-15 20:31:24 WARN  company morale down; attempts=3, all failed
+3019-01-15 20:31:50 INFO  bridge state=broken "you shall not pass" logged as last words
+3019-01-16 00:00:00 INFO  process gandalf.the.grey: crash loop restarting (duration unknown)
+3019-01-16 00:00:01 INFO  fight scope: deepest foundation -> highest peak (uninstrumented)
+3019-01-19 06:00:00 INFO  fight terminated: balrog also retired; mutual kill confirmed
+                        (see `../moria/balrog-incident-report.md`)
+3019-01-19 06:00:01 INFO  process gandalf.the.grey: marked offline; core dumped to "out of thought and time"
+3019-02-14 00:00:00 INFO  reboot scheduled by upstairs; no ETA, no ticket, no SLA
+3019-03-01 08:00:00 INFO  process gandalf.the.white: online (white build; see addendum below)
+3019-03-01 08:00:01 WARN  identity mismatch: same operator, different theme (grey -> white)
+3019-03-01 08:00:02 INFO  memory: intact but "I have forgotten much that I thought I knew"
+3019-03-01 08:00:03 INFO  privileges restored: gandalf.the.white promoted over saruman.the.white (now defunct)
+3019-03-01 11:00:00 INFO  gandalf.the.white meets three hunters in Fangorn; they do not recognise him
+3019-03-01 11:00:05 INFO  gandalf.the.white: "I am Gandalf. But I am Gandalf the White now."
+3019-03-01 11:00:06 INFO  recognition: delayed, then extremely good
+3019-03-02 08:00:00 INFO  gandalf.the.white: heals theoden; revokes grima's credentials
+3019-03-02 08:00:10 INFO  role changed: wizard -> wizard (but whiter, and on a horse)
+
+# addendum — the white build
+
+- changelog: theme grey -> white; staff unchanged; authority escalated.
+- "I am Gandalf. But I am Gandalf the White now." — Gandalf the White,
+  Fangorn edge, 3019-03-01.
+- prior build gandalf.the.grey is retired; no rollback. see
+  `../rivendell/istari/dossier.md` row 2, and `../moria/balrog-incident-report.md`
+  for the incident that preceded this reboot.

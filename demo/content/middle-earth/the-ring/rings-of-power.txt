@@ -1,0 +1,45 @@
+RINGS OF POWER: DISTRIBUTION LEDGER
+(as recited in the rhyme of lore)
+
+filed by: the loremasters of Rivendell · TA 3018-10-25 ·
+ticket: LEDGER-RINGS-0001 · status: 19 of 20 rings accounted for (the One:
+destroyed 3019-03-25; the Nine: wraith-ridden, see roster below)
+
+recited aloud at the Council by Gandalf, 3018-10-25, and not without
+incident — the sky went dark at "burzum" (see
+rivendell/council-minutes/session-01.md). do not recite in the Black Speech
+indoors.
+
+Three Rings for the Elven-kings under the sky
+Seven for the Dwarf-lords in their halls of stone
+Nine for Mortal Men doomed to die
+One for the Dark Lord on his dark throne
+In the Land of Mordor where the Shadows lie.
+
+One Ring to rule them all, One Ring to find them,
+One Ring to bring them all and in the darkness bind them
+In the Land of Mordor where the Shadows lie.
+
+THE THREE (elven, made by Celebrimbor, never touched by Sauron):
+  Vilya  (sapphire, ring of Air)  -> Gil-galad -> Elrond
+  Nenya  (adamant, ring of Water) -> Galadriel
+  Narya  (ruby, ring of Fire)     -> Cirdan -> Gandalf
+
+THE SEVEN (dwarven; the dwarves proved hard to own):
+  the Longbeards' ring was recovered last -> Thrain -> taken in Dol Guldur
+  the other six: consumed by dragons, or recovered by Sauron. the dwarves
+    grew greedy, not obedient — a known defect in the owning protocol
+    (see SECURITY.md, "the Seven did not take")
+
+THE NINE (for men; all nine became wraiths):
+  see mordor/barad-dur/nazgul-roster.csv
+  three of the nine were Númenórean lords; all nine are now the Nazgûl,
+    led by the Witch-king of Angmar (see runbooks/nazgul-sighting.md)
+
+THE ONE (the subject of this repo):
+  destroyed 3019-03-25. no reissue.
+
+see also:
+  the-ring/bearers.csv (chain of custody for the One)
+  the-ring/forging.md (how the One was made)
+  rivendell/council-minutes/session-01.md (the verse, recited; minute taker left the room)

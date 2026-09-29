@@ -1,8 +1,9 @@
 [package]
 name = "fellowship"
-version = "0.9.0"
+version = "0.9.0"   # one release behind the story; see ../CHANGELOG.md
 edition = "2021"
+description = "The only code that actually compiles: a map, a gate, a wall."
 
 [dependencies]
-one-ring = { version = "1", optional = true }  # do not enable
-lembas = "0.3"
+one-ring = { version = "1", optional = true }  # do not enable (CVE-3018-0001)
+lembas = "0.3"   # waybread; do not ask for seconds, there are no seconds

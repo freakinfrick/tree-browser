@@ -1,6 +1,10 @@
-item,other_names,qty,unit,notes
-athelas,kingsfoil,0,leaves,"'we have none; it has no virtue that we know'"
-athelas,kingsfoil,6,leaves,"found by Bergil after the king asked"
-bandages,,400,rolls,
-poppy,,2,jars,
-willow bark,,5,bundles,
+item,other_names,qty,unit,issued_to,date,notes
+athelas,kingsfoil; asëa aranion,0,leaves,,,"'we have none; it has no virtue that we know' - the warden, 3019-03-14"
+athelas,kingsfoil; asëa aranion,6,leaves,,3019-03-15,"found by Bergil after the king asked"
+athelas,kingsfoil; asëa aranion,-1,leaves,Faramir,3019-03-15,"crushed in steaming water; the black breath lifted, fever broke"
+athelas,kingsfoil; asëa aranion,-1,leaves,Eowyn,3019-03-15,"same; woken from the Witch-king's shadow"
+athelas,kingsfoil; asëa aranion,-1,leaves,Merry,3019-03-15,"same; the shadow of the arm that held him"
+athelas,kingsfoil; asëa aranion,3,leaves,,3019-03-15,"remaining stock after three healings; reclassified from 'weed' to 'vital'"
+bandages,,400,rolls,,,""
+poppy,,2,jars,,,""
+willow bark,,5,bundles,,,""

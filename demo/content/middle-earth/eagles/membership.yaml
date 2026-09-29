@@ -1,0 +1,31 @@
+# The Great Eagles: air-rescue service
+eyrie: "the Misty Mountains, high above anyone's asking price"
+policy: "arrive late, arrive exactly once, do not explain the schedule"
+lord: "Gwaihir the Windlord"
+affiliation: "Manwë, the Elder King (reporting line is direct and ancient)"
+grounding_reason: "the story would have been too short"
+reactivation: "3019-03-25, after the ring was destroyed"
+service: "they carry the wounded out of the smoke, not the unburdened in"
+members:
+  - name: "Gwaihir the Windlord"
+    title: "Lord of the Eagles"
+    status: active
+    clearance: "above all clouds"
+    sworn_to: "Manwë"
+    notes: "the fastest; arrives exactly when he means to"
+  - name: "Landroval"
+    title: "the broad-winged"
+    status: active
+    clearance: "mountain-pass and smoke"
+    sworn_to: "Manwë"
+    notes: "brother of Gwaihir; carries the second hobbit"
+  - name: "Meneldor"
+    title: "the swift"
+    status: active
+    clearance: "mountain-pass and smoke"
+    sworn_to: "Manwë"
+    notes: "the youngest; carries the third"
+  - name: "unnamed others, at altitude"
+    status: active
+    clearance: "at altitude"
+    notes: "the reserve; never fewer than needed"

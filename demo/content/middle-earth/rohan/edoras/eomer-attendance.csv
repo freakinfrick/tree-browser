@@ -1,6 +1,8 @@
-date,present,location,reason
-2019-02-25,no,the Wold,"orc hunting (unauthorised)"
-2019-02-26,no,Fangorn edge,"orc hunting (still)"
-2019-02-27,no,Fangorn edge,"met three hunters; lent two horses"
-2019-02-28,no,Edoras (cell),"arrested on Gríma's advice"
-2019-03-02,yes,Meduseld,"released; king himself again"
+date,present,location,reason,horse,lent_to,clerk
+2019-02-25,no,the Wold,"orc hunting (unauthorised)",Firefoot,,the éored scribe of Edoras
+2019-02-26,no,Fangorn edge,"orc hunting (still)",Firefoot,,the éored scribe of Edoras
+2019-02-27,no,Fangorn edge,"met three hunters; lent two horses",Firefoot,,the éored scribe of Edoras
+2019-02-27,n/a,Fangorn edge,"lent; carried him toward the forest and was let run free",Hasufel,Aragorn son of Arathorn,the éored scribe of Edoras
+2019-02-27,n/a,Fangorn edge,"lent; carried two and never once complained",Arod,Legolas of Mirkwood (Gimli behind),the éored scribe of Edoras
+2019-02-28,no,Edoras (cell),"arrested on Gríma's advice",Firefoot,impounded at the hall,the éored scribe of Edoras
+2019-03-02,yes,Meduseld,"released; king himself again",Firefoot,returned,the éored scribe of Edoras

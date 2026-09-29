@@ -1,6 +1,20 @@
-ENTMOOT, DAY 2, MINUTES
+ENTMOOT, DAY 2, MINUTES — 3019-03-02
+
+filed by: the clerk of the Entmoot (the same birch; the numbering is slow, not the hand)
 
 morning:   still on "good morning"
 afternoon: news of the trees Saruman has cut
 evening:   a long silence, then: "we must march on Isengard."
            nobody says hoom.
+
+vote:      motion to march carried. all Ents in favour; none against.
+           "we have decided." — Treebeard, chair, 3019-03-02.
+           (this is the closest the Entmoot has come to haste in
+            an age, and it was still a full day in the deciding.)
+
+attribute: "do not be hasty" — Treebeard, chair, repeated once more
+           as the vote concluded, in case anyone mistook marching
+           for hurrying.
+
+see also:  `../breaking-of-isengard.md`, `../huorn-migration.csv`,
+           `../../isengard/orthanc/uruk-hai-production.csv`

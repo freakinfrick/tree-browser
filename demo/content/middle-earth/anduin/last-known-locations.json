@@ -1,0 +1,22 @@
+{
+  "event": "dissolution of the Fellowship",
+  "at": "Parth Galen / Amon Hen",
+  "timestamp": "3019-02-26T19:00:00Z",
+  "members": [
+    {"who": "Frodo", "destination": "Mordor (east bank, alone with Sam)", "state": "active", "last_coords": {"lat": -7.0, "lon": 42.1, "note": "east bank, boat one cut loose"}},
+    {"who": "Sam", "destination": "Mordor (with Frodo, as always)", "state": "active", "last_coords": {"lat": -7.0, "lon": 42.1, "note": "would not be left behind"}},
+    {"who": "Aragorn", "destination": "Rohan (pursuing the captives)", "state": "active", "last_coords": {"lat": -6.8, "lon": 41.9, "note": "west bank, on foot"}},
+    {"who": "Legolas", "destination": "Rohan (same)", "state": "active", "last_coords": {"lat": -6.8, "lon": 41.9, "note": "west bank, on foot"}},
+    {"who": "Gimli", "destination": "Rohan (same)", "state": "active", "last_coords": {"lat": -6.8, "lon": 41.9, "note": "west bank, on foot"}},
+    {"who": "Merry", "destination": "unknown (captured)", "state": "captured", "last_coords": {"lat": -6.7, "lon": 41.8, "note": "last seen on the shoulder of an uruk"}},
+    {"who": "Pippin", "destination": "unknown (captured)", "state": "captured", "last_coords": {"lat": -6.7, "lon": 41.8, "note": "last seen on the shoulder of another uruk"}},
+    {"who": "Boromir", "destination": "the Great River", "state": "deceased", "last_coords": {"lat": -6.9, "lon": 42.0, "note": "committed to the water above Rauros"}},
+    {"who": "Gandalf", "destination": "unknown (see fangorn/gandalf-reboot.log)", "state": "recovering", "last_coords": {"lat": null, "lon": null, "note": "location unknown; presumed rebooting"}}
+  ],
+  "the_ring": {
+    "location": "with Frodo",
+    "direction": "south, toward Mordor",
+    "do_not": "pick it up"
+  },
+  "see_also": ["anduin/boats.csv", "anduin/amon-hen/boromir-last-stand.md", "anduin/amon-hen/fellowship-dissolution.md"]
+}

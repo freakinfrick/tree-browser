@@ -1,4 +1,5 @@
-departure,ship,master,passengers,notes
-Third Age 3021 Sep 29,the white ship,Círdan,"Elrond, Galadriel, Bilbo, Frodo, Gandalf","last voyage of the Ring-bearers"
-Fourth Age 61,a small grey ship,Círdan,"Samwise","sailed after Rose died"
-Fourth Age 120,a grey ship,Legolas,"Legolas, Gimli","first dwarf to sail West (reportedly)"
+departure,ship,master,passengers,notes,manifest
+Third Age 3021 Sep 29,the white ship,Círdan,"Elrond, Galadriel, Bilbo, Frodo, Gandalf","last voyage of the Ring-bearers; sailed on the evening tide",RB-3021
+Third Age 3021 Sep 29,the white ship,Círdan,"cargo: the three Elven-rings","the Rings kept their keepers aboard; nothing else of note",RB-3021-C
+Fourth Age 61,a small grey ship,Círdan,"Samwise","sailed after Rose died",RB-61
+Fourth Age 120,a grey ship,Legolas,"Legolas, Gimli","first dwarf to sail West (reportedly)",RB-120

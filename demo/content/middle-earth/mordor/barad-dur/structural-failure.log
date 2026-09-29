@@ -1,0 +1,18 @@
+3019-03-25 10:33:00 CRIT barad-dur: load-bearing integrity compromised at the base
+3019-03-25 10:33:01 CRIT barad-dur: the tower is leaning
+3019-03-25 10:33:02 CRIT barad-dur: the tower is no longer leaning; it is falling
+3019-03-25 10:33:03 CRIT barad-dur: upper parapets shed. windowless; nobody saw it coming.
+3019-03-25 10:33:04 CRIT barad-dur: orc-hr records lost. see mordor/barad-dur/orc-hr/shift-roster.csv for who was on duty.
+3019-03-25 10:33:05 ERROR eye: signal lost; uptime counter reset to zero
+3019-03-25 10:33:06 WARN  nazgul: flight paths unstable; wings do not help against the void
+3019-03-25 10:33:07 WARN  nazgul: all nine scattering. the one that met a woman is already gone; the rest go now.
+3019-03-25 10:33:08 INFO  black gate: garrison dispersing. no further duty. the day is not won; it is over.
+3019-03-25 10:33:09 INFO  mount doom: eruption in progress. cause: one small ring and one small bearer.
+3019-03-25 10:33:10 INFO  barad-dur: foundation "the ring" no longer exists. whole tower was load-bearing on it.
+3019-03-25 10:33:10 INFO  barad-dur: note: the tower was held up by one ring for 3,459 years (SA 1600 – TA 3019). do not file an engineering ticket; the foundation is unrecoverable.
+3019-03-25 10:34:00 INFO  region mordor: power drain. the shadow has departed.
+3019-03-25 10:34:01 INFO  region mordor: the mountain is quiet. the ash settles.
+3019-03-25 10:34:02 INFO  the eye: closed. (never to reopen. see you in the West.)
+
+-- addendum (later): the Eagles overflew the field 3019-03-25 (see `eagles/`).
+   the victory log ran from `runbooks/`. there was nobody at barad-dûr to read it.

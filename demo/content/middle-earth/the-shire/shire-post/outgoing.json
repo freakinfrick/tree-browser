@@ -6,6 +6,12 @@
     {"to": "Buckland", "from": "M. Brandybuck", "kind": "parcel", "contents": "mushrooms (declared)"},
     {"to": "Sackville, Hardbottle", "from": "Bag End", "kind": "parcel", "contents": "silver spoons (returned)", "note": "all 12"},
     {"to": "Tookborough", "from": "P. Took", "kind": "letter", "contents": "I'm fine, don't worry, back soon"},
-    {"to": "Minas Tirith", "from": "unknown", "kind": "letter", "status": "no such address in the Shire system"}
+    {"to": "Minas Tirith", "from": "unknown", "kind": "letter", "status": "no such address in the Shire system"},
+    {"to": "Minas Tirith, attn. the King (Elessar)", "from": "S. Gamgee, Mayor", "kind": "letter", "priority": "high", "contents": "on the thirtieth anniversary of the field of Cormallen", "status": "queued, awaiting courier"},
+    {"to": "Gandalf, wherever he may be found", "from": "S. Gamgee", "kind": "letter", "contents": "the mallorn is blooming again; you said you would come see it", "status": "queued, no fixed route"},
+    {"to": "the Grey Havens, attn. Cirdan", "from": "M. Brandybuck, Master of Buckland", "kind": "letter", "contents": "request for a copy of the last boat timetable", "status": "queued"},
+    {"to": "Rivendell, library", "from": "Elanor Gardner, Undertowers", "kind": "parcel", "contents": "red book: fair copy of the index", "status": "queued, heavy"},
+    {"to": "Tookborough, the Thain", "from": "P. Took", "kind": "letter", "contents": "second breakfast minutes enclosed", "status": "queued"},
+    {"to": "the Green Dragon, Bywater", "from": "Bywater Restoration Committee", "kind": "letter", "contents": "re: unpaid tab of T. Sandyman", "status": "queued"}
   ]
 }

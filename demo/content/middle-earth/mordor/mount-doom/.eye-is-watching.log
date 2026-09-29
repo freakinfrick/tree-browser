@@ -1,4 +1,17 @@
+[eye] boot: SA 1600 forge cycle complete; the ring is MINE
 [eye] sweep north: nothing
 [eye] sweep west: armies at the gate (a distraction?)
 [eye] focus: the gate
 [eye] sweep mountain: two small figures... too small to matter
+[eye] sweep the shire: subnet unreachable; no rings in bag-end; query dropped
+[eye] sweep west: four small figures cross the bruinen; flood event: nine returned soaked (see rivendell/ford-of-bruinen/)
+[eye] focus: minas morgul; the nine are abroad; status: DEPLOYED
+[eye] sweep mountain: two small figures now climbing; size threshold re-evaluated to SMALL BUT PERSISTENT
+[eye] focus: the gate. the armies. the distraction is the point. redirect gaze: THE MOUNTAIN
+[eye] sweep mountain: three figures. one is the guide. guide has a history. see gollum/
+[eye] ALERT: the crack of doom is OPEN
+[eye] ALERT: the ring is at the edge. CLAIM IT. CLAIM—
+[eye] ERROR: ring threshold exceeded. forge cycle complete (reverse). carrier misplaced.
+[eye] ERUPTION (FINAL). barad-dur: offline (see mordor/barad-dur/structural-failure.log)
+[eye] uptime reset to zero, permanently (see eye-uptime.prom)
+[eye] shutdown: no further sweeps scheduled. the sky is clear. the sky is clear. the sky is clear.

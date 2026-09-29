@@ -1,0 +1,101 @@
+# Middle-earth: docker compose topology.
+# `docker compose up` raises the whole Age. `docker compose down` ends it.
+# The ring is not a volume mount. Do not mount the ring.
+
+version: "3.9"
+
+services:
+  the-eye:
+    image: barad-dur/eye:lidless
+    restart: unless-stopped
+    environment:
+      WATCH_TARGETS: "all"
+      SLEEP: "never"
+    ports:
+      - "0.0.0.0:3000:3000"          # everything is observed
+    volumes:
+      - ./mordor/barad-dur/eye-uptime.prom:/metrics/eye.prom
+
+  minas-tirith:
+    image: gondor/white-city:7th-level
+    depends_on:
+      - beacons
+    environment:
+      STEWARD: "denethor"
+      SIEGE: "true"
+    volumes:
+      - ./gondor/minas-tirith/:/etc/citadel/
+
+  beacons:
+    image: gondor/beacon:pyre
+    environment:
+      LIT: "false"                    # waiting for the word
+
+  helms-deep:
+    image: rohan/hornburg:latest
+    ports:
+      - "1912:1912"                   # the culvert is a single point of failure
+    healthcheck:
+      test: ["CMD", "wall", "--status"]
+      interval: 1h
+      retries: 0
+
+  isengard:
+    image: orthanc/industry:v2
+    environment:
+      ALLIANCE: "mordor (it's complicated)"
+    deploy:
+      replicas: 0                     # flooded by ents; do not restart
+
+  moria:
+    image: khazad-dum/mines:abandoned
+    command: ["drums", "--in-the-deep"]
+    restart: "no"
+
+  bag-end:
+    image: shire/hobbit-hole:round-door
+    environment:
+      MEALS: "7"
+      GUESTS: "14 (unexpected)"
+    ports:
+      - "1111:1111"
+
+  the-ring:
+    image: sauron/one-ring:1
+    restart: "no"                 # do not mount, do not cache, do not read
+    volumes: []                   # the ring is not a volume mount
+
+  lothlorien:
+    image: galadhrim/flet:mallorn
+    environment:
+      TIME_PASSES: "differently"
+      MIRROR: "shows things that may be"
+    profiles: ["staging"]
+
+  fangorn:
+    image: ent/moot:unhasty
+    command: ["--decide", "eventually"]
+    restart: "on-failure:after-a-long-thought"
+
+  gollum:
+    image: anduin/guide:precious
+    depends_on:
+      - the-ring
+    environment:
+      TRUSTWORTHY: "conditionally"
+      SMELL: "ring, always ring"
+
+  grey-havens:
+    image: cirdan/shipyard:one-way
+    ports:
+      - "3021:3021"
+    profiles: ["endgame"]
+
+  mount-doom:
+    image: mordor/volcano:se-0
+    command: ["--accept", "one-ring"]
+    restart: "no"                     # runs once; writes, never reads
+
+  eagles:
+    image: thorondor/air-rescue:late
+    profiles: ["endgame"]             # only brought up in the last scene

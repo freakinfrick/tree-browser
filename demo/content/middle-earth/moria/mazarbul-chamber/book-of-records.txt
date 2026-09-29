@@ -1,16 +1,42 @@
 BOOK OF MAZARBUL (recovered pages, much damaged)
+found 3019-01-15 in the Chamber of Mazarbul, Moria, by the Fellowship.
+the last of the records of Balin's colony, kept in Dwarf-rune and Westron;
+the later pages are torn, scorched, or blotted past reading.
+cross-ref: moria/mazarbul-chamber/drums-in-the-deep.wav
 
+--- colony timeline (reconstructed from the surviving pages) ---
+TA 2989  Balin son of Fundin returns to Moria with a company, to retake
+         Khazad-dûm. first entry: the orcs driven from the great gate.
+TA 2991  truesilver found; a well-wrought axe recovered. Balin sets himself
+         up in the Chamber of Mazarbul as Lord of Moria. spirits high.
+TA 2993  entries turn short. the colony is holding, not growing.
+TA 2994  last entries. Balin falls in Dimrill Dale, alone, by Mirrormere;
+         an orc shoots him from behind a stone. the Watcher in the Water
+         takes Óin at the West-gate. then nothing.
+TA 3019  book recovered; the colony is thirty years past anyone's help.
+
+--- surviving entries (verbatim, as best read) ---
 ... we drove out the orcs from the great gate and guard ...
 ... slew many under the bright sun in the dale ...
 ... Balin has set himself in the chamber of Mazarbul ...
 ... found truesilver ... well-wrought axe ... Balin wishes to go ...
 ... Balin lord of Moria fell in Dimrill Dale ... went alone to look
     in Mirrormere ... an orc shot him from behind a stone ...
-
 ... the pool is up to the wall at Westgate. The Watcher in the Water
     took Óin. We cannot get out. ...
-
 ... drums, drums in the deep ...
 ... they are coming.
+... they have taken the bridge and the second hall. We cannot get out.
+    they are coming.
 
 [last line trails off the page]
+
+--- later, in another hand (Gandalf, reading it aloud to the company,
+    3019-01-15) ---
+"Drums, drums in the deep. They are coming." The writer had no name left
+to sign, or no time. The last page ends mid-sentence; whoever kept this
+book was still writing when the drums came for him.
+
+see also: moria/mazarbul-chamber/drums-in-the-deep.wav (the sound the
+book describes) · moria/west-gate/watcher-incident.md (what took Óin) ·
+moria/balrog-incident-report.md (what the drums were waking up).

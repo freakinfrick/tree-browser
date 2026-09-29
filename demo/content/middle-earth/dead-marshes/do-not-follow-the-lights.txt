@@ -1,9 +1,23 @@
 DEAD MARSHES: SAFETY NOTICE
 
+issued by: the guide (Gollum) · relayed by Samwise Gamgee · TA 3019-03 (day unrecorded; the guide keeps no calendar)
+filed: in the margin of Sam's copy, by Sam
+cross-ref: `gollum/service-record.md` (see "guide, unreliable"), `gollum/precious-ledger.csv`
+status: followed (reluctantly), survived
+
   1. Keep to the path the guide is using. The guide knows.
   2. Do NOT look into the pools.
   3. Do NOT follow the lights. They are candles of corpses.
   4. If you look into the pools anyway, do not reach in.
   5. If you reach in anyway, we can't help you.
 
-guide rating: 5/5 ("he's creepy but he knows the way")
+  6. The lights are candles on the water, burning for men who are not dead
+     enough. Do not read the water for news.
+  7. The faces below are not the drowned. They are the ones who would not
+     let go. Look away. They have.
+  8. If the guide stops and stares, do not ask him what he sees. He sees
+     what you would, and he stayed down here for five hundred years.
+
+guide rating: 5/5 ("he's creepy but he knows the way" — Samwise Gamgee, Dead Marshes, TA 3019-03)
+
+later (Samwise Gamgee, in the margin, the day after, TA 3019-03): "creepy but correct. we did not look. mostly. he walked us straight across and never once offered us the pools." (Sam did look once, at Frodo, and will deny it.)

@@ -1,4 +1,5 @@
 patron,pints,snacks,paid,notes
+"(ledger kept by Rosie Cotton, the Green Dragon, Bywater)",,,,
 Sam Gamgee,2,pork pie,yes,
 Rosie Cotton (staff),0,,n/a,
 Ted Sandyman,5,,no,"says the mill will pay"
@@ -6,3 +7,5 @@ Pippin Took,4,chips x3,no,"will pay 'after the adventure'"
 Merry Brandybuck,3,chips,yes,"paid for Pippin's chips too (once)"
 the Gaffer,1,,yes,"complained about the potatoes"
 Farmer Maggot,2,mushrooms (his own),yes,"brought his own mushrooms"
+Sam Gamgee,1,,yes,"returned from Mordor; tab cleared by Rosie Cotton (see rosie.md)"
+Pippin Took,2,chips,no,"still unpaid; 'after the adventure' is past and the debt remains"

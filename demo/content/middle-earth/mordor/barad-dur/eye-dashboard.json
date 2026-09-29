@@ -1,0 +1,54 @@
+{
+  "title": "The Eye of Sauron — overview",
+  "filed_by": "the Eye (self-observed)",
+  "filed_ta": 1600,
+  "refresh": "0s",
+  "watch_targets": ["black_gate", "mount_doom", "minas_morgul", "cirith_ungol", "gorgoroth", "not_the_shire"],
+  "lidless": true,
+  "sleep": "never",
+  "uptime_pct": 100,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Eye uptime (seconds awake)",
+      "type": "stat",
+      "targets": [{ "expr": "eye_awake_seconds_total" }],
+      "description": "Has never once been zero. Until it was."
+    },
+    {
+      "id": 2,
+      "title": "Eye focus (gauge)",
+      "type": "gauge",
+      "targets": [{ "expr": "eye_focus" }],
+      "description": "1 = looking there. 0 = also looking there, just not yet."
+    },
+    {
+      "id": 3,
+      "title": "Nazgûl on duty",
+      "type": "stat",
+      "targets": [{ "expr": "nazgul_active" }],
+      "description": "9 until the Pelennor. Then 8, briefly, then 0."
+    },
+    {
+      "id": 4,
+      "title": "Ring location",
+      "type": "text",
+      "targets": [{ "expr": "ring_location" }],
+      "description": "unknown → with Frodo → in the fire. No further datapoints."
+    },
+    {
+      "id": 5,
+      "title": "Ring proximity",
+      "type": "gauge",
+      "targets": [{ "expr": "ring_proximity" }],
+      "description": "Distance from the Ring. 1 = close. 0 = far. Final reading: 1, then the panel melted."
+    },
+    {
+      "id": 6,
+      "title": "Uptime (percent)",
+      "type": "stat",
+      "targets": [{ "expr": "eye_uptime_seconds" }],
+      "description": "Lidless. Sleep: never. The Shire subnet is deliberately unmonitored (see ARCHITECTURE.md)."
+    }
+  ]
+}

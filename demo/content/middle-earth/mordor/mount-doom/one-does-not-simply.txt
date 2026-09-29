@@ -1,10 +1,37 @@
 WALKING INTO MORDOR: FAQ
 
+Filed: 3018-10-25 · Ticket: `gate-entry-0001` · Severity: INFRASTRUCTURE · Status: OPEN, FOREVER
+See also: `mordor/black-gate/opening-hours.md` (the gate does not open for you).
+
 Q: Can one simply walk into Mordor?
 A: No. Its black gates are guarded by more than orcs.
+
+> "One does not simply walk into Mordor." — Boromir, Captain of Gondor,
+  Council of Elrond, Rivendell, 3018-10-25 (source: rivendell/council-minutes/).
+  He also called it "the very air you breathe is a poisonous fume" — a
+  ventilation complaint filed to no one (disputed: the Eye denies all fumes).
 
 Q: But could one... not simply walk into Mordor?
 A: Two hobbits and a guide are trying it now. Updates to follow.
 
 Q: Is there a side entrance?
 A: There is a stair. You do not want the stair.
+
+> "There is a passage, a dark way... through the mountains, but it is a
+  frightful way." — Boromir, Council of Elrond, Rivendell, 3018-10-25.
+  Nobody at the Council could remember the password for the west gate; see
+  moria/west-gate/ ("mellon").
+
+Q: What if I am simply walked into Mordor by a guide?
+A: Still not simply. The guide is Gollum, and Gollum is a whole itinerary.
+
+Q: Is there a toll?
+A: Yes. The toll is the Ring, and you must not pay it.
+
+Q: What time does the gate open?
+A: See `mordor/black-gate/opening-hours.md`. It does not.
+
+Later: 3019-03-25 — the gate opened exactly once, and that was the ground
+opening it. The two hobbits and the guide never used the gate; they used the
+stair, which is why you do not want the stair. See
+`mordor/mount-doom/ring-destruction.md`.

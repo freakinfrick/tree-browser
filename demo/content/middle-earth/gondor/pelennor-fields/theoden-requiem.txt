@@ -1,0 +1,58 @@
+THÉODEN, KING OF ROHAN
+fell upon the Pelennor, 3019-03-15
+not in a hall, but in the field, at the head of his riders
+(record of the House of Eorl, filed by the Marshal's clerk;
+see `the-charge.md` for the charge he led, and `battle-report.md`
+for the field as a whole.)
+
+    Out of doubt, out of dark, to the day's rising
+    he rode singing in the sun, sword unsheathing.
+    Hope he rekindled, and in hope ended;
+    over death, over dread, over doom lifted
+    out of loss, out of life, unto long glory.
+
+he is laid in Rath Dínen, in the Hallows of Gondor,
+with the kings he would not see fall alone.
+his horse Snowmane lies where he fell, under a mound
+that reads: FAITHFUL SERVANT YET MASTER'S BANE.
+
+Rohan does not bury its kings; it rides them home.
+
+---
+
+## The lament, as it is recorded
+
+> "Where is the horse and the rider? Where is the horn that was blowing?
+> Where is the helm and the hauberk, and the bright hair flowing?"
+> — the lament of the Rohirrim, recited by Aragorn as he walked the field
+> at night, Pelennor, 3019-03-15
+
+The clerk notes the lament is older than Rohan's walls, and older than its
+horses, and that it had never before been said over a king who still had
+riders left to say it.
+
+## His last words (attributed)
+
+> "Mourn not overmuch. Mighty was the fallen, meet was his ending."
+> — Théoden, to Éowyn, as he lay under Snowmane, Pelennor, 3019-03-15
+
+He spoke them to his sister-daughter and then named Éomer his heir, and
+died before the field was won.
+
+## Éomer's grief (recorded later)
+
+> "Mourn not overmuch" — but the Marshal did, and led the host into the
+> field's own cry of "Death!" before the day was out, grief and war-cry
+> being the same word in Rohan on that morning.
+> — the Marshal's clerk, from Éomer's conduct after the King fell
+
+When Éomer found Éowyn lying as if dead beside the King, the clerk records
+that he cast his sword from him and the host thought him slain of grief.
+The cry that followed was taken up by the whole field.
+
+## See also
+
+- `the-charge.md` — the charge that ended here, and began the victory.
+- `eowyn-vs-witchking.md` — where the King's bane was itself destroyed,
+  over his body.
+- `battle-report.md` — the field, the dead, and the King who came after.

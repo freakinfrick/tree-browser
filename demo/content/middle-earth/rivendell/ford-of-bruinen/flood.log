@@ -1,0 +1,19 @@
+# flood.log — incident BRUINEN-3018-1020
+# filed by: Glorfindel (witness on site); reviewed by Elrond (command authority)
+# status: resolved · severity: LOW (for the household) / MAXIMUM (for the riders)
+# see also: rivendell/ford-of-bruinen/, old-forest/barrow-downs/, gondor/pelennor-fields/eowyn-vs-witchking.md
+3018-10-20 15:58:00 INFO  ford-of-bruinen: party inbound. frodo carries a morgul shard (weathertop); escort is glorfindel on asfaloth
+3018-10-20 16:00:00 INFO  ford-of-bruinen: riders approach (5 nazgul, 1 hobbit, 1 elf, 1 ranger, 1 horse)
+3018-10-20 16:00:05 INFO  ford-of-bruinen: asfaloth crosses; the black horses will not. five riders wait on the far bank
+3018-10-20 16:00:10 INFO  elrond: authorizes the river. command: "nuinin, mylnhin... rise"
+3018-10-20 16:00:15 INFO  gandalf: adds the white riders to the wave (shaping only; the water is elrond's)
+3018-10-20 16:00:20 INFO  river: level rising. white horses (not the rohan kind) forming
+3018-10-20 16:00:30 INFO  flood: the fords are closed to traffic of the dark
+3018-10-20 16:00:40 WARN  nazgul: swept downstream; horses drowned; the riders survive (barely)
+3018-10-20 16:00:45 INFO  glorfindel: unleashes. river: takes over from here
+3018-10-20 16:01:00 INFO  frodo: still on horseback, barely; the shard is still travelling inward
+3018-10-20 16:01:05 INFO  weathertop wound: escalated to elrond (priority: heart)
+3018-10-20 17:00:00 INFO  rivendell: doors open. the ring is inside. so is the patient.
+3018-10-21 08:00:00 INFO  recovery: five black horses found downstream (drowned). the river keeps no receipts, but it returns the bodies.
+3018-10-21 08:00:05 INFO  recovery: one torn black robe, one sword, several horseshoes. no riders.
+3018-10-22 09:00:00 INFO  elrond: closing ticket. the ford is clear; the shard is out; the patient is stable (for now).

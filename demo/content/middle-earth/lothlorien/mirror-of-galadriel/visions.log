@@ -1,10 +1,15 @@
-[mirror] session start viewer=samwise
+[mirror] session start viewer=samwise operator=galadriel ts=3019-01-15
 [mirror] vision: the Shire, trees being cut down, a new mill, smoke
-[mirror] viewer reaction: "I must go home!" (did not go home)
-[mirror] session start viewer=frodo
+[mirror] viewer reaction: "I must go home!" (did not go home) — Samwise Gamgee, the Mirror, TA 3019-01-15
+[mirror] session end viewer=samwise ts=3019-01-15
+[mirror] session start viewer=frodo operator=galadriel ts=3019-01-16
 [mirror] vision: a ship on a grey sea, sailing into the West
 [mirror] vision: an Eye, lidless, rimmed with fire
 [mirror] warning: viewer leaning too close; Ring swinging toward water
 [mirror] note: some things shown have not yet come to pass
 [mirror] note: some never will
-[mirror] session end
+[mirror] session end viewer=frodo ts=3019-01-16
+[mirror] session start viewer=galadriel operator=none (the test) ts=3019-02-15
+[mirror] event: the Ring offered by Frodo; see the-test.md
+[mirror] outcome: passed. "I will diminish, and go into the West, and remain Galadriel." — Galadriel, the Mirror, TA 3019-02-15
+[mirror] session end viewer=galadriel ts=3019-02-15

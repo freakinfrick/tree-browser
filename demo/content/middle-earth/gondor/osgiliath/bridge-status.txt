@@ -1,4 +1,6 @@
 OSGILIATH: CROSSING STATUS (updated nightly)
+  filed by: the captain of the western bank · last filed: 3019-03-13 (evening)
+  record: OSGIL-7 · status: the city is lost; the river holds
 
   great bridge ........ DOWN (cast down on purpose; best we could do)
   east bank ........... enemy
@@ -6,4 +8,25 @@ OSGILIATH: CROSSING STATUS (updated nightly)
   ruins ............... everyone's, nobody's
   boats ............... 3 (leaking)
 
+THE FALL (3019-03-13)
+  the east bank was overrun before dawn; the host of Mordor crossed the
+  river on boats and on the ruined arches of the lower bridge.
+  Faramir held the Causeway Forts until the retreat could not be delayed,
+  then withdrew under a rear guard. He was carried back wounded — a dart
+  in the shoulder, and the black breath on him. He was taken to the
+  Houses of Healing (see gondor/minas-tirith/houses-of-healing/hands-of-the-king.md).
+  The great bridge was cast down by our own hands at dusk, to deny the
+  enemy the crossing. It will not be rebuilt this season.
+  the river is now the wall. See runbooks/siege.md for standing orders.
+
+DEFENSE LOG (last four days)
+  day -4 ....... held; casualties heavy
+  day -3 ....... held; the orcs crossed at night, pushed back
+  day -2 ....... held; Faramir's company fell back to the Causeway Forts
+  day -1 ....... the bridge was cast down (by our own hands)
+  today ........ the river is the wall now
+
 standing orders: hold the river. hold it again tomorrow.
+  addendum (3019-03-14, by the captain): the river will not hold forever;
+  the city's relief is three days out, if the beacons were seen. they were.
+  see gondor/minas-tirith/beacon-schedule.toml and gondor/minas-tirith/siege-of-gondor.md.

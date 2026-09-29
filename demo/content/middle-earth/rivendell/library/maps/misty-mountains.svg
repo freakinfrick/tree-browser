@@ -1,4 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400">
+  <title>The Misty Mountains — Rivendell library, map 4 of 9</title>
+  <desc>Survey of the Hithaeglir drawn for the Council of Elrond (3018-10). The
+    Fellowship argued the Redhorn Pass; the map's own caption records the
+    verdict: under, not over. See misty-mountains/caradhras/route-vote.md and
+    moria/.</desc>
+  <metadata>
+    <provenance
+      filed-by="the Rivendell library (cartography desk)"
+      filed-ta="3018-10-22"
+      ticket="MAP-HITH-0004"
+      status="superseded by weather (see caradhras/weather-report.json)"
+      note="The dashed line is the route as planned at the Council; it is
+      dashed for a reason."/>
+  </metadata>
   <rect width="800" height="400" fill="#efe3c2"/>
   <g fill="none" stroke="#5b4630" stroke-width="3" stroke-linejoin="round">
     <path d="M40 330 L110 180 L150 250 L210 110 L270 260 L320 150 L380 290"/>

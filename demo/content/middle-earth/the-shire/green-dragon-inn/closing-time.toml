@@ -12,3 +12,18 @@ market_day_extension_minutes = 30
 max_pints_per_took = 4
 songs_after_close = false
 tables_are_for_standing_on = false  # see: Pippin, Merry
+
+# Per-patron limits, set after the Man in the Moon incident (2968-09-22).
+# Pippin's limit is reviewed every quarter and never raised.
+[rules.per_took]
+Pippin = 2
+Merry = 3
+Frodo = 1
+Sam = 1            # not for lack of thirst; he is rehearsing a sentence
+Ted_Sandyman = 5   # the mill is good for it, allegedly
+
+[market_days]
+day = "Thursday"   # Bywater market
+note = "elevenses crowd arrives at 10:45 and does not leave"
+last_orders_extension_minutes = 30
+pie_price_raise_pennies = 1   # market-day only; the pie from Tuesday is not negotiable

@@ -1,8 +1,18 @@
-2019-01-02 23:14 connect orthanc-stone -> barad-dur-stone user=saruman
-2019-01-02 23:14 remote: "report."
-2019-01-02 23:40 disconnect reason=session_terminated_by_remote
-2019-01-09 23:11 connect orthanc-stone -> barad-dur-stone user=saruman
-2019-01-09 23:59 warning: user no longer sure who is controlling whom
-2019-03-06 02:30 connect orthanc-stone user=peregrin.took (stolen)
-2019-03-06 02:30 remote: "who are you?"
-2019-03-06 02:31 disconnect reason=user_screamed
+# palantir-access.log — Orthanc stone, raw session trace
+# operator: the White Hand (unattended after 3018)
+# filed: 3019-03-06, Orthanc ops
+# see also: palantiri/registry.md, SECURITY.md (CVE-3019-0002 — unauthenticated scrying)
+3018-07-10 21:02 WARN palantir: connect orthanc-stone -> barad-dur-stone user=saruman remote=sauron
+3018-07-10 21:03 INFO palantir: remote: "report." — Sauron, via barad-dur-stone, 3018-07-10
+3018-07-10 21:03 WARN palantir: handshake complete; remote has root. the White Hand is now a terminal of the Eye
+3019-01-02 23:14 INFO palantir: connect orthanc-stone -> barad-dur-stone user=saruman remote=sauron
+3019-01-02 23:14 INFO palantir: remote: "report."
+3019-01-02 23:40 INFO palantir: disconnect reason=session_terminated_by_remote
+3019-01-09 23:11 INFO palantir: connect orthanc-stone -> barad-dur-stone user=saruman remote=sauron
+3019-01-09 23:59 WARN palantir: user no longer sure who is controlling whom (remote = sauron; see CVE-3019-0002)
+3019-02-01 03:12 INFO palantir: remote: "the halflings carry it. bring them." — Sauron, via barad-dur-stone, 3019-02-01
+3019-03-06 02:30 WARN palantir: connect orthanc-stone user=peregrin.took (stolen) remote=sauron
+3019-03-06 02:30 INFO palantir: remote: "who are you?" — Sauron, via barad-dur-stone, 3019-03-06
+3019-03-06 02:31 CRIT palantir: disconnect reason=user_screamed
+3019-03-06 02:31 CRIT palantir: the Eye's gaze has swung to orthanc; remote now watches the wrong tower
+3019-03-06 02:32 INFO palantir: note: remote assumed peregrin.took holds the ring. it does not. see SECURITY.md CVE-3019-0002

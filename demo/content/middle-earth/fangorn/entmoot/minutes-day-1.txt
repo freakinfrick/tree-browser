@@ -1,4 +1,7 @@
-ENTMOOT, DAY 1, MINUTES
+ENTMOOT, DAY 1, MINUTES — 3019-03-02
+
+filed by: the clerk of the Entmoot (a birch, three hundred winters, literate)
+attendance: all Ents, both small visitors, several thousand Huorns (standing at a distance)
 
 morning:   hoom
            hm
@@ -10,3 +13,11 @@ afternoon: (the names of all present, in full, continued)
 
 evening:   a young ent (Bregalad, 3000 yrs) suggests "doing something".
            considered too hasty. adjourned.
+
+note:      "do not be hasty" — Treebeard, chair, 3019-03-02. He said this
+           after Bregalad's suggestion and it was entered as the day's
+           only actionable item.
+
+later:     the Ent voices are slow to speak and slower to stop; the clerk
+           notes that "good morning" alone lasted until midday of day 2.
+           (see `minutes-day-2.txt`)

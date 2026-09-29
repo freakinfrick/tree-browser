@@ -1,0 +1,32 @@
+# The One License
+
+*"One License to rule them all, One License to find them,
+One License to bring them all, and in the bindings bind them."*
+
+## Grant
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of Middle-earth, to wander in it, read it, and quote it, subject to the
+following conditions:
+
+1. You may not distribute this software to Sauron.
+2. You may not keep the ring. It has a license server and it phones home.
+3. The above copyright notice and this license shall be included in all
+   copies or substantial portions of the repo.
+4. Redistribution to the Grey Havens is one-way and final. There is no
+   `sail-east` target (`grey-havens/last-boat-timetable.csv`).
+
+## Warranty
+
+The software is provided "as is", without warranty of any kind, express or
+implied, including but not limited to the warranties of *not being followed
+by the Eye*, *the road going ever on*, or *fitness for a second breakfast*.
+
+## Termination
+
+This license terminates automatically if you put the ring on. There is no
+revocation process. You are now part of the shadow.
+
+---
+
+*Artifacts (images) carry their own licenses; see `CREDITS.md`.*

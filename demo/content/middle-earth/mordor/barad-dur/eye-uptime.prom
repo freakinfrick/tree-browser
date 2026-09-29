@@ -8,3 +8,16 @@ eye_focus{target="mount_doom"} 0
 # HELP nazgul_active Number of Nazgûl on duty.
 # TYPE nazgul_active gauge
 nazgul_active 9
+# HELP eye_uptime_seconds Time since the Eye last slept (it has never slept).
+# TYPE eye_uptime_seconds counter
+eye_uptime_seconds 94670856000
+# HELP ring_proximity Proximity of the One Ring to the Eye (1 = in the tower's shadow).
+# TYPE ring_proximity gauge
+ring_proximity{location="unknown"} 0
+ring_proximity{location="the_shire"} 0
+# HELP nazgul_active_zero Nazgûl lost to the void (counter; final state after 3019-03-25).
+# TYPE nazgul_active_zero gauge
+nazgul_active_zero 9
+# HELP ring_in_fire Whether the Ring is in the fire of Mount Doom (1 = yes).
+# TYPE ring_in_fire gauge
+ring_in_fire 0

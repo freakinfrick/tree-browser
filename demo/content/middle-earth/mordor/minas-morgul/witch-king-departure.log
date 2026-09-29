@@ -1,0 +1,12 @@
+3019-03-09 23:59:00 INFO record: filed by the keeper of the tower of minas-morgul; ticket MM-DEPART-0001; status: CLOSED (tower dark)
+3019-03-10 21:00:00 INFO minas-morgul: great host mustering in the courtyard
+3019-03-10 21:30:00 INFO gate: opening (first time in an age)
+3019-03-10 21:30:05 INFO signal: green flame erupts from the tower; visible for leagues (see mordor/minas-morgul/green-light.md)
+3019-03-10 21:30:06 WARN signal acknowledged by mordor; reply: a red flash from barad-dur
+3019-03-10 22:00:00 INFO witch-king departs at the head of the host; destination: minas-tirith
+3019-03-10 22:00:01 INFO mount: a winged creature; does not appear on the inventory
+3019-03-10 22:00:02 WARN nine do not ride; one rides. the rest ride.
+3019-03-13 09:00:00 INFO host: reaches the pelennor; siege of minas-tirith begins (see gondor/minas-tirith/)
+3019-03-15 09:00:00 ERROR witch-king: status lost at pelennor-fields (see gondor/pelennor-fields/eowyn-vs-witchking.md)
+3019-03-15 09:00:01 WARN "no living man may hinder me" -> prophecy check: FAILED (see rohan; the shieldmaiden)
+3019-03-15 09:00:02 INFO minas-morgul: tower dark again; host does not return
