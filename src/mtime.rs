@@ -222,8 +222,8 @@ mod tests {
         m.request(&root);
         settle(&mut m);
         let big = root.join("x/big");
-        assert_eq!(m.cache[&big].1, false, "capped in passing");
-        assert_eq!(m.cache[&big].2, false);
+        assert!(!m.cache[&big].1, "capped in passing");
+        assert!(!m.cache[&big].2);
         assert!(!m.cache[&root].1 && m.cache[&root].2, "direct-capped");
         m.request(&root);
         assert!(m.pending.is_empty(), "direct-capped is final, no re-request loop");

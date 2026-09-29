@@ -2,6 +2,14 @@
 name = "tb"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
+description = "Horizontal tree file browser for the terminal, colored by recursive modification time"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/freakinfrick/tree-browser"
+readme = "README.md"
+keywords = ["file-browser", "tui", "terminal", "tree", "file-manager"]
+categories = ["command-line-utilities", "filesystem"]
+exclude = ["/demo"]
 
 [dependencies]
 ansi-to-tui = "7"

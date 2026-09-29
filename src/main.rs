@@ -1,4 +1,7 @@
 //! tb — horizontal tree file browser. Color = recency (recursive for dirs).
+#[cfg(not(unix))]
+compile_error!("tb needs a Unix-like OS (Linux, macOS, BSD): it drives the tty with termios and signals");
+
 mod anim;
 mod layout;
 mod media;

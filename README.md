@@ -25,6 +25,24 @@ the cursor row, dims the backdrop) and scrolling all ease the same way.
 
     tb [DIR]        # default: current dir; starts rooted at DIR's parent
 
+## Install
+
+    git clone https://github.com/freakinfrick/tree-browser
+    cd tree-browser
+    cargo install --path .     # puts `tb` in ~/.cargo/bin
+
+Needs Rust 1.88+ and a Unix-like OS (Linux, macOS, BSD); Windows isn't
+supported. Use a truecolor terminal. Previews use these tools from `PATH` when
+they're installed:
+
+| tool | for |
+|---|---|
+| [`bat`](https://github.com/sharkdp/bat) | syntax-highlighted text |
+| [`glow`](https://github.com/charmbracelet/glow) | rendered markdown |
+| `file` | describing binaries |
+| `pdfinfo`, `pdftoppm` (poppler-utils) | PDF pages |
+| `convert` (ImageMagick) | image formats the `image` crate can't decode |
+
 ## Color = recency
 Files: last modified. Folders: newest modification *anywhere inside* (walked
 recursively on a background thread, capped at 50k entries; a trailing `~`
@@ -52,7 +70,7 @@ commands; ctrl-u/ctrl-w erase; esc cancels.
 Ctrl-Z inside a `!` command ends that program rather than pausing it (its shell
 exits underneath it); inside `s` it is ordinary job control.
 
-`source ~/tree-browser/tb.bash` in `~/.bashrc` wraps `tb` so that quitting with
+`source /path/to/tree-browser/tb.bash` in `~/.bashrc` wraps `tb` so that quitting with
 `q` leaves the shell in the selected folder; esc / ctrl-c leave it where it was.
 Underneath: `tb --cwd-file PATH` writes that folder to PATH on `q`.
 
@@ -69,3 +87,13 @@ between pixels and half-blocks. Inside herdr tb starts in half-blocks: herdr
 claims kitty for every attached client whatever terminal it draws into, so
 press `i` (or set `TB_GRAPHICS=kitty`) when that terminal really is
 Ghostty/Kitty. Inside tmux the query is skipped and half-blocks are used.
+
+## License
+
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
+[MIT license](LICENSE-MIT), at your option.
+
+The demo fixture under `demo/` is a parody of Tolkien's Middle-earth for
+showing tb off. It isn't part of the program and isn't covered by the above;
+the images it downloads carry their own Wikimedia Commons licenses (see
+`demo/README.md`).
