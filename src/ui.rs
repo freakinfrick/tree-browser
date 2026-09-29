@@ -21,6 +21,7 @@ use crate::anim::{approach, heat, mix, to_color, Damped, Rgb, HEAT, RECOLOR};
 use crate::layout::{cell_glyph, layout, lines, ACTIVE, ROUTE};
 use crate::audio::{self, Audio, State};
 use crate::media::Media;
+use crate::tree::Sort;
 use crate::App;
 
 pub const BG: Rgb = [9.0, 10.0, 15.0];
@@ -458,22 +459,31 @@ fn status_bar(f: &mut Frame, app: &App, area: Rect) {
     let t = app.heat_of(app.cursor);
     let partial = cur.rec.is_some_and(|c| !c.1);
     let meta = if cur.is_dir {
-        match &cur.children {
+        let items = match &cur.children {
             Some(_) => format!("{} items", app.tree.kids(app.cursor).len()),
             None => "folder".into(),
+        };
+        match cur.rec {
+            Some(r) => format!("{items} · {}{}", human(r.3), if r.1 { "" } else { "+" }),
+            None => items,
         }
     } else {
-        std::fs::symlink_metadata(&cur.path).map(|m| human(m.len())).unwrap_or_default()
+        human(cur.size)
     };
 
-    // Right side: meta · age swatch · legend · help key.
+    // Right side: sort · meta · age swatch · legend · help key.
     let muted = Style::new().fg(to_color(MUTED));
-    let mut right = vec![
+    let mut right = Vec::new();
+    if app.tree.sort != Sort::default() {
+        right.push(Span::styled("⇅ ", Style::new().fg(to_color(LINE_ROUTE))));
+        right.push(Span::styled(format!("{} · ", app.tree.sort.describe()), Style::new().fg(to_color(ROUTE_TEXT))));
+    }
+    right.extend([
         Span::styled(format!("{meta} · "), muted),
         Span::styled("● ", Style::new().fg(to_color(heat(age_of(t))))),
         Span::styled(format!("{}{}", ago(t), if partial { " (partial)" } else { "" }), Style::new().fg(to_color(ROUTE_TEXT))),
         Span::styled("   ", muted),
-    ];
+    ]);
     // Tight bar: the color legend goes first (it's in `?` too), then the shell keys,
     // so the breadcrumb keeps room.
     let key = Style::new().fg(to_color(LINE_ROUTE)).add_modifier(Modifier::BOLD);
@@ -576,7 +586,7 @@ fn search_bar(f: &mut Frame, app: &App, area: Rect, q: &str) {
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-const KEYS: [(&str, &str); 20] = [
+const KEYS: [(&str, &str); 21] = [
     ("h j k l / arrows", "move"),
     ("l / enter", "open folder · preview file"),
     ("space / tab", "fold / unfold"),
@@ -587,6 +597,7 @@ const KEYS: [(&str, &str); 20] = [
     ("-", "re-root one level up"),
     ("c", "collapse other branches"),
     (".", "show / hide dotfiles"),
+    ("o O", "sort: name · newest · largest · type · reverse"),
     ("r", "reload (open folders update live)"),
     ("mouse", "click select · click again open"),
     ("wheel", "scroll the column under the pointer"),

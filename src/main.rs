@@ -26,7 +26,7 @@ use ratatui::crossterm::execute;
 use anim::{Damped, Scene};
 use mtime::Mtime;
 use shell::Run;
-use tree::Tree;
+use tree::{Sort, SortKey, Tree};
 use ui::Preview;
 
 /// Frame budget while animating. Idle = no frames at all.
@@ -161,11 +161,20 @@ impl App {
         self.tree.nodes[id].name.clone()
     }
 
-    /// Copy fresh mtime-cache results onto the nodes.
+    /// Copy fresh mtime-cache results onto the nodes, and re-sort if the
+    /// order depends on them.
     fn absorb(&mut self) {
         for n in self.tree.nodes.iter_mut().filter(|n| n.is_dir) {
-            n.rec = self.mt.cache.get(&n.path).map(|c| (c.0, c.1, c.3));
+            n.rec = self.mt.cache.get(&n.path).map(|c| (c.0, c.1, c.3, c.4));
         }
+        if matches!(self.tree.sort.key, SortKey::Modified | SortKey::Size) {
+            self.tree.resort();
+        }
+    }
+
+    fn set_sort(&mut self, sort: Sort) {
+        self.tree.sort = sort;
+        self.tree.resort();
     }
 
     fn siblings(&self) -> Vec<usize> {
@@ -309,9 +318,8 @@ impl App {
             return;
         };
         let (dir, gone) = (w[0], w[1]);
-        let name = self.tree.nodes[gone].name.to_lowercase();
         let kids = self.tree.kids(dir);
-        let to = kids.iter().copied().find(|&k| self.tree.nodes[k].name.to_lowercase() >= name).or(kids.last().copied());
+        let to = kids.iter().copied().find(|&k| self.tree.cmp(k, gone).is_ge()).or(kids.last().copied());
         self.set_cursor(to.unwrap_or(dir));
         if let Some(s) = &mut self.search
             && !self.tree.attached(s.origin)
@@ -563,7 +571,15 @@ impl App {
                 self.tree.reveal = self.tree.path_to(self.cursor).into_iter().collect();
                 self.flash = 1.0;
             }
-            KeyCode::Char('.') => self.tree.show_hidden ^= true,
+            KeyCode::Char('.') => {
+                self.tree.show_hidden ^= true;
+                // Heat differs with dotfiles in or out.
+                if self.tree.sort.key == SortKey::Modified {
+                    self.tree.resort();
+                }
+            }
+            KeyCode::Char('o') => self.set_sort(self.tree.sort.next()),
+            KeyCode::Char('O') => self.set_sort(Sort { rev: !self.tree.sort.rev, ..self.tree.sort }),
             KeyCode::Char('c') => self.collapse_others(),
             KeyCode::Char('r') => self.reload(),
             KeyCode::Char('?') => self.help ^= true,
@@ -714,6 +730,7 @@ fn main() -> std::io::Result<()> {
              --cwd-file: on q, write the selected folder there (tb.bash turns that into cd)\n\
              image/pdf preview: j/k page · i pixels <-> half-blocks · TB_GRAPHICS=halfblocks|kitty|sixel|iterm2|off\n\
              audio preview: plays at once · space pause · left/right 5 s · shift 30 s · 0-9 jump · up/down volume · m mute\n\
+             o cycles the sort (name · modified · size · type) · O reverses it · TB_SORT=size (or -size, modified, type) sets the start\n\
              open folders update live (about once a second) · TB_LIVE=off turns that off\n\
              color = last modified (dirs: newest anything inside): red = minutes, orange = hours, tan = days, grey = weeks, blue = years"
         );
@@ -721,6 +738,15 @@ fn main() -> std::io::Result<()> {
     }
     let start = std::fs::canonicalize(&arg)?;
     let mut app = App::new(start);
+    if let Ok(s) = std::env::var("TB_SORT") {
+        match Sort::parse(&s) {
+            Some(sort) => app.set_sort(sort),
+            None => {
+                eprintln!("tb: TB_SORT={s:?}: expected name, modified, size or type, with - in front to reverse");
+                std::process::exit(2);
+            }
+        }
+    }
     app.can_cd = cwd_file.is_some();
     if std::env::var("TB_LIVE").map_or(true, |v| v != "off") {
         app.live = Some(watch::Watch::spawn(watch::EVERY));
@@ -988,6 +1014,78 @@ mod tests {
         assert_eq!(at(&app), "alpha", "or the last entry when it was at the end");
     }
 
+    fn names(app: &App, dir: usize) -> Vec<String> {
+        app.tree.kids(dir).iter().map(|&k| app.tree.nodes[k].name.clone()).collect()
+    }
+
+    /// d/ holds big.log (300 B, a year old), mid.txt (20 B, now), a/ (1000 B inside, a week old)
+    /// and Zed (no extension, 5 B, a day old). The cursor starts on a/.
+    fn sort_fixture(name: &str) -> (App, usize) {
+        let root = std::env::temp_dir().join(format!("tb-sort-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("d/a")).unwrap();
+        let ago = |days: u64| SystemTime::now() - Duration::from_secs(86400 * days);
+        for (f, n, t) in [("big.log", 300, ago(365)), ("mid.txt", 20, SystemTime::now()), ("Zed", 5, ago(1))] {
+            fs::write(root.join("d").join(f), vec![0; n]).unwrap();
+            fs::File::open(root.join("d").join(f)).unwrap().set_modified(t).unwrap();
+        }
+        fs::write(root.join("d/a/inner"), [0; 1000]).unwrap();
+        fs::File::open(root.join("d/a/inner")).unwrap().set_modified(ago(7)).unwrap();
+        let mut app = App::new(root.join("d"));
+        let d = app.tree.nodes[app.cursor].parent.unwrap();
+        app.mt.request(&root.join("d/a"));
+        let t0 = std::time::Instant::now();
+        while app.tree.nodes[app.cursor].rec.is_none() && t0.elapsed() < Duration::from_secs(5) {
+            app.mt.poll();
+            app.absorb();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(at(&app), "a");
+        (app, d)
+    }
+
+    #[test]
+    fn o_cycles_sorts_and_the_cursor_rides_along() {
+        let (mut app, d) = sort_fixture("cycle");
+        assert_eq!(names(&app, d), ["a", "big.log", "mid.txt", "Zed"]);
+        typed(&mut app, "o");
+        assert_eq!(names(&app, d), ["mid.txt", "Zed", "a", "big.log"], "newest first, folders by what's inside");
+        typed(&mut app, "o");
+        assert_eq!(names(&app, d), ["a", "big.log", "mid.txt", "Zed"], "largest first, folders by total size");
+        typed(&mut app, "O");
+        assert_eq!(names(&app, d), ["Zed", "mid.txt", "big.log", "a"], "O flips it");
+        typed(&mut app, "o");
+        assert_eq!(names(&app, d), ["a", "Zed", "big.log", "mid.txt"], "folders, then no extension, then by extension");
+        assert!(!app.tree.sort.rev, "a new key starts in its natural direction");
+        typed(&mut app, "o");
+        assert_eq!(app.tree.sort, Sort::default());
+        assert_eq!(at(&app), "a", "the cursor stays on its entry through every re-sort");
+        typed(&mut app, "j");
+        assert_eq!(at(&app), "big.log", "and moves in the new order");
+    }
+
+    #[test]
+    fn live_changes_keep_the_sort() {
+        let (mut app, d) = sort_fixture("live");
+        app.set_sort(Sort::parse("modified").unwrap());
+        fs::write(app.tree.nodes[d].path.join("new.md"), "").unwrap();
+        app.apply_changes(vec![change(&app, d, true)]);
+        assert_eq!(names(&app, d)[0], "new.md", "a fresh file lands at the top");
+        app.step(isize::MAX / 2);
+        assert_eq!(at(&app), "big.log");
+        fs::remove_file(app.tree.nodes[app.cursor].path.clone()).unwrap();
+        app.apply_changes(vec![change(&app, d, true)]);
+        assert_eq!(at(&app), "a", "a deleted last entry hands the cursor to the one before it");
+    }
+
+    #[test]
+    fn sort_parses_names_and_a_reversing_dash() {
+        assert_eq!(Sort::parse("size"), Some(Sort { key: SortKey::Size, rev: false }));
+        assert_eq!(Sort::parse("-modified"), Some(Sort { key: SortKey::Modified, rev: true }));
+        assert_eq!(Sort::parse("type"), Some(Sort { key: SortKey::Type, rev: false }));
+        assert_eq!(Sort::parse("bogus"), None);
+    }
+
     #[test]
     fn live_change_warms_the_folder_and_its_ancestors() {
         let mut app = app_in("live-heat", &["alpha"]);
@@ -996,7 +1094,7 @@ mod tests {
         let root = app.tree.root;
         for id in [d, root] {
             let p = app.tree.nodes[id].path.clone();
-            app.mt.cache.insert(p, (old, true, true, old));
+            app.mt.cache.insert(p, (old, true, true, old, 0));
         }
         app.absorb();
         assert!(app.heat_of(root) <= old);

@@ -86,6 +86,8 @@ tb --cwd-file PATH [DIR]  # on q, write the selected folder to PATH
 | `-` `Backspace` | re-root one level up |
 | `c` | collapse everything off the cursor path |
 | `.` | show / hide dotfiles (hidden by default) |
+| `o` | cycle the sort: name → newest → largest → type |
+| `O` | reverse the sort |
 | `r` | reload, re-walking heat deep inside closed folders (open ones update live) |
 | `!` | run a shell command in the selected folder |
 | `s` | open a shell in the selected folder |
@@ -130,6 +132,27 @@ Colors cross-fade when heat data lands instead of popping. White marks the curso
 marks branches off it. The line itself is a double "tube" with proper junctions; every other branch
 is tinted by the heat of the folder it grows from, a light sweeps along the line into the cursor on
 each move, and closed folders carry a small `›` bud.
+
+## Sorting
+
+Folders list their entries by name to start with (case-insensitive, folders and files mixed).
+`o` steps through the other orders, and `O` flips the current one:
+
+| Order | First | Folders count |
+|---|---|---|
+| name | a → z | by their own name |
+| modified | newest | by the newest change anywhere inside, like their color |
+| size | largest | by the total size of everything inside |
+| type | folders, then files by extension | as a group ahead of files |
+
+Ties fall back to the name. The sort applies to every open folder at once, and the status bar shows
+it (`⇅ largest first`) whenever it isn't plain name order. Folder sizes come from the same background
+walk as the heat, so a folder's size can change after it opens, and entries slide into place as
+walks finish. The status bar shows the total too, with a trailing `+` when the walk hit its cap. By
+modified, live updates lift freshly changed files to the top as you work.
+
+To start in a different order, set `TB_SORT` to `name`, `modified`, `size` or `type`, with a leading
+`-` to reverse it (`TB_SORT=-size` puts the smallest first).
 
 ## Shell integration
 
