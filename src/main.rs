@@ -72,8 +72,8 @@ pub struct App {
     pub prompt: Option<String>,
     /// `/` query being typed; None = closed.
     pub search: Option<Search>,
-    /// Last confirmed query, for n / N.
-    last_search: String,
+    /// Last confirmed query and the folder whose column it searched, for n / N.
+    last_search: Option<(String, Option<usize>)>,
     history: Vec<String>,
     /// Steps back into history (0 = the fresh line).
     hist_at: usize,
@@ -134,7 +134,7 @@ impl App {
             repaint: false,
             prompt: None,
             search: None,
-            last_search: String::new(),
+            last_search: None,
             history: Vec::new(),
             hist_at: 0,
             pending: None,
@@ -300,45 +300,47 @@ impl App {
         }
     }
 
-    /// Entries in the cursor's column whose name contains `q` (smart case).
-    fn matches(&self, q: &str) -> Vec<usize> {
-        self.siblings().into_iter().filter(|&k| hit(&self.tree.nodes[k].name, q).is_some()).collect()
+    /// Entries of `col` whose name contains `q` (smart case).
+    fn matches(&self, q: &str, col: &[usize]) -> Vec<usize> {
+        col.iter().copied().filter(|&k| hit(&self.tree.nodes[k].name, q).is_some()).collect()
     }
 
     /// Where typing `q` lands: the first name starting with it, else the first containing it.
     pub fn find(&self, q: &str) -> Option<usize> {
-        let m = self.matches(q);
+        let m = self.matches(q, &self.siblings());
         m.iter().copied().find(|&k| hit(&self.tree.nodes[k].name, q).is_some_and(|r| r.start == 0)).or(m.first().copied())
     }
 
     /// Cursor's place among the matches of `q` (1-based, 0 when off them) and their count.
     pub fn match_pos(&self, q: &str) -> (usize, usize) {
-        let m = self.matches(q);
+        let m = self.matches(q, &self.siblings());
         (m.iter().position(|&k| k == self.cursor).map_or(0, |i| i + 1), m.len())
     }
 
-    /// Next or previous match of `q` after the cursor, wrapping.
-    fn cycle(&mut self, q: &str, dir: isize) {
-        let m = self.matches(q);
-        if q.is_empty() || m.is_empty() {
-            return;
-        }
-        let sib = self.siblings();
-        let at = |id| sib.iter().position(|&s| s == id).unwrap_or(0) as isize;
-        let (cur, n) = (at(self.cursor), sib.len() as isize);
-        let next = m.iter().copied().min_by_key(|&k| {
+    /// n / N: next or previous match in the searched column, wrapping. Enter moved the
+    /// cursor into the match, so its entry in that column is the cursor's ancestor there.
+    fn find_next(&mut self, dir: isize) {
+        let Some((q, col)) = self.last_search.clone() else { return };
+        let path = self.tree.path_to(self.cursor);
+        let under = |c| path.iter().position(|&a| a == c).and_then(|i| path.get(i + 1).copied());
+        let (list, cur) = match col.and_then(|c| under(c).map(|e| (self.tree.kids(c).to_vec(), e))) {
+            Some(found) => found,
+            None => (self.siblings(), self.cursor),
+        };
+        self.cycle(&q, dir, &list, cur);
+    }
+
+    /// Next or previous match of `q` in `list` after `cur`, wrapping.
+    fn cycle(&mut self, q: &str, dir: isize, list: &[usize], cur: usize) {
+        let at = |id| list.iter().position(|&s| s == id).unwrap_or(0) as isize;
+        let (cur, n) = (at(cur), list.len() as isize);
+        let next = self.matches(q, list).into_iter().min_by_key(|&k| {
             let d = (at(k) - cur) * dir;
             if d > 0 { d } else { d + n }
         });
         if let Some(k) = next {
             self.set_cursor(k);
         }
-    }
-
-    /// n / N: next or previous match of the last find.
-    fn find_next(&mut self, dir: isize) {
-        let q = self.last_search.clone();
-        self.cycle(&q, dir);
     }
 
     /// Line editing for the `/` prompt; the cursor follows the query as it's typed.
@@ -356,15 +358,19 @@ impl App {
         };
         if step != 0 {
             let q = s.query.clone();
-            self.cycle(&q, step);
+            self.cycle(&q, step, &self.siblings(), self.cursor);
             return;
         }
         match code {
+            // Open what the query landed on, as Enter would.
             KeyCode::Enter => {
-                if !s.query.is_empty() {
-                    self.last_search = s.query.clone();
-                }
+                let q = std::mem::take(&mut s.query);
                 self.search = None;
+                // The cursor may have been cycled off find()'s pick, so open the cursor.
+                if self.matches(&q, &self.siblings()).contains(&self.cursor) {
+                    self.last_search = Some((q, self.tree.nodes[self.cursor].parent));
+                    self.enter();
+                }
                 return;
             }
             KeyCode::Esc => self.search = None,
@@ -374,7 +380,7 @@ impl App {
                 s.query.pop();
             }
             // Up on an empty line recalls the last find.
-            KeyCode::Up => s.query = self.last_search.clone(),
+            KeyCode::Up => s.query = self.last_search.as_ref().map(|l| l.0.clone()).unwrap_or_default(),
             KeyCode::Char('u') if ctrl => s.query.clear(),
             KeyCode::Char('w') if ctrl => {
                 let t = s.query.trim_end_matches(|c: char| !c.is_alphanumeric());
@@ -714,10 +720,8 @@ mod tests {
     use super::*;
     use std::fs;
 
-    fn app_in(files: &[&str]) -> App {
-        static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-        let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let root = std::env::temp_dir().join(format!("tb-search-{}-{n}", std::process::id()));
+    fn app_in(name: &str, files: &[&str]) -> App {
+        let root = std::env::temp_dir().join(format!("tb-search-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join("d")).unwrap();
         for f in files {
@@ -738,7 +742,7 @@ mod tests {
 
     #[test]
     fn search_follows_typing_prefers_prefix_and_cycles() {
-        let mut app = app_in(&["alpha", "beta", "Bravo.txt", "zebra-b"]);
+        let mut app = app_in("cycle", &["alpha", "beta", "Bravo.txt", "zebra-b"]);
         assert_eq!(at(&app), "alpha");
         typed(&mut app, "/b");
         assert_eq!(at(&app), "beta");
@@ -753,6 +757,7 @@ mod tests {
         typed(&mut app, "/b");
         app.key(KeyCode::Enter, KeyModifiers::NONE);
         assert_eq!(at(&app), "beta");
+        assert!(app.preview.take().is_some(), "enter opens the match");
         typed(&mut app, "n");
         assert_eq!(at(&app), "Bravo.txt");
         typed(&mut app, "n");
@@ -777,7 +782,7 @@ mod tests {
 
     #[test]
     fn search_cycles_while_typing_and_recalls() {
-        let mut app = app_in(&["alpha", "beta", "Bravo.txt", "zebra-b"]);
+        let mut app = app_in("tab", &["alpha", "beta", "Bravo.txt", "zebra-b"]);
         typed(&mut app, "/b");
         assert_eq!(app.match_pos("b"), (1, 3));
         app.key(KeyCode::Tab, KeyModifiers::NONE);
@@ -788,7 +793,8 @@ mod tests {
         app.key(KeyCode::Up, KeyModifiers::NONE);
         assert_eq!(at(&app), "Bravo.txt");
         app.key(KeyCode::Enter, KeyModifiers::NONE);
-        assert_eq!(at(&app), "Bravo.txt", "enter keeps the cycled match");
+        assert_eq!(at(&app), "Bravo.txt", "enter opens the cycled match, not find()'s first pick");
+        assert!(app.preview.take().is_some());
 
         typed(&mut app, "/B");
         assert_eq!(at(&app), "Bravo.txt", "smart case skips beta");
@@ -797,5 +803,33 @@ mod tests {
         app.key(KeyCode::Up, KeyModifiers::NONE);
         assert_eq!(app.search.as_ref().unwrap().query, "b", "up on an empty line recalls the last find");
         app.key(KeyCode::Esc, KeyModifiers::NONE);
+    }
+
+    #[test]
+    fn search_enter_opens_a_folder() {
+        let mut app = app_in("open", &["alpha"]);
+        let d = app.tree.nodes[app.cursor].path.parent().unwrap().join("sub");
+        fs::create_dir_all(d.join("inner")).unwrap();
+        app.reload();
+        typed(&mut app, "/su");
+        app.key(KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(at(&app), "inner");
+    }
+
+    #[test]
+    fn n_cycles_the_searched_column_not_the_opened_folder() {
+        let mut app = app_in("scope", &["bar", "zed"]);
+        let d = app.tree.nodes[app.cursor].path.parent().unwrap().to_path_buf();
+        fs::create_dir_all(d.join("ba-dir")).unwrap();
+        fs::write(d.join("ba-dir/ba-one"), "").unwrap();
+        fs::write(d.join("ba-dir/ba-two"), "").unwrap();
+        app.reload();
+        typed(&mut app, "/ba");
+        app.key(KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(at(&app), "ba-one");
+        typed(&mut app, "n");
+        assert_eq!(at(&app), "bar", "back in the searched column, past ba-dir");
+        typed(&mut app, "N");
+        assert_eq!(at(&app), "ba-dir");
     }
 }
