@@ -43,3 +43,13 @@ hjkl / arrows move · l/enter open (dir: expand, file: preview) · space fold
 
 Preview: markdown via `glow`, everything else via `bat`, binaries via `file`.
 j/k, space/PgDn, ctrl-d/u, g/G scroll; q/esc/h close.
+
+Images (png jpg gif webp bmp tiff ico svg avif heic ...) and PDFs preview as
+pictures: PDFs one page at a time (`pdftoppm`), j/k/space flip pages, g/G
+first/last. Formats the `image` crate can't decode go through ImageMagick
+`convert`. Pixels use whatever the terminal answers to the startup query:
+kitty graphics (Ghostty, Kitty, herdr), sixel, iTerm2; otherwise unicode
+half-blocks, which work in any truecolor terminal (Termius, tmux). `i` flips
+between pixels and half-blocks: herdr claims kitty for every attached client,
+so a phone attached to the same session needs `i` (or `TB_GRAPHICS=halfblocks`).
+Inside tmux the query is skipped and half-blocks are used.

@@ -1,6 +1,7 @@
 //! tb — horizontal tree file browser. Color = recency (recursive for dirs).
 mod anim;
 mod layout;
+mod media;
 mod mtime;
 mod tree;
 mod ui;
@@ -44,6 +45,14 @@ pub struct App {
     /// Bumped whenever tree, cursor, or heat data change; layout is cached per epoch.
     pub epoch: u64,
     pub lay: Option<(u64, layout::Layout)>,
+    /// Terminal graphics for image/PDF previews; None = captions only (TB_GRAPHICS=off).
+    pub picker: Option<ratatui_image::picker::Picker>,
+    /// What the terminal claimed, so `i` can switch back from half-blocks.
+    pub detected: ratatui_image::picker::ProtocolType,
+    /// A preview drew pixels since the last full repaint.
+    pub graphics_shown: bool,
+    /// Clear the terminal before the next frame.
+    pub repaint: bool,
 }
 
 impl App {
@@ -79,6 +88,10 @@ impl App {
             preview: None,
             epoch: 0,
             lay: None,
+            picker: None,
+            detected: ratatui_image::picker::ProtocolType::Halfblocks,
+            graphics_shown: false,
+            repaint: false,
         };
         app.enter();
         app
@@ -198,9 +211,31 @@ impl App {
 
     /// Returns false to quit.
     fn key(&mut self, code: KeyCode, mods: KeyModifiers) -> bool {
+        if code == KeyCode::Char('i')
+            && let (Some(p), Some(m)) = (&mut self.picker, self.preview.as_mut().and_then(|pv| pv.media.as_mut()))
+        {
+            media::toggle(p, self.detected);
+            m.reencode();
+            self.repaint = true;
+            return true;
+        }
         if let Some(pv) = self.open_preview() {
             let page = pv.page.max(1) as i32;
             let ctrl = mods.contains(KeyModifiers::CONTROL);
+            if let Some(m) = &mut pv.media {
+                // Pages instead of lines.
+                match code {
+                    KeyCode::Char('q') | KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => pv.closing = true,
+                    KeyCode::Char('j' | 'l' | 'n' | ' ') | KeyCode::Down | KeyCode::Right | KeyCode::PageDown => {
+                        m.flip(1)
+                    }
+                    KeyCode::Char('k' | 'p') | KeyCode::Up | KeyCode::PageUp => m.flip(-1),
+                    KeyCode::Char('g') | KeyCode::Home => m.goto(0),
+                    KeyCode::Char('G') | KeyCode::End => m.goto(isize::MAX / 2),
+                    _ => {}
+                }
+                return true;
+            }
             match code {
                 KeyCode::Char('q') | KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => pv.closing = true,
                 KeyCode::Char('j') | KeyCode::Down => pv.scroll += 1,
@@ -249,6 +284,8 @@ impl App {
     fn mouse(&mut self, kind: MouseEventKind, col: u16, row: u16) {
         if let Some(pv) = self.open_preview() {
             match kind {
+                MouseEventKind::ScrollDown if pv.media.is_some() => pv.media.as_mut().unwrap().flip(1),
+                MouseEventKind::ScrollUp if pv.media.is_some() => pv.media.as_mut().unwrap().flip(-1),
                 MouseEventKind::ScrollDown => pv.scroll += 3,
                 MouseEventKind::ScrollUp => pv.scroll -= 3,
                 MouseEventKind::Down(MouseButton::Left) => pv.closing = true,
@@ -284,6 +321,7 @@ fn main() -> std::io::Result<()> {
     if arg == "-h" || arg == "--help" {
         println!(
             "usage: tb [DIR]\n\nhjkl/arrows move · enter/l open · space fold · . dotfiles · - reroot up · c collapse others · r reload · ? help · q quit\n\
+             image/pdf preview: j/k page · i pixels <-> half-blocks · TB_GRAPHICS=halfblocks|kitty|sixel|iterm2|off\n\
              color = last modified (dirs: newest anything inside): red = minutes, orange = hours, tan = days, grey = weeks, blue = years"
         );
         return Ok(());
@@ -297,6 +335,11 @@ fn main() -> std::io::Result<()> {
         hook(info);
     }));
     execute!(stdout(), EnableMouseCapture)?;
+    // Query after entering the alternate screen, before reading events.
+    app.picker = media::picker();
+    if let Some(p) = &app.picker {
+        app.detected = p.protocol_type();
+    }
 
     let mut dirty = true;
     let mut animating = false;
@@ -309,6 +352,9 @@ fn main() -> std::io::Result<()> {
             // Resuming from idle: one nominal frame, not the idle gap.
             let dt = if animating { (now - last).as_secs_f32().min(0.05) } else { FRAME.as_secs_f32() };
             last = now;
+            if std::mem::take(&mut app.repaint) {
+                let _ = term.clear();
+            }
             let mut moving = false;
             if let Err(e) = term.draw(|f| moving = ui::frame(f, &mut app, dt)) {
                 break Err(e);

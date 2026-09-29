@@ -16,6 +16,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::anim::{approach, heat, mix, to_color, Damped, Rgb, HEAT, RECOLOR};
 use crate::layout::{cell_glyph, layout, lines, ACTIVE, ROUTE};
+use crate::media::Media;
 use crate::App;
 
 pub const BG: Rgb = [9.0, 10.0, 15.0];
@@ -317,7 +318,12 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         moving |= pv.sy.step(pv.scroll as f32, 0.07, dt);
         dim_backdrop(f.buffer_mut(), area, 0.55 * p);
         if area.width > 4 && area.height > 2 {
-            let pos_label = format!(" {}/{} ", pv.scroll + 1, pv.text.lines.len().max(1));
+            let mode = app.picker.as_ref().map(|p| format!("i {} · ", crate::media::label(p))).unwrap_or_default();
+            let pos_label = match &pv.media {
+                Some(m) if m.pages > 1 => format!(" {mode}page {}/{} ", m.page + 1, m.pages),
+                Some(m) => m.dims.map(|(w, h)| format!(" {mode}{w}×{h} ")).unwrap_or_default(),
+                None => format!(" {}/{} ", pv.scroll + 1, pv.text.lines.len().max(1)),
+            };
             let block = Block::bordered()
                 .border_type(BorderType::Rounded)
                 .border_style(Style::new().fg(to_color(mix(POP_BG, LINE_ROUTE, p))))
@@ -325,26 +331,40 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
                 .title(Span::styled(format!(" {} ", pv.title), Style::new().fg(to_color(ROUTE_TEXT)).add_modifier(Modifier::BOLD)))
                 .title_bottom(Line::from(Span::styled(pos_label, Style::new().fg(to_color(MUTED)))).right_aligned());
             f.render_widget(Clear, area);
-            let sy = pv.sy.v.round().max(0.0) as u16;
-            f.render_widget(Paragraph::new(pv.text.clone()).block(block).scroll((sy, 0)), area);
-            if max > 0 && p > 0.9 {
-                let mut st = ScrollbarState::new(max as usize).position(sy as usize);
-                f.render_stateful_widget(
-                    Scrollbar::new(ScrollbarOrientation::VerticalRight)
-                        .begin_symbol(None)
-                        .end_symbol(None)
-                        .track_symbol(Some("│"))
-                        .track_style(Style::new().fg(to_color(LINE_DIM)))
-                        .thumb_symbol("┃")
-                        .thumb_style(Style::new().fg(to_color(LINE_ROUTE))),
-                    area.inner(Margin { vertical: 1, horizontal: 0 }),
-                    &mut st,
-                );
+            // Pixels only once the popup has landed: graphics protocols can't follow the grow animation.
+            let settled = p > 0.97 && !pv.closing;
+            if let (Some(m), Some(picker), true) = (&mut pv.media, &app.picker, settled) {
+                f.render_widget(block, area);
+                if m.err.is_none() {
+                    m.render(f, area.inner(Margin { vertical: 1, horizontal: 1 }), picker);
+                } else {
+                    f.render_widget(Paragraph::new(pv.text.clone()), area.inner(Margin { vertical: 1, horizontal: 1 }));
+                }
+                app.graphics_shown = true;
+            } else {
+                let sy = pv.sy.v.round().max(0.0) as u16;
+                f.render_widget(Paragraph::new(pv.text.clone()).block(block).scroll((sy, 0)), area);
+                if max > 0 && p > 0.9 && pv.media.is_none() {
+                    let mut st = ScrollbarState::new(max as usize).position(sy as usize);
+                    f.render_stateful_widget(
+                        Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                            .begin_symbol(None)
+                            .end_symbol(None)
+                            .track_symbol(Some("│"))
+                            .track_style(Style::new().fg(to_color(LINE_DIM)))
+                            .thumb_symbol("┃")
+                            .thumb_style(Style::new().fg(to_color(LINE_ROUTE))),
+                        area.inner(Margin { vertical: 1, horizontal: 0 }),
+                        &mut st,
+                    );
+                }
             }
         }
     }
     if app.preview.as_ref().is_some_and(|p| p.closing && p.open.v < 0.03) {
         app.preview = None;
+        // Sixel/iTerm2 pixels can outlive the cells they were drawn over.
+        app.repaint |= std::mem::take(&mut app.graphics_shown);
     }
     app.lay = Some((epoch, lay));
     moving
@@ -409,7 +429,7 @@ fn status_bar(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-const KEYS: [(&str, &str); 13] = [
+const KEYS: [(&str, &str); 14] = [
     ("h j k l / arrows", "move"),
     ("l / enter", "open folder · preview file"),
     ("space / tab", "fold / unfold"),
@@ -421,6 +441,7 @@ const KEYS: [(&str, &str); 13] = [
     ("r", "reload"),
     ("mouse", "click select · click again open · wheel"),
     ("preview", "j k · space · ctrl-d/u · g G · q"),
+    ("image / pdf", "j k page · i pixels ⇄ blocks"),
     ("?", "toggle this help"),
     ("q", "quit"),
 ];
@@ -475,6 +496,8 @@ pub struct Preview {
     /// 0 = collapsed onto the cursor row, 1 = fully open.
     pub open: Damped,
     pub closing: bool,
+    /// Image / PDF pages; `text` is then only the caption shown while it can't draw.
+    pub media: Option<Media>,
 }
 
 fn run(cmd: &mut Command) -> Option<Vec<u8>> {
@@ -502,7 +525,15 @@ impl Preview {
         if let Ok(f) = std::fs::File::open(path) {
             let _ = f.take(8192).read_to_end(&mut first);
         }
-        let text = if size == 0 {
+        let media = if size == 0 { None } else { Media::open(path) };
+        let text = if let Some(m) = &media {
+            let what = match (&m.err, m.dims) {
+                (Some(e), _) => format!("  can't render · {e}"),
+                (None, Some((w, h))) => format!("  {w}×{h}"),
+                (None, None) => String::new(),
+            };
+            Text::from(vec![Line::from(""), Line::from(what)])
+        } else if size == 0 {
             Text::from(vec![Line::from(""), Line::from("  (empty file)")])
         } else if first.contains(&0) {
             let kind = run(Command::new("file").arg("-b").arg(path))
@@ -552,6 +583,6 @@ impl Preview {
             }
             t
         };
-        Preview { title, text, scroll: 0, sy: Damped::new(0.0), page: 1, open: Damped::new(0.0), closing: false }
+        Preview { title, text, scroll: 0, sy: Damped::new(0.0), page: 1, open: Damped::new(0.0), closing: false, media }
     }
 }
