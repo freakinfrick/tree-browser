@@ -78,13 +78,28 @@ pub fn truncate_to(s: &str, max: usize) -> String {
     out
 }
 
+/// The line: root..cursor, continued past the cursor through each expanded
+/// dir's remembered child (or its first). Every spine node sits at y = 0.
+pub fn spine(tree: &Tree, cursor: usize) -> Vec<usize> {
+    let mut s = tree.path_to(cursor);
+    let mut cur = cursor;
+    while tree.nodes[cur].expanded {
+        let kids = tree.kids(cur);
+        let Some(next) = tree.nodes[cur].last.filter(|l| kids.contains(l)).or(kids.first().copied()) else { break };
+        s.push(next);
+        cur = next;
+    }
+    s
+}
+
 pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String) -> Layout {
-    let on_path: HashSet<usize> = tree.path_to(cursor).into_iter().collect();
+    let spine = spine(tree, cursor);
+    let on_spine: HashSet<usize> = spine.iter().copied().collect();
     let mut out = Layout::default();
-    // (id, y, label, active) for the current column.
+    // (id, y, label, active) for the current column, sorted by y.
     let mut level = vec![(tree.root, 0, truncate(&label_of(tree.root)), true)];
     let mut x = 0i32;
-    loop {
+    for depth in 1.. {
         for (id, y, label, active) in &level {
             if *id == cursor {
                 out.cursor = (x, *y, label.width() as i32);
@@ -101,19 +116,43 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String) ->
         let colw = level.iter().map(|l| l.2.width() as i32).max().unwrap_or(0);
         let n = parents.len() as i32;
         let next_x = x + colw + n + 3;
+
+        // y0 per parent. The spine block is pinned so its spine child sits on
+        // the line; blocks above pack upward from it, blocks below downward.
+        let ideal = |py: i32, len: i32| py - (len - 1) / 2;
+        let mut y0s = vec![0i32; parents.len()];
+        let pin = parents.iter().position(|p| on_spine.contains(&p.0) && spine.get(depth).is_some());
+        let (below_from, mut prev_end) = match pin {
+            Some(i) => {
+                let kids = tree.kids(parents[i].0);
+                let idx = kids.iter().position(|k| *k == spine[depth]).unwrap_or(0) as i32;
+                y0s[i] = -idx;
+                let mut next_start = y0s[i];
+                for j in (0..i).rev() {
+                    let len = tree.kids(parents[j].0).len() as i32;
+                    y0s[j] = ideal(parents[j].1, len).min(next_start - 1 - len);
+                    next_start = y0s[j];
+                }
+                (i + 1, y0s[i] + tree.kids(parents[i].0).len() as i32 - 1)
+            }
+            None => (0, i32::MIN / 2),
+        };
+        for j in below_from..parents.len() {
+            let len = tree.kids(parents[j].0).len() as i32;
+            y0s[j] = ideal(parents[j].1, len).max(prev_end + 2);
+            prev_end = y0s[j] + len - 1;
+        }
+
         let mut next = Vec::new();
-        let mut prev_end = i32::MIN / 2;
-        for (k, (pid, py, ..)) in parents.iter().enumerate() {
+        for (k, (pid, ..)) in parents.iter().enumerate() {
             let kids = tree.kids(*pid).to_vec();
-            let len = kids.len() as i32;
-            let y0 = (py - (len - 1) / 2).max(prev_end + 2);
-            prev_end = y0 + len - 1;
-            let active = on_path.contains(pid);
+            let active = on_spine.contains(pid);
             for (i, &kid) in kids.iter().enumerate() {
-                next.push((kid, y0 + i as i32, truncate(&label_of(kid)), active));
+                next.push((kid, y0s[k] + i as i32, truncate(&label_of(kid)), active));
             }
             out.blocks.push(Block { parent: *pid, kids, k: k as i32 });
         }
+        next.sort_by_key(|n| n.1);
         x = next_x;
         level = next;
     }
@@ -146,8 +185,13 @@ impl Canvas {
 
 /// Connector cells for every block, from the given positions.
 /// `pos(id)` -> (x, y, label width); None = node not drawn, block skipped.
-/// `route` = root..cursor path; its connectors are emphasized.
-pub fn lines(blocks: &[Block], pos: &dyn Fn(usize) -> Option<(i32, i32, i32)>, route: &HashSet<usize>) -> Lines {
+/// `route` = root..cursor (brightest); `spine` = the whole line (active).
+pub fn lines(
+    blocks: &[Block],
+    pos: &dyn Fn(usize) -> Option<(i32, i32, i32)>,
+    route: &HashSet<usize>,
+    spine: &HashSet<usize>,
+) -> Lines {
     let mut c = Canvas(HashMap::new());
     for b in blocks {
         let Some((px, py, pw)) = pos(b.parent) else { continue };
@@ -164,7 +208,7 @@ pub fn lines(blocks: &[Block], pos: &dyn Fn(usize) -> Option<(i32, i32, i32)>, r
         let y0 = kids.iter().map(|k| k.2).min().unwrap();
         let y1 = kids.iter().map(|k| k.2).max().unwrap();
         let on = route.contains(&b.parent);
-        let base = if on { ACTIVE } else { DIM };
+        let base = if spine.contains(&b.parent) { ACTIVE } else { DIM };
         let routed = kids.iter().find(|k| route.contains(&k.0)).map(|k| k.2);
         let top = if on && routed.is_some() { ROUTE } else { base };
 
@@ -214,24 +258,61 @@ mod tests {
     fn target_lines(l: &Layout, route: &HashSet<usize>) -> Lines {
         let m: HashMap<usize, (i32, i32, i32)> =
             l.placed.iter().map(|p| (p.id, (p.x, p.y, p.label.width() as i32))).collect();
-        lines(&l.blocks, &|id| m.get(&id).copied(), route)
+        lines(&l.blocks, &|id| m.get(&id).copied(), route, route)
     }
 
-    #[test]
-    fn block_centered_on_parent() {
-        let root = fixture("center", &["a/1", "a/2", "a/3"]);
+    fn deep() -> (Tree, usize, usize, usize) {
+        let root = fixture("line", &["a/1/x", "a/2", "a/3", "b/9"]);
         let mut t = Tree::new(&root);
         t.load(0);
         t.nodes[0].expanded = true;
         let a = t.kids(0)[0];
         t.load(a);
         t.nodes[a].expanded = true;
-        let l = layout(&t, a, &name_of(&t));
-        let (_, ay) = pos(&l, &t, "a");
-        let (_, y2) = pos(&l, &t, "2");
-        assert_eq!(ay, y2, "middle child sits on parent row");
-        assert_eq!(pos(&l, &t, "1").1, ay - 1, "blocks may go above parent (negative y ok)");
-        assert!(ay == 0 && pos(&l, &t, "1").1 < 0);
+        let one = t.kids(a)[0];
+        let three = t.kids(a)[2];
+        (t, a, one, three)
+    }
+
+    #[test]
+    fn spine_is_one_straight_line() {
+        let (mut t, _, one, _) = deep();
+        t.load(one);
+        t.nodes[one].expanded = true;
+        let l = layout(&t, one, &name_of(&t));
+        for id in spine(&t, one) {
+            let p = l.placed.iter().find(|p| p.id == id).unwrap();
+            assert_eq!(p.y, 0, "{} on the line", t.nodes[id].name);
+        }
+        assert_eq!(l.cursor.1, 0);
+        assert_eq!(pos(&l, &t, "x").1, 0, "line continues past the cursor");
+    }
+
+    #[test]
+    fn column_scrolls_about_the_line() {
+        let (t, _, one, three) = deep();
+        let at1 = layout(&t, one, &name_of(&t));
+        let at3 = layout(&t, three, &name_of(&t));
+        assert_eq!((pos(&at1, &t, "1").1, pos(&at3, &t, "3").1), (0, 0), "selection always on the line");
+        assert_eq!(pos(&at1, &t, "1").1 - pos(&at3, &t, "1").1, 2, "column slid up by two rows");
+        assert_eq!(pos(&at3, &t, "a").1, 0, "parent column did not move");
+    }
+
+    #[test]
+    fn blocks_above_the_line_do_not_overlap_it() {
+        let root = fixture("above", &["a/1", "a/2", "a/3", "a/4", "b/5", "b/6", "b/7"]);
+        let mut t = Tree::new(&root);
+        t.load(0);
+        t.nodes[0].expanded = true;
+        for &k in &t.kids(0).to_vec() {
+            t.load(k);
+            t.nodes[k].expanded = true;
+        }
+        let b = t.kids(0)[1];
+        let l = layout(&t, b, &name_of(&t)); // spine through b; a's block sits above it
+        let (y4, y5) = (pos(&l, &t, "4").1, pos(&l, &t, "5").1);
+        assert_eq!(y5, 0, "b's first child on the line");
+        assert!(y4 <= y5 - 2, "a's block ends above b's with a gap: {y4} vs {y5}");
     }
 
     #[test]
@@ -289,7 +370,7 @@ mod tests {
         t.nodes[0].expanded = true;
         let l = layout(&t, 0, &name_of(&t));
         // Kid sitting inside the parent label (mid-animation): no connector.
-        let ln = lines(&l.blocks, &|id| Some(if id == 0 { (0, 0, 10) } else { (5, 0, 1) }), &HashSet::new());
+        let ln = lines(&l.blocks, &|id| Some(if id == 0 { (0, 0, 10) } else { (5, 0, 1) }), &HashSet::new(), &HashSet::new());
         assert!(ln.is_empty());
     }
 

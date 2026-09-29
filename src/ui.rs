@@ -168,13 +168,9 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
     moving |= cam.1.step(ty, CAM, dt);
     let (ox, oy) = (cam.0.v.round() as i32, cam.1.v.round() as i32);
 
-    // Highlight bar chases the cursor node's *animated* position.
-    let (px, py, pw) = app
-        .scene
-        .nodes
-        .get(&app.cursor)
-        .map(|a| (a.x.v, a.y.v, a.w as f32))
-        .unwrap_or((cx as f32, cy as f32, cw as f32));
+    // The selector is pinned to the line (the cursor's target slot); items
+    // slide into it. Only its x/width ease, when moving along the line.
+    let (px, py, pw) = (cx as f32, cy as f32, cw as f32);
     let pill = app.pill.get_or_insert((Damped::new(px), Damped::new(py), Damped::new(pw)));
     moving |= pill.0.step(px, PILL_T, dt);
     moving |= pill.1.step(py, PILL_T, dt);
@@ -200,7 +196,8 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         })
     };
     let route_rgb = mix(LINE_ROUTE, FLASH, app.flash);
-    for ((x, y), (mask, emph)) in lines(&lay.blocks, &pos, &route) {
+    let spine: HashSet<usize> = crate::layout::spine(&app.tree, app.cursor).into_iter().collect();
+    for ((x, y), (mask, emph)) in lines(&lay.blocks, &pos, &route, &spine) {
         let (sx, sy) = (x - ox, y - oy);
         if sx < 0 || sy < 0 || sx >= canvas.width as i32 || sy >= canvas.height as i32 {
             continue;
@@ -237,8 +234,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             }
         }
     }
-    // Dot rides the cursor node itself (the bar may still be sliding).
-    let (dsx, dsy) = (px.round() as i32 - 1 - ox, py.round() as i32 - oy);
+    let (dsx, dsy) = (pill_x - 1 - ox, pill_y - oy);
     if dsx >= 0 && dsy >= 0 && dsx < canvas.width as i32 && dsy < canvas.height as i32 {
         let dot = mix(DOT, [255.0, 190.0, 190.0], app.flash);
         buf[(canvas.x + dsx as u16, canvas.y + dsy as u16)].set_char('●').set_fg(to_color(dot));

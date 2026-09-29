@@ -40,7 +40,7 @@ th = threading.Thread(target=capture, args=(t0,)); th.start()
 
 say("tb  —  a horizontal tree file browser  ·  Rust + ratatui", 2.4)
 say("color = newest change anywhere inside  ·  red = minutes  →  blue = years", 2.6)
-say("move: the highlight glides, the route to the cursor lights up")
+say("the line stays put: j/k scroll the column through it")
 key("j", "j", "j", gap=0.45); time.sleep(0.6)
 say("expand: children unfurl out of the parent")
 key("l", gap=0.9); key("l", gap=0.9); key("l", gap=1.0)

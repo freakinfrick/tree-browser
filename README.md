@@ -4,6 +4,11 @@ Terminal clone of Conrad Barski's (@lisperati) file browser: the tree grows
 left→right, every opened folder fans its children out as a column, many
 branches stay open at once, joined by elbow connectors.
 
+The selection line is fixed: root → cursor runs as one straight horizontal
+line through mid-screen (continuing past the cursor through each folder's
+last-visited child). Moving up/down scrolls that column about the line;
+the selector never moves, the tree does.
+
 Motion is physics-driven: every node rides a critically damped spring
 (SmoothDamp: no overshoot, velocity carries through retargets). Expanding
 unfurls children out of the parent, collapsing sucks them back in and fades
