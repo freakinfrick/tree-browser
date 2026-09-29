@@ -65,6 +65,8 @@ pub struct App {
     pending: Option<Run>,
     /// Quit with q: the wrapper cd's the shell to work_dir().
     cd_on_quit: bool,
+    /// Started with --cwd-file, so q really does cd (status bar says so).
+    pub can_cd: bool,
 }
 
 impl App {
@@ -109,6 +111,7 @@ impl App {
             hist_at: 0,
             pending: None,
             cd_on_quit: false,
+            can_cd: false,
         };
         app.enter();
         app
@@ -421,6 +424,7 @@ fn main() -> std::io::Result<()> {
     }
     let start = std::fs::canonicalize(&arg)?;
     let mut app = App::new(start);
+    app.can_cd = cwd_file.is_some();
     let mut term = ratatui::init();
     let hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {

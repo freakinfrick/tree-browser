@@ -394,12 +394,35 @@ fn status_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(format!("{meta} · "), muted),
         Span::styled("● ", Style::new().fg(to_color(heat(age_of(t))))),
         Span::styled(format!("{}{}", ago(t), if partial { " (partial)" } else { "" }), Style::new().fg(to_color(ROUTE_TEXT))),
-        Span::styled("   now ", muted),
+        Span::styled("   ", muted),
     ];
-    for (_, c) in HEAT {
-        right.push(Span::styled("▮", Style::new().fg(to_color(c))));
+    // Tight bar: the color legend goes first (it's in `?` too), then the shell keys,
+    // so the breadcrumb keeps room.
+    let key = Style::new().fg(to_color(LINE_ROUTE)).add_modifier(Modifier::BOLD);
+    let q = if app.can_cd { " cd  " } else { " quit  " };
+    let hints = [("!", " cmd  "), ("s", " shell  "), ("q", q), ("?", " keys ")];
+    let hw: usize = hints.iter().map(|(k, d)| k.width() + d.width()).sum();
+    let legend_w = "now ".len() + HEAT.len() + " old   ".len();
+    let base: usize = right.iter().map(|s| s.width()).sum::<usize>() + 24;
+    let w = area.width as usize;
+    let (legend, shown) = if w >= base + legend_w + hw {
+        (true, &hints[..])
+    } else if w >= base + hw {
+        (false, &hints[..])
+    } else {
+        (true, &hints[3..])
+    };
+    if legend {
+        right.push(Span::styled("now ", muted));
+        for (_, c) in HEAT {
+            right.push(Span::styled("▮", Style::new().fg(to_color(c))));
+        }
+        right.push(Span::styled(" old   ", muted));
     }
-    right.push(Span::styled(" old   ? keys ", muted));
+    for (k, d) in shown {
+        right.push(Span::styled(*k, key));
+        right.push(Span::styled(*d, muted));
+    }
     let rw: usize = right.iter().map(|s| s.width()).sum();
 
     // Left side: breadcrumb root › … › leaf, trimmed from the front.
