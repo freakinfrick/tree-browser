@@ -14,7 +14,7 @@ use crate::layout::Layout;
 #[derive(Clone, Copy, Debug)]
 pub struct Damped {
     pub v: f32,
-    vel: f32,
+    pub vel: f32,
 }
 
 impl Damped {

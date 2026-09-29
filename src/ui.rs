@@ -15,7 +15,7 @@ use ratatui::Frame;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::anim::{approach, heat, mix, to_color, Damped, Rgb, HEAT, RECOLOR};
-use crate::layout::{glyph, layout, lines, ACTIVE, ROUTE};
+use crate::layout::{cell_glyph, layout, lines, ACTIVE, ROUTE};
 use crate::App;
 
 pub const BG: Rgb = [9.0, 10.0, 15.0];
@@ -190,21 +190,38 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             (x, y, a.w)
         })
     };
-    let route_rgb = mix(LINE_ROUTE, FLASH, app.flash);
     let spine: HashSet<usize> = crate::layout::spine(&app.tree, app.cursor).into_iter().collect();
-    for ((x, y), (mask, emph)) in lines(&lay.blocks, &pos, &route, &spine) {
+    // Sap: each branch is tinted by the recursive heat of the dir it grows
+    // from, so recent work glows through the wiring.
+    let now = SystemTime::now();
+    let mut sap: std::collections::HashMap<usize, Rgb> = std::collections::HashMap::new();
+    let tree = &app.tree;
+    let mut sap_of = |owner: usize| {
+        *sap.entry(owner).or_insert_with(|| {
+            let t = tree.nodes[owner].rec.map_or(tree.nodes[owner].mtime, |(t, _)| t.max(tree.nodes[owner].mtime));
+            heat(now.duration_since(t).unwrap_or_default().as_secs_f32())
+        })
+    };
+    for ((x, y), cell) in lines(&lay.blocks, &pos, &route, &spine) {
         let (sx, sy) = (x - ox, y - oy);
         if sx < 0 || sy < 0 || sx >= canvas.width as i32 || sy >= canvas.height as i32 {
             continue;
         }
-        let c = match emph {
-            ROUTE => route_rgb,
-            ACTIVE => LINE_ACTIVE,
-            _ => LINE_DIM,
+        let h = sap_of(cell.owner);
+        let c = match cell.emph {
+            ROUTE => mix(LINE_ROUTE, h, 0.18),
+            ACTIVE => mix(LINE_ACTIVE, h, 0.42),
+            _ => mix(LINE_DIM, mix(h, BG, 0.55), 0.35),
         };
-        buf[(canvas.x + sx as u16, canvas.y + sy as u16)].set_char(glyph(mask)).set_fg(to_color(c));
+        buf[(canvas.x + sx as u16, canvas.y + sy as u16)].set_char(cell_glyph(&cell)).set_fg(to_color(c));
     }
 
+    // Dot under the labels: names sliding into the slot pass over it.
+    let (dsx, dsy) = (pill_x - 1 - ox, pill_y - oy);
+    if dsx >= 0 && dsy >= 0 && dsx < canvas.width as i32 && dsy < canvas.height as i32 {
+        let dot = mix(DOT, [255.0, 190.0, 190.0], app.flash);
+        buf[(canvas.x + dsx as u16, canvas.y + dsy as u16)].set_char('●').set_fg(to_color(dot));
+    }
     // Ghosts under live nodes.
     let mut order: Vec<(&usize, &crate::anim::NodeAnim)> = scene.nodes.iter().collect();
     order.sort_by_key(|(_, a)| !a.ghost);
@@ -222,6 +239,11 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             style = style.add_modifier(Modifier::BOLD);
         }
         put(buf, canvas, sx, sy, &a.label, style);
+        // Bud: a closed folder that may still hold something.
+        let bud = node.is_dir && !node.expanded && node.children.as_ref().is_none_or(|k| !k.is_empty());
+        if bud && !a.ghost {
+            put(buf, canvas, sx + a.w + 1, sy, "›", Style::new().fg(to_color(mix(BG, a.rgb, a.alpha * 0.55))));
+        }
         if !a.ghost {
             app.hits.push((sx, sy, a.w, id));
             if node.is_dir {
@@ -229,11 +251,43 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             }
         }
     }
-    let (dsx, dsy) = (pill_x - 1 - ox, pill_y - oy);
-    if dsx >= 0 && dsy >= 0 && dsx < canvas.width as i32 && dsy < canvas.height as i32 {
-        let dot = mix(DOT, [255.0, 190.0, 190.0], app.flash);
-        buf[(canvas.x + dsx as u16, canvas.y + dsy as u16)].set_char('●').set_fg(to_color(dot));
+    // Signal bead: on every move a light sweeps along the line into the
+    // cursor, lighting wire and labels as it passes, with a motion-blur tail
+    // whose length follows its speed. Drawn last so it passes over labels.
+    if app.last_cursor.is_some_and(|(id, _)| id != app.cursor) {
+        let (_, lx) = app.last_cursor.unwrap();
+        let start = if lx != cx { lx - 2 } else { cx - 10 };
+        app.bead = Some(Damped::new(start as f32));
     }
+    app.last_cursor = Some((app.cursor, cx));
+    let bead_target = (cx - 2) as f32;
+    if let Some(b) = &mut app.bead {
+        let running = b.step(bead_target, 0.13, dt);
+        moving |= running;
+        let head = b.v.round() as i32;
+        let dir = if b.vel >= 0.0 { -1 } else { 1 };
+        let tail = (b.vel.abs() * 0.05).clamp(1.0, 12.0) as i32;
+        let row = cy - oy;
+        for i in 0..=tail {
+            let x = head + dir * i - ox;
+            if x < 0 || x >= canvas.width as i32 || row < 0 || row >= canvas.height as i32 {
+                continue;
+            }
+            let fade = 1.0 - i as f32 / (tail + 1) as f32;
+            let cellref = &mut buf[(canvas.x + x as u16, canvas.y + row as u16)];
+            if cellref.symbol() == " " {
+                continue; // gaps stay dark; the light rides wire and names
+            }
+            cellref.set_fg(to_color(mix(LINE_ROUTE, FLASH, fade)));
+            if i == 0 {
+                cellref.set_bg(to_color(mix(BG, LINE_ROUTE, 0.35)));
+            }
+        }
+        if !running {
+            app.bead = None;
+        }
+    }
+
     for d in visible_dirs {
         app.mt.request(&d);
     }

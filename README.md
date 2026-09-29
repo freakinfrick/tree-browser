@@ -9,6 +9,12 @@ line through mid-screen (continuing past the cursor through each folder's
 last-visited child). Moving up/down scrolls that column about the line;
 the selector never moves, the tree does.
 
+Branch character: the line is a double "tube" (like the original's hollow
+cables) with proper junctions where branches cross it; every other branch is
+tinted by the recursive heat of the folder it grows from, so recent work
+glows through the wiring; a light sweeps along the line into the cursor on
+each move (tail length follows speed); closed folders carry a small `›` bud.
+
 Motion is physics-driven: every node rides a critically damped spring
 (SmoothDamp: no overshoot, velocity carries through retargets). Expanding
 unfurls children out of the parent, collapsing sucks them back in and fades

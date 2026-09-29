@@ -49,11 +49,42 @@ pub struct Layout {
     pub cursor: (i32, i32, i32),
 }
 
-/// (x, y) -> (direction mask, emphasis)
-pub type Lines = HashMap<(i32, i32), (u8, u8)>;
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Cell {
+    /// Direction bits (UP/DOWN/LEFT/RIGHT).
+    pub mask: u8,
+    /// Bits contributed by the route; horizontal ones draw as a double tube.
+    pub route: u8,
+    /// Highest emphasis touching the cell.
+    pub emph: u8,
+    /// Parent dir of the branch that owns the cell (for its heat tint).
+    pub owner: usize,
+}
+
+pub type Lines = HashMap<(i32, i32), Cell>;
 
 pub fn glyph(mask: u8) -> char {
     ['·', '│', '│', '│', '─', '╯', '╮', '┤', '─', '╰', '╭', '├', '─', '┴', '┬', '┼'][mask as usize & 15]
+}
+
+/// Glyph for a cell: the route's horizontal run is a double "tube"
+/// (like the original's hollow cables); crossings keep the light verticals.
+pub fn cell_glyph(c: &Cell) -> char {
+    if c.route & (LEFT | RIGHT) == 0 {
+        return glyph(c.mask);
+    }
+    match c.mask & 15 {
+        15 => '╪',
+        13 => '╧',
+        14 => '╤',
+        11 => '╞',
+        9 => '╘',
+        10 => '╒',
+        7 => '╡',
+        5 => '╛',
+        6 => '╕',
+        _ => '═',
+    }
 }
 
 /// Truncate to MAXW display columns with a trailing ellipsis.
@@ -159,13 +190,22 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String) ->
     out
 }
 
-struct Canvas(Lines);
+struct Canvas {
+    cells: Lines,
+    owner: usize,
+}
 
 impl Canvas {
     fn add(&mut self, x: i32, y: i32, bits: u8, emph: u8) {
-        let e = self.0.entry((x, y)).or_insert((0, 0));
-        e.0 |= bits;
-        e.1 = e.1.max(emph);
+        let e = self.cells.entry((x, y)).or_insert(Cell { owner: self.owner, ..Cell::default() });
+        e.mask |= bits;
+        if emph == ROUTE {
+            e.route |= bits;
+        }
+        if emph >= e.emph {
+            e.emph = emph;
+            e.owner = self.owner;
+        }
     }
     fn hseg(&mut self, x1: i32, x2: i32, y: i32, emph: u8) {
         let (a, b) = (x1.min(x2), x1.max(x2));
@@ -192,8 +232,9 @@ pub fn lines(
     route: &HashSet<usize>,
     spine: &HashSet<usize>,
 ) -> Lines {
-    let mut c = Canvas(HashMap::new());
+    let mut c = Canvas { cells: HashMap::new(), owner: 0 };
     for b in blocks {
+        c.owner = b.parent;
         let Some((px, py, pw)) = pos(b.parent) else { continue };
         let kids: Vec<(usize, i32, i32)> =
             b.kids.iter().filter_map(|&k| pos(k).map(|(x, y, _)| (k, x, y))).collect();
@@ -229,7 +270,7 @@ pub fn lines(
             c.vseg(bar_x, ty, ry, ROUTE);
         }
     }
-    c.0
+    c.cells
 }
 
 #[cfg(test)]
@@ -337,7 +378,7 @@ mod tests {
         let ax = pos(&l, &t, "a").0;
         let trunk_xs: HashSet<i32> = target_lines(&l, &HashSet::new())
             .iter()
-            .filter(|((x, _), (m, _))| *x > ax && *x < bx && m & (UP | DOWN) != 0)
+            .filter(|((x, _), c)| *x > ax && *x < bx && c.mask & (UP | DOWN) != 0)
             .map(|((x, _), _)| *x)
             .collect();
         assert_eq!(trunk_xs.len(), 2, "one trunk per displaced parent: {trunk_xs:?}");
@@ -357,9 +398,9 @@ mod tests {
         let route: HashSet<usize> = t.path_to(three).into_iter().collect();
         let ln = target_lines(&l, &route);
         let (x3, y3) = pos(&l, &t, "3");
-        assert_eq!(ln[&(x3 - 1, y3)].1, ROUTE, "bar tick at cursor row is on the route");
+        assert_eq!(ln[&(x3 - 1, y3)].emph, ROUTE, "bar tick at cursor row is on the route");
         let (x1, y1) = pos(&l, &t, "1");
-        assert_eq!(ln[&(x1 - 1, y1)].1, ACTIVE, "sibling tick is not");
+        assert_eq!(ln[&(x1 - 1, y1)].emph, ACTIVE, "sibling tick is not");
     }
 
     #[test]
@@ -372,6 +413,32 @@ mod tests {
         // Kid sitting inside the parent label (mid-animation): no connector.
         let ln = lines(&l.blocks, &|id| Some(if id == 0 { (0, 0, 10) } else { (5, 0, 1) }), &HashSet::new(), &HashSet::new());
         assert!(ln.is_empty());
+    }
+
+    #[test]
+    fn route_is_a_tube_and_crossings_join() {
+        let c = |mask, route| Cell { mask, route, emph: ROUTE, owner: 0 };
+        assert_eq!(cell_glyph(&c(LEFT | RIGHT, LEFT | RIGHT)), '═');
+        assert_eq!(cell_glyph(&c(UP | DOWN | LEFT | RIGHT, LEFT | RIGHT)), '╪', "light bar through the tube");
+        assert_eq!(cell_glyph(&c(DOWN | RIGHT, RIGHT)), '╒');
+        assert_eq!(cell_glyph(&c(UP | DOWN, 0)), '│', "no route bits: light");
+    }
+
+    #[test]
+    fn cells_remember_their_branch() {
+        let root = fixture("owner", &["a/1", "b/2"]);
+        let mut t = Tree::new(&root);
+        t.load(0);
+        t.nodes[0].expanded = true;
+        let (a, b) = (t.kids(0)[0], t.kids(0)[1]);
+        for k in [a, b] {
+            t.load(k);
+            t.nodes[k].expanded = true;
+        }
+        let l = layout(&t, a, &name_of(&t));
+        let ln = target_lines(&l, &HashSet::new());
+        let (x2, y2) = pos(&l, &t, "2");
+        assert_eq!(ln[&(x2 - 1, y2)].owner, b, "tick into b's block belongs to b");
     }
 
     #[test]

@@ -31,6 +31,10 @@ pub struct App {
     pub cam: Option<(Damped, Damped)>,
     /// Route flash on navigation, decays 1 -> 0.
     pub flash: f32,
+    /// Signal bead running along the line toward the cursor (world x).
+    pub bead: Option<Damped>,
+    /// Cursor (id, world x) last frame, to launch the bead from.
+    pub last_cursor: Option<(usize, i32)>,
     pub help: bool,
     pub help_anim: f32,
     pub view: (u16, u16),
@@ -63,6 +67,8 @@ impl App {
             scene: Scene::default(),
             cam: None,
             flash: 0.0,
+            bead: None,
+            last_cursor: None,
             help: false,
             help_anim: 0.0,
             view: (80, 24),
