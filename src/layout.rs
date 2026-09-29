@@ -39,12 +39,16 @@ pub fn glyph(mask: u8) -> char {
 
 /// Truncate to MAXW display columns with a trailing ellipsis.
 pub fn truncate(s: &str) -> String {
-    if s.width() <= MAXW {
+    truncate_to(s, MAXW)
+}
+
+pub fn truncate_to(s: &str, max: usize) -> String {
+    if s.width() <= max {
         return s.to_string();
     }
     let mut out = String::new();
     for c in s.chars() {
-        if out.width() + c.to_string().width() > MAXW - 1 {
+        if out.width() + c.to_string().width() > max - 1 {
             break;
         }
         out.push(c);

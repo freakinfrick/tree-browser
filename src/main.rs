@@ -46,7 +46,7 @@ impl App {
     pub fn heat(&self, id: usize) -> SystemTime {
         let n = &self.tree.nodes[id];
         if n.is_dir
-            && let Some(&(t, _)) = self.mt.cache.get(&n.path) {
+            && let Some(&(t, ..)) = self.mt.cache.get(&n.path) {
                 return t.max(n.mtime);
             }
         n.mtime
@@ -55,7 +55,8 @@ impl App {
     pub fn label(&self, id: usize) -> String {
         let n = &self.tree.nodes[id];
         let partial = n.is_dir && self.mt.cache.get(&n.path).is_some_and(|c| !c.1);
-        if partial { format!("{}~", n.name) } else { n.name.clone() }
+        // Truncate before the marker so long names keep it.
+        if partial { format!("{}~", layout::truncate_to(&n.name, layout::MAXW - 1)) } else { n.name.clone() }
     }
 
     fn siblings(&self) -> Vec<usize> {
