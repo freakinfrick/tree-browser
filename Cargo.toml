@@ -1,0 +1,10 @@
+[package]
+name = "tb"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ansi-to-tui = "7"
+crossterm = "0.28"
+ratatui = "0.29"
+unicode-width = "0.2"
