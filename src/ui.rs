@@ -567,7 +567,7 @@ const KEYS: [(&str, &str); 19] = [
     ("-", "re-root one level up"),
     ("c", "collapse other branches"),
     (".", "show / hide dotfiles"),
-    ("r", "reload"),
+    ("r", "reload (open folders update live)"),
     ("mouse", "click select · click again open"),
     ("wheel", "scroll the column under the pointer"),
     ("preview", "j k · space · ctrl-d/u · g G · q"),
