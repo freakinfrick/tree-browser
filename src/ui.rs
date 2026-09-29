@@ -165,7 +165,14 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
     // Camera: anchored to the cursor column's left edge (not the label's
     // center, which would pan on every j/k to a name of another length).
     let (cx, cy, cw) = lay.cursor;
-    let tx = cx as f32 - canvas.width as f32 * 0.38;
+    let mut tx = cx as f32 - canvas.width as f32 * 0.38;
+    // Held after the wheel took over another column: stay put, only nudging
+    // enough to keep the cursor's pill on screen.
+    if let Some(h) = &mut app.cam_hold {
+        *h = h.max((cx + cw + 1) as f32 - canvas.width as f32).min((cx - 2) as f32);
+        tx = *h;
+    }
+    app.cam_tx = tx;
     let ty = cy as f32 - canvas.height as f32 / 2.0;
     let cam = app.cam.get_or_insert((Damped::new(tx), Damped::new(ty)));
     moving |= cam.0.step(tx, CAM, dt);
@@ -179,6 +186,19 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
 
     let buf = f.buffer_mut();
     tint(buf, canvas, BG);
+
+    app.cols = lay.cols.iter().map(|&(lo, hi, id)| (lo - ox, hi - ox, id)).collect();
+
+    // Hover cue: a faint pill on the column the wheel would take over.
+    if let Some(p) = app.hover().and_then(|id| lay.placed.iter().find(|p| p.id == id)) {
+        let (w, sy) = (p.label.width() as i32, p.y - oy);
+        for x in (p.x - 2)..=(p.x + w) {
+            let sx = x - ox;
+            if sx >= 0 && sy >= 0 && sx < canvas.width as i32 && sy < canvas.height as i32 {
+                buf[(canvas.x + sx as u16, canvas.y + sy as u16)].set_bg(to_color(mix(PILL, BG, 0.55)));
+            }
+        }
+    }
 
     // Pill first (bg only), so lines and labels draw over it.
     for x in (pill_x - 2)..=(pill_x + pill_w) {
@@ -506,7 +526,7 @@ fn prompt_bar(f: &mut Frame, app: &App, area: Rect, line: &str) {
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-const KEYS: [(&str, &str); 16] = [
+const KEYS: [(&str, &str); 17] = [
     ("h j k l / arrows", "move"),
     ("l / enter", "open folder · preview file"),
     ("space / tab", "fold / unfold"),
@@ -516,7 +536,8 @@ const KEYS: [(&str, &str); 16] = [
     ("c", "collapse other branches"),
     (".", "show / hide dotfiles"),
     ("r", "reload"),
-    ("mouse", "click select · click again open · wheel"),
+    ("mouse", "click select · click again open"),
+    ("wheel", "scroll the column under the pointer"),
     ("preview", "j k · space · ctrl-d/u · g G · q"),
     ("image / pdf", "j k page · i pixels ⇄ blocks"),
     ("!", "run a command here ($f = selection)"),

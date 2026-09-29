@@ -47,6 +47,15 @@ pub struct App {
     pub view: (u16, u16),
     /// Last frame's clickable labels: (screen x, y, width, node).
     pub hits: Vec<(i32, i32, i32, usize)>,
+    /// Last frame's line columns: screen x range [lo, hi) and the line node.
+    pub cols: Vec<(i32, i32, usize)>,
+    /// Last known pointer cell, for the hover cue.
+    pub mouse: Option<(u16, u16)>,
+    /// Camera x target held still after the wheel takes over another column,
+    /// so the column stays under the pointer. Keys and clicks release it.
+    pub cam_hold: Option<f32>,
+    /// Last frame's camera x target.
+    pub cam_tx: f32,
     pub preview: Option<Preview>,
     /// Bumped whenever tree, cursor, or heat data change; layout is cached per epoch.
     pub epoch: u64,
@@ -102,6 +111,10 @@ impl App {
             help_anim: 0.0,
             view: (80, 24),
             hits: Vec::new(),
+            cols: Vec::new(),
+            mouse: None,
+            cam_hold: None,
+            cam_tx: 0.0,
             preview: None,
             epoch: 0,
             lay: None,
@@ -282,6 +295,7 @@ impl App {
 
     /// Returns false to quit.
     fn key(&mut self, code: KeyCode, mods: KeyModifiers) -> bool {
+        self.cam_hold = None;
         if self.prompt.is_some() {
             self.prompt_key(code, mods);
             return true;
@@ -382,9 +396,20 @@ impl App {
             return;
         }
         match kind {
-            MouseEventKind::ScrollDown => self.step(1),
-            MouseEventKind::ScrollUp => self.step(-1),
+            MouseEventKind::ScrollDown | MouseEventKind::ScrollUp => {
+                self.mouse = Some((col, row));
+                match self.column_at(col, row) {
+                    // Another column on the line: this tick only takes it over
+                    // (its node is already on the line); later ticks scroll it.
+                    Some(id) if id != self.cursor => {
+                        self.cam_hold.get_or_insert(self.cam_tx);
+                        self.set_cursor(id);
+                    }
+                    _ => self.step(if kind == MouseEventKind::ScrollDown { 1 } else { -1 }),
+                }
+            }
             MouseEventKind::Down(MouseButton::Left) => {
+                self.cam_hold = None;
                 let (c, r) = (col as i32, row as i32);
                 // Label cells plus the marker cell to their left.
                 let hit = self.hits.iter().find(|h| r == h.1 && c >= h.0 - 1 && c < h.0 + h.2).map(|h| h.3);
@@ -396,6 +421,28 @@ impl App {
             }
             _ => {}
         }
+    }
+
+    /// Line node whose column band holds the cell, from last frame's bands.
+    pub fn column_at(&self, col: u16, row: u16) -> Option<usize> {
+        let c = col as i32;
+        (row < self.view.1).then(|| self.cols.iter().find(|b| c >= b.0 && c < b.1).map(|b| b.2)).flatten()
+    }
+
+    /// Column the wheel would take over: pointer over a line column other than the cursor's.
+    pub fn hover(&self) -> Option<usize> {
+        if self.prompt.is_some() || self.help || self.preview.is_some() {
+            return None;
+        }
+        let (c, r) = self.mouse?;
+        self.column_at(c, r).filter(|&id| id != self.cursor)
+    }
+
+    /// Track the pointer; true when the hover cue changed and needs a frame.
+    fn pointer(&mut self, col: u16, row: u16) -> bool {
+        let before = self.hover();
+        self.mouse = Some((col, row));
+        self.hover() != before
     }
 }
 
@@ -491,7 +538,17 @@ fn main() -> std::io::Result<()> {
                         break;
                     }
                 }
-                Ok(Event::Mouse(m)) if m.kind != MouseEventKind::Moved => app.mouse(m.kind, m.column, m.row),
+                // Plain motion only moves the hover cue: no frame unless it changed.
+                Ok(Event::Mouse(m)) if m.kind == MouseEventKind::Moved => {
+                    if app.pointer(m.column, m.row) {
+                        dirty = true;
+                    }
+                    if !matches!(event::poll(Duration::ZERO), Ok(true)) {
+                        break;
+                    }
+                    continue;
+                }
+                Ok(Event::Mouse(m)) => app.mouse(m.kind, m.column, m.row),
                 Ok(_) => {}
                 Err(_) => break,
             }
