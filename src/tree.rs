@@ -9,6 +9,9 @@ pub struct Node {
     pub is_dir: bool,
     /// Own mtime (lstat). Recursive mtime for dirs lives in the mtime cache.
     pub mtime: SystemTime,
+    /// Recursive (newest mtime beneath, walk complete), copied from the
+    /// mtime cache when results land, so per-frame code never hashes paths.
+    pub rec: Option<(SystemTime, bool)>,
     pub parent: Option<usize>,
     /// None = not read yet.
     pub children: Option<Vec<usize>>,
@@ -36,6 +39,7 @@ fn make(path: PathBuf, parent: Option<usize>) -> Node {
         is_dir: meta.as_ref().is_some_and(|m| m.is_dir()),
         mtime: meta.and_then(|m| m.modified().ok()).unwrap_or(SystemTime::UNIX_EPOCH),
         path,
+        rec: None,
         parent,
         children: None,
         expanded: false,
