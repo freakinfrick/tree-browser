@@ -74,6 +74,8 @@ tb --cwd-file PATH [DIR]  # on q, write the selected folder to PATH
 | `l` `→` `Enter` | open: expand a folder, preview a file |
 | `h` `←` | back to the parent |
 | `Space` `Tab` | fold / unfold |
+| `/` | find in the current column as you type; `Enter` keeps, `Esc` goes back |
+| `n` `N` | next / previous match of the last find |
 | `-` `Backspace` | re-root one level up |
 | `c` | collapse everything off the cursor path |
 | `.` | show / hide dotfiles (hidden by default) |

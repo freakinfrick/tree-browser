@@ -70,6 +70,10 @@ pub struct App {
     pub repaint: bool,
     /// `!` command line being typed; None = prompt closed.
     pub prompt: Option<String>,
+    /// `/` query being typed; None = closed.
+    pub search: Option<Search>,
+    /// Last confirmed query, for n / N.
+    last_search: String,
     history: Vec<String>,
     /// Steps back into history (0 = the fresh line).
     hist_at: usize,
@@ -79,6 +83,12 @@ pub struct App {
     cd_on_quit: bool,
     /// Started with --cwd-file, so q really does cd (status bar says so).
     pub can_cd: bool,
+}
+
+pub struct Search {
+    pub query: String,
+    /// Cursor when `/` was pressed; Esc returns here.
+    origin: usize,
 }
 
 impl App {
@@ -123,6 +133,8 @@ impl App {
             graphics_shown: false,
             repaint: false,
             prompt: None,
+            search: None,
+            last_search: String::new(),
             history: Vec::new(),
             hist_at: 0,
             pending: None,
@@ -288,6 +300,64 @@ impl App {
         }
     }
 
+    /// Entries in the cursor's column whose name contains `q`, case-insensitively.
+    fn matches(&self, q: &str) -> Vec<usize> {
+        let q = q.to_lowercase();
+        self.siblings().into_iter().filter(|&k| self.tree.nodes[k].name.to_lowercase().contains(&q)).collect()
+    }
+
+    /// Where typing `q` lands: the first name starting with it, else the first containing it.
+    pub fn find(&self, q: &str) -> Option<usize> {
+        let m = self.matches(q);
+        let lq = q.to_lowercase();
+        m.iter().copied().find(|&k| self.tree.nodes[k].name.to_lowercase().starts_with(&lq)).or(m.first().copied())
+    }
+
+    /// n / N: next or previous match after the cursor, wrapping.
+    fn find_next(&mut self, dir: isize) {
+        let m = self.matches(&self.last_search);
+        if self.last_search.is_empty() || m.is_empty() {
+            return;
+        }
+        let sib = self.siblings();
+        let at = |id| sib.iter().position(|&s| s == id).unwrap_or(0) as isize;
+        let (cur, n) = (at(self.cursor), sib.len() as isize);
+        let next = m.iter().copied().min_by_key(|&k| {
+            let d = (at(k) - cur) * dir;
+            if d > 0 { d } else { d + n }
+        });
+        if let Some(k) = next {
+            self.set_cursor(k);
+        }
+    }
+
+    /// Line editing for the `/` prompt; the cursor follows the query as it's typed.
+    fn search_key(&mut self, code: KeyCode, mods: KeyModifiers) {
+        let Some(s) = &mut self.search else { return };
+        let ctrl = mods.contains(KeyModifiers::CONTROL);
+        let origin = s.origin;
+        match code {
+            KeyCode::Enter => {
+                if !s.query.is_empty() {
+                    self.last_search = s.query.clone();
+                }
+                self.search = None;
+                return;
+            }
+            KeyCode::Esc => self.search = None,
+            KeyCode::Char('c') if ctrl => self.search = None,
+            KeyCode::Backspace if s.query.is_empty() => self.search = None,
+            KeyCode::Backspace => {
+                s.query.pop();
+            }
+            KeyCode::Char('u') if ctrl => s.query.clear(),
+            KeyCode::Char(c) if !ctrl => s.query.push(c),
+            _ => return,
+        }
+        let to = self.search.as_ref().filter(|s| !s.query.is_empty()).and_then(|s| self.find(&s.query));
+        self.set_cursor(to.unwrap_or(origin));
+    }
+
     /// Open preview that is not already closing.
     fn open_preview(&mut self) -> Option<&mut Preview> {
         self.preview.as_mut().filter(|p| !p.closing)
@@ -298,6 +368,10 @@ impl App {
         self.cam_hold = None;
         if self.prompt.is_some() {
             self.prompt_key(code, mods);
+            return true;
+        }
+        if self.search.is_some() {
+            self.search_key(code, mods);
             return true;
         }
         if code == KeyCode::Char('i')
@@ -374,6 +448,9 @@ impl App {
                 self.hist_at = 0;
             }
             KeyCode::Char('s') => self.pending = Some(Run::Shell),
+            KeyCode::Char('/') => self.search = Some(Search { query: String::new(), origin: self.cursor }),
+            KeyCode::Char('n') => self.find_next(1),
+            KeyCode::Char('N') => self.find_next(-1),
             _ => {}
         }
         true
@@ -381,7 +458,7 @@ impl App {
 
     fn mouse(&mut self, kind: MouseEventKind, col: u16, row: u16) {
         // Clicks would silently change the folder the typed command runs in.
-        if self.prompt.is_some() {
+        if self.prompt.is_some() || self.search.is_some() {
             return;
         }
         if let Some(pv) = self.open_preview() {
@@ -431,7 +508,7 @@ impl App {
 
     /// Column the wheel would take over: pointer over a line column other than the cursor's.
     pub fn hover(&self) -> Option<usize> {
-        if self.prompt.is_some() || self.help || self.preview.is_some() {
+        if self.prompt.is_some() || self.search.is_some() || self.help || self.preview.is_some() {
             return None;
         }
         let (c, r) = self.mouse?;
@@ -579,4 +656,57 @@ fn main() -> std::io::Result<()> {
         std::fs::write(f, app.work_dir().as_os_str().as_bytes())?;
     }
     res
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn app_in(files: &[&str]) -> App {
+        let root = std::env::temp_dir().join(format!("tb-search-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("d")).unwrap();
+        for f in files {
+            fs::write(root.join("d").join(f), "").unwrap();
+        }
+        App::new(root.join("d"))
+    }
+
+    fn at(app: &App) -> &str {
+        &app.tree.nodes[app.cursor].name
+    }
+
+    fn typed(app: &mut App, keys: &str) {
+        for c in keys.chars() {
+            app.key(KeyCode::Char(c), KeyModifiers::NONE);
+        }
+    }
+
+    #[test]
+    fn search_follows_typing_prefers_prefix_and_cycles() {
+        let mut app = app_in(&["alpha", "beta", "Bravo.txt", "zebra-b"]);
+        assert_eq!(at(&app), "alpha");
+        typed(&mut app, "/b");
+        assert_eq!(at(&app), "beta");
+        typed(&mut app, "r");
+        assert_eq!(at(&app), "Bravo.txt");
+        typed(&mut app, "zz");
+        assert_eq!(at(&app), "alpha", "no match falls back to where / started");
+        app.key(KeyCode::Esc, KeyModifiers::NONE);
+        assert!(app.search.is_none());
+        assert_eq!(at(&app), "alpha");
+
+        typed(&mut app, "/b");
+        app.key(KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(at(&app), "beta");
+        typed(&mut app, "n");
+        assert_eq!(at(&app), "Bravo.txt");
+        typed(&mut app, "n");
+        assert_eq!(at(&app), "zebra-b");
+        typed(&mut app, "n");
+        assert_eq!(at(&app), "beta", "wraps");
+        typed(&mut app, "N");
+        assert_eq!(at(&app), "zebra-b");
+    }
 }
