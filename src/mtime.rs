@@ -55,6 +55,20 @@ impl Mtime {
         self.pending.retain(|p| !p.starts_with(dir));
     }
 
+    /// Forget one dir's result so the next request re-walks it.
+    pub fn forget(&mut self, dir: &Path) {
+        self.cache.remove(dir);
+        self.pending.remove(dir);
+    }
+
+    /// Raise a dir's cached heat to cover a change seen live (no walk needed).
+    pub fn bump(&mut self, dir: &Path, all: SystemTime, vis: SystemTime) {
+        if let Some(c) = self.cache.get_mut(dir) {
+            c.0 = c.0.max(all);
+            c.3 = c.3.max(vis);
+        }
+    }
+
     /// Drain finished walks. Returns true if anything changed.
     pub fn poll(&mut self) -> bool {
         let mut changed = false;

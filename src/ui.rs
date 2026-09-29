@@ -545,7 +545,7 @@ fn search_bar(f: &mut Frame, app: &App, area: Rect, q: &str) {
         (false, 0) => "  no match".into(),
         _ => format!("  {at}/{n}"),
     };
-    let hint = if q.is_empty() || n > 0 { "  tab ↑↓ cycle · enter keep · esc back " } else { "  esc back " };
+    let hint = if q.is_empty() || n > 0 { "  tab ↑↓ cycle · enter open · esc back " } else { "  esc back " };
     let spans = vec![
         Span::styled(" / ", Style::new().fg(to_color(LINE_ROUTE)).add_modifier(Modifier::BOLD)),
         Span::styled(q, Style::new().fg(to_color(ROUTE_TEXT))),
@@ -567,7 +567,7 @@ const KEYS: [(&str, &str); 19] = [
     ("-", "re-root one level up"),
     ("c", "collapse other branches"),
     (".", "show / hide dotfiles"),
-    ("r", "reload"),
+    ("r", "reload (open folders update live)"),
     ("mouse", "click select · click again open"),
     ("wheel", "scroll the column under the pointer"),
     ("preview", "j k · space · ctrl-d/u · g G · q"),

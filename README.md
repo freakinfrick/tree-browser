@@ -23,6 +23,8 @@ and color tells you where work happened recently.
   [Conrad Barski's](http://www.lisperati.com/) file browser that inspired it.
 - **Heat colors from recursive mtime.** A folder is colored by the newest change *anywhere* inside it,
   so you can spot where the action is from the top of the tree.
+- **Live.** Open folders update as files come, go and change (about once a second), and the heat
+  climbs the tree as you work. Set `TB_LIVE=off` to turn it off.
 - **A fixed selection line.** Root → cursor is always one straight line through mid-screen.
   Moving up and down scrolls the column through the line; the tree moves, the selector doesn't.
 - **Physics-driven motion.** Every node rides a critically damped spring: folders unfurl and fold back,
@@ -74,13 +76,13 @@ tb --cwd-file PATH [DIR]  # on q, write the selected folder to PATH
 | `l` `→` `Enter` | open: expand a folder, preview a file |
 | `h` `←` | back to the parent |
 | `Space` `Tab` | fold / unfold |
-| `/` | find in the current column as you type; `Enter` keeps, `Esc` goes back |
+| `/` | find in the current column as you type; `Enter` opens the match, `Esc` goes back |
 | `Tab` `↓` / `⇧Tab` `↑` | while finding: next / previous match (`↑` on an empty line recalls the last find) |
 | `n` `N` | next / previous match of the last find |
 | `-` `Backspace` | re-root one level up |
 | `c` | collapse everything off the cursor path |
 | `.` | show / hide dotfiles (hidden by default) |
-| `r` | reload |
+| `r` | reload, re-walking heat deep inside closed folders (open ones update live) |
 | `!` | run a shell command in the selected folder |
 | `s` | open a shell in the selected folder |
 | `?` | help overlay |
