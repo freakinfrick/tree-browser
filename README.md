@@ -31,6 +31,8 @@ and color tells you where work happened recently.
   siblings glide aside, and connectors re-route every frame. 60 fps while moving, zero frames when idle.
 - **Rich previews.** Markdown through `glow`, code through `bat`, and images and PDF pages as real pictures
   over kitty, sixel or iTerm2 graphics, with a half-block fallback for any truecolor terminal.
+- **Sound.** Audio files play the moment you open them, over a waveform with a scrubber you can
+  click or drag, and simple keys for pause, seek and volume.
 - **Shell without leaving.** `!` runs a command in the selected folder, `s` opens a shell there, and
   `q` can leave your shell `cd`'d to wherever you ended up.
 
@@ -49,7 +51,9 @@ cargo install --path .     # puts `tb` in ~/.cargo/bin
 ```
 
 **Requirements:** Rust 1.88+, a Unix-like OS (Linux, macOS, BSD; Windows isn't supported) and a
-truecolor terminal. Previews use these tools from `PATH` when they're installed:
+truecolor terminal. On Linux, sound playback builds against ALSA, so install its headers first
+(`libasound2-dev` on Debian/Ubuntu, `alsa-lib-devel` on Fedora, `alsa-lib` on Arch), or build
+without sound using `cargo install --no-default-features ...`. Previews use these tools from `PATH` when they're installed:
 
 | Tool | Used for |
 |---|---|
@@ -97,6 +101,21 @@ the next ones scroll it.
 `j` `k` `Space` flip pages and `g` `G` jump to the first / last. `i` switches between pixels and
 half-blocks. `q` `Esc` `h` close.
 
+**In an audio preview:**
+
+| Key | Action |
+|---|---|
+| `Space` `p` `Enter` | pause / play (at the end: play again from the start) |
+| `←` `→` / `h` `l` | back / forward 5 s |
+| `⇧←` `⇧→` / `H` `L` / `PgUp` `PgDn` | back / forward 30 s |
+| `0` … `9` | jump to 0% … 90% |
+| `g` `Home` | back to the start |
+| `↑` `↓` / `+` `-` | volume up / down |
+| `m` | mute |
+| `q` `Esc` | stop and close |
+
+Click or drag on the waveform or scrubber to seek there; the wheel seeks 5 s.
+
 ## Color = recency
 
 Files are colored by when they were last modified. Folders are colored by the newest modification
@@ -132,6 +151,17 @@ source /path/to/tree-browser/tb.bash
 
 `Esc` and `Ctrl-C` still leave the shell where it was. The wrapper is a thin layer over
 `tb --cwd-file`, so porting it to another shell is a few lines.
+
+## Audio previews
+
+mp3, flac, wav, ogg/vorbis, m4a/aac open as a player instead of text. Sound starts right away on
+the default output device and stops when the popup closes. The waveform draws in as a worker reads
+the file, and the part already played lights up. Decoding is built in (via
+[rodio](https://github.com/RustAudio/rodio)/symphonia), so no external player is needed. Over SSH
+the sound plays on the machine tb runs on, not the one you're typing at.
+
+If there's no output device the popup still shows the waveform and length and says why it's
+silent.
 
 ## Image and PDF previews
 
