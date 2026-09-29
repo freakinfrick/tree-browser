@@ -1,4 +1,5 @@
 //! Arena-backed file tree with lazy directory loading.
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -9,9 +10,10 @@ pub struct Node {
     pub is_dir: bool,
     /// Own mtime (lstat). Recursive mtime for dirs lives in the mtime cache.
     pub mtime: SystemTime,
-    /// Recursive (newest mtime beneath, walk complete), copied from the
-    /// mtime cache when results land, so per-frame code never hashes paths.
-    pub rec: Option<(SystemTime, bool)>,
+    /// Recursive (newest beneath, walk complete, newest ignoring dotfiles),
+    /// copied from the mtime cache when results land, so per-frame code
+    /// never hashes paths.
+    pub rec: Option<(SystemTime, bool, SystemTime)>,
     pub parent: Option<usize>,
     /// None = not read yet.
     pub children: Option<Vec<usize>>,
@@ -23,6 +25,10 @@ pub struct Node {
 pub struct Tree {
     pub nodes: Vec<Node>,
     pub root: usize,
+    pub show_hidden: bool,
+    /// Always visible even when hidden (the root..cursor path), so the
+    /// cursor can never sit inside something invisible.
+    pub reveal: HashSet<usize>,
 }
 
 fn display_name(path: &Path) -> String {
@@ -49,7 +55,7 @@ fn make(path: PathBuf, parent: Option<usize>) -> Node {
 
 impl Tree {
     pub fn new(path: &Path) -> Tree {
-        Tree { nodes: vec![make(path.to_path_buf(), None)], root: 0 }
+        Tree { nodes: vec![make(path.to_path_buf(), None)], root: 0, show_hidden: false, reveal: HashSet::new() }
     }
 
     /// Read a directory's entries once. Sorted case-insensitively, dirs and files mixed.
@@ -79,8 +85,26 @@ impl Tree {
         self.load(id);
     }
 
-    pub fn kids(&self, id: usize) -> &[usize] {
-        self.nodes[id].children.as_deref().unwrap_or(&[])
+    pub fn is_hidden(&self, id: usize) -> bool {
+        self.nodes[id].name.starts_with('.')
+    }
+
+    /// Visible children: dot entries are skipped unless shown or revealed.
+    pub fn kids(&self, id: usize) -> Vec<usize> {
+        let all = self.nodes[id].children.as_deref().unwrap_or(&[]);
+        all.iter().copied().filter(|&k| self.show_hidden || !self.is_hidden(k) || self.reveal.contains(&k)).collect()
+    }
+
+    /// Newest change at or under the node, honoring the hidden toggle.
+    pub fn heat(&self, id: usize) -> SystemTime {
+        let n = &self.nodes[id];
+        match n.rec {
+            Some((all, _, _)) if self.show_hidden => all.max(n.mtime),
+            // Visible view ignores the dir's own mtime (dotfile churn bumps
+            // it) unless nothing visible exists beneath at all.
+            Some((_, _, vis)) if vis > SystemTime::UNIX_EPOCH => vis,
+            _ => n.mtime,
+        }
     }
 
     /// Make the root's parent directory the new root, grafting the current tree in.

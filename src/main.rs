@@ -53,13 +53,16 @@ impl App {
         let mut tree = Tree::new(&root);
         tree.load(tree.root);
         tree.nodes[tree.root].expanded = true;
-        let start_id = tree
-            .kids(tree.root)
+        // Raw children: the start dir may itself be hidden (tb ~/.claude).
+        let start_id = tree.nodes[tree.root]
+            .children
             .iter()
+            .flatten()
             .copied()
             .find(|&k| tree.nodes[k].path == start)
             .unwrap_or(tree.root);
         tree.nodes[tree.root].last = Some(start_id);
+        tree.reveal = tree.path_to(start_id).into_iter().collect();
         let mut app = App {
             tree,
             cursor: start_id,
@@ -83,21 +86,19 @@ impl App {
 
     /// Newest mtime at or under the node.
     pub fn heat_of(&self, id: usize) -> SystemTime {
-        let n = &self.tree.nodes[id];
-        n.rec.map_or(n.mtime, |(t, _)| t.max(n.mtime))
+        self.tree.heat(id)
     }
 
+    /// Label text. Pure name: anything that changes a label's width later
+    /// (like a scan-capped marker) would shift every column to its right.
     pub fn label(&self, id: usize) -> String {
-        let n = &self.tree.nodes[id];
-        let partial = n.rec.is_some_and(|c| !c.1);
-        // Truncate before the marker so long names keep it.
-        if partial { format!("{}~", layout::truncate_to(&n.name, layout::MAXW - 1)) } else { n.name.clone() }
+        self.tree.nodes[id].name.clone()
     }
 
     /// Copy fresh mtime-cache results onto the nodes.
     fn absorb(&mut self) {
         for n in self.tree.nodes.iter_mut().filter(|n| n.is_dir) {
-            n.rec = self.mt.cache.get(&n.path).map(|c| (c.0, c.1));
+            n.rec = self.mt.cache.get(&n.path).map(|c| (c.0, c.1, c.3));
         }
     }
 
@@ -113,6 +114,7 @@ impl App {
             self.flash = 1.0;
         }
         self.cursor = id;
+        self.tree.reveal = self.tree.path_to(id).into_iter().collect();
         if let Some(p) = self.tree.nodes[id].parent {
             self.tree.nodes[p].last = Some(id);
         }
@@ -145,6 +147,7 @@ impl App {
     fn leave(&mut self) {
         if self.tree.nodes[self.cursor].parent.is_none() {
             self.tree.reroot_up();
+            self.tree.reveal = self.tree.path_to(self.cursor).into_iter().collect();
         }
         if let Some(p) = self.tree.nodes[self.cursor].parent {
             self.set_cursor(p);
@@ -231,8 +234,10 @@ impl App {
             KeyCode::Char(' ') | KeyCode::Tab => self.toggle(),
             KeyCode::Char('-') | KeyCode::Backspace => {
                 self.tree.reroot_up();
+                self.tree.reveal = self.tree.path_to(self.cursor).into_iter().collect();
                 self.flash = 1.0;
             }
+            KeyCode::Char('.') => self.tree.show_hidden ^= true,
             KeyCode::Char('c') => self.collapse_others(),
             KeyCode::Char('r') => self.reload(),
             KeyCode::Char('?') => self.help ^= true,
@@ -278,7 +283,7 @@ fn main() -> std::io::Result<()> {
     let arg = std::env::args().nth(1).unwrap_or_else(|| ".".into());
     if arg == "-h" || arg == "--help" {
         println!(
-            "usage: tb [DIR]\n\nhjkl/arrows move · enter/l open · space fold · - reroot up · c collapse others · r reload · ? help · q quit\n\
+            "usage: tb [DIR]\n\nhjkl/arrows move · enter/l open · space fold · . dotfiles · - reroot up · c collapse others · r reload · ? help · q quit\n\
              color = last modified (dirs: newest anything inside): red = minutes, orange = hours, tan = days, grey = weeks, blue = years"
         );
         return Ok(());

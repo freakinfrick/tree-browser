@@ -442,6 +442,22 @@ mod tests {
     }
 
     #[test]
+    fn dotfiles_hidden_unless_shown_or_on_the_path() {
+        let root = fixture("hidden", &[".secret/inner", "plain"]);
+        let mut t = Tree::new(&root);
+        t.load(0);
+        t.nodes[0].expanded = true;
+        let names = |t: &Tree| t.kids(0).iter().map(|&k| t.nodes[k].name.clone()).collect::<Vec<_>>();
+        assert_eq!(names(&t), ["plain"]);
+        let secret = t.nodes[0].children.as_ref().unwrap().iter().copied().find(|&k| t.nodes[k].name == ".secret").unwrap();
+        t.reveal = t.path_to(secret).into_iter().collect();
+        assert_eq!(names(&t), [".secret", "plain"], "cursor path stays visible");
+        t.reveal.clear();
+        t.show_hidden = true;
+        assert_eq!(names(&t), [".secret", "plain"]);
+    }
+
+    #[test]
     fn truncate_adds_ellipsis() {
         let s = "x".repeat(40);
         let t = truncate(&s);

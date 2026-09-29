@@ -158,9 +158,10 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
     }
     moving |= approach(&mut app.flash, 0.0, 0.22, dt);
 
-    // Camera: cursor at 40% across, vertically centered.
+    // Camera: anchored to the cursor column's left edge (not the label's
+    // center, which would pan on every j/k to a name of another length).
     let (cx, cy, cw) = lay.cursor;
-    let tx = cx as f32 + cw as f32 / 2.0 - canvas.width as f32 * 0.4;
+    let tx = cx as f32 - canvas.width as f32 * 0.38;
     let ty = cy as f32 - canvas.height as f32 / 2.0;
     let cam = app.cam.get_or_insert((Damped::new(tx), Damped::new(ty)));
     moving |= cam.0.step(tx, CAM, dt);
@@ -197,10 +198,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
     let mut sap: std::collections::HashMap<usize, Rgb> = std::collections::HashMap::new();
     let tree = &app.tree;
     let mut sap_of = |owner: usize| {
-        *sap.entry(owner).or_insert_with(|| {
-            let t = tree.nodes[owner].rec.map_or(tree.nodes[owner].mtime, |(t, _)| t.max(tree.nodes[owner].mtime));
-            heat(now.duration_since(t).unwrap_or_default().as_secs_f32())
-        })
+        *sap.entry(owner).or_insert_with(|| heat(now.duration_since(tree.heat(owner)).unwrap_or_default().as_secs_f32()))
     };
     for ((x, y), cell) in lines(&lay.blocks, &pos, &route, &spine) {
         let (sx, sy) = (x - ox, y - oy);
@@ -360,7 +358,7 @@ fn status_bar(f: &mut Frame, app: &App, area: Rect) {
     let partial = cur.rec.is_some_and(|c| !c.1);
     let meta = if cur.is_dir {
         match &cur.children {
-            Some(k) => format!("{} items", k.len()),
+            Some(_) => format!("{} items", app.tree.kids(app.cursor).len()),
             None => "folder".into(),
         }
     } else {
@@ -411,7 +409,7 @@ fn status_bar(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-const KEYS: [(&str, &str); 12] = [
+const KEYS: [(&str, &str); 13] = [
     ("h j k l / arrows", "move"),
     ("l / enter", "open folder · preview file"),
     ("space / tab", "fold / unfold"),
@@ -419,6 +417,7 @@ const KEYS: [(&str, &str); 12] = [
     ("g G", "first / last sibling"),
     ("-", "re-root one level up"),
     ("c", "collapse other branches"),
+    (".", "show / hide dotfiles"),
     ("r", "reload"),
     ("mouse", "click select · click again open · wheel"),
     ("preview", "j k · space · ctrl-d/u · g G · q"),

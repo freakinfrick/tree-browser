@@ -37,7 +37,8 @@ White = cursor path; dim = branches off the cursor path.
 
 ## Keys
 hjkl / arrows move · l/enter open (dir: expand, file: preview) · space fold
-· J/K jump 10 · g/G first/last · - reroot up · c collapse others · r reload
+· J/K jump 10 · g/G first/last · . dotfiles (hidden by default) · - reroot up
+· c collapse others · r reload
 · ? help · q quit. Mouse: click selects, click again opens, wheel moves/scrolls.
 
 Preview: markdown via `glow`, everything else via `bat`, binaries via `file`.
