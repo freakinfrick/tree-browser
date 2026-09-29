@@ -19,6 +19,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::anim::{approach, heat, mix, to_color, Damped, Rgb, HEAT, RECOLOR};
 use crate::layout::{cell_glyph, layout, lines, ACTIVE, ROUTE};
+use crate::audio::{self, Audio, State};
 use crate::media::Media;
 use crate::App;
 
@@ -332,10 +333,12 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
 
     // Preview popup: grows out of the cursor row, backdrop dims behind it.
     let full = popup(f.area());
+    let fx = (pill_x - 2 - ox).clamp(0, canvas.width as i32 - 1) as u16;
     let from = Rect {
-        x: canvas.x + (pill_x - 2 - ox).clamp(0, canvas.width as i32 - 1) as u16,
+        x: canvas.x + fx,
         y: canvas.y + (pill_y - oy).clamp(0, canvas.height as i32 - 1) as u16,
-        width: (pill_w as u16 + 3).min(canvas.width),
+        // Right after a shrink the camera still frames the old width: keep it on screen.
+        width: (pill_w as u16 + 3).min(canvas.width - fx),
         height: 1,
     };
     if let Some(pv) = &mut app.preview {
@@ -348,6 +351,13 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
                 }
             }
         }
+        if let Some(a) = &mut pv.audio {
+            // The sound stops as the popup starts to fold, not after.
+            if pv.closing {
+                a.pause();
+            }
+            a.poll();
+        }
         let target = if pv.closing { 0.0 } else { 1.0 };
         moving |= pv.open.step(target, POPUP_T, dt);
         let p = pv.open.v.clamp(0.0, 1.0);
@@ -359,10 +369,14 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         dim_backdrop(f.buffer_mut(), area, 0.55 * p);
         if area.width > 4 && area.height > 2 {
             let mode = app.picker.as_ref().map(|p| format!("i {} · ", crate::media::label(p))).unwrap_or_default();
-            let pos_label = match &pv.media {
-                Some(m) if m.pages > 1 => format!(" {mode}page {}/{} ", m.page + 1, m.pages),
-                Some(m) => m.dims.map(|(w, h)| format!(" {mode}{w}×{h} ")).unwrap_or_default(),
-                None => format!(" {}/{} ", pv.scroll + 1, pv.text.lines.len().max(1)),
+            let pos_label = match (&pv.media, &pv.audio) {
+                (_, Some(a)) => match a.total() {
+                    Some(t) => format!(" {} / {} ", audio::clock(a.pos()), audio::clock(t)),
+                    None => format!(" {} ", audio::clock(a.pos())),
+                },
+                (Some(m), _) if m.pages > 1 => format!(" {mode}page {}/{} ", m.page + 1, m.pages),
+                (Some(m), _) => m.dims.map(|(w, h)| format!(" {mode}{w}×{h} ")).unwrap_or_default(),
+                (None, None) => format!(" {}/{} ", pv.scroll + 1, pv.text.lines.len().max(1)),
             };
             let block = Block::bordered()
                 .border_type(BorderType::Rounded)
@@ -373,7 +387,13 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             f.render_widget(Clear, area);
             // Pixels only once the popup has landed: graphics protocols can't follow the grow animation.
             let settled = p > 0.97 && !pv.closing;
-            if let (Some(m), Some(picker), true) = (&mut pv.media, &app.picker, settled) {
+            if let Some(a) = &mut pv.audio {
+                f.render_widget(block, area);
+                a.bar = Rect::default();
+                if p > 0.9 {
+                    audio_panel(f.buffer_mut(), a, area.inner(Margin { vertical: 1, horizontal: 2 }));
+                }
+            } else if let (Some(m), Some(picker), true) = (&mut pv.media, &app.picker, settled) {
                 f.render_widget(block, area);
                 if m.err.is_none() {
                     m.render(f, area.inner(Margin { vertical: 1, horizontal: 1 }), picker);
@@ -399,7 +419,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
                     let lines: Vec<Line> = pv.text.lines.iter().skip(sy as usize).take(rows).cloned().collect();
                     f.render_widget(Paragraph::new(lines).block(block), area);
                 }
-                if max > 0 && p > 0.9 && pv.media.is_none() {
+                if max > 0 && p > 0.9 && pv.media.is_none() && pv.audio.is_none() {
                     let mut st = ScrollbarState::new(max as usize).position(sy as usize);
                     f.render_stateful_widget(
                         Scrollbar::new(ScrollbarOrientation::VerticalRight)
@@ -556,7 +576,7 @@ fn search_bar(f: &mut Frame, app: &App, area: Rect, q: &str) {
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-const KEYS: [(&str, &str); 19] = [
+const KEYS: [(&str, &str); 20] = [
     ("h j k l / arrows", "move"),
     ("l / enter", "open folder · preview file"),
     ("space / tab", "fold / unfold"),
@@ -572,6 +592,7 @@ const KEYS: [(&str, &str); 19] = [
     ("wheel", "scroll the column under the pointer"),
     ("preview", "j k · space · ctrl-d/u · g G · q"),
     ("image / pdf", "j k page · i pixels ⇄ blocks"),
+    ("audio", "space pause · ← → seek · ↑ ↓ volume · 0-9"),
     ("!", "run a command here ($f = selection)"),
     ("s", "shell here · exit / ctrl-d returns"),
     ("?", "toggle this help"),
@@ -612,6 +633,142 @@ fn help(f: &mut Frame, t: f32) {
     );
 }
 
+const EIGHTHS: [char; 9] = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+
+/// Audio popup body: state and format, the waveform with the played part lit,
+/// a scrubber under it, times, volume, and the keys. Records where the
+/// waveform and scrubber landed so the mouse can seek on them.
+fn audio_panel(buf: &mut Buffer, a: &mut Audio, r: Rect) {
+    if r.width < 12 || r.height < 3 {
+        return;
+    }
+    let muted = Style::new().fg(to_color(MUTED));
+    let wave_h = r.height.saturating_sub(9).clamp(1, 10);
+    // Header, gap, waveform, scrubber, times, gap, volume, gap, keys.
+    let body = wave_h + 8;
+    let mut y = r.y + r.height.saturating_sub(body) / 2;
+    let w = r.width as usize;
+    let put_line = |buf: &mut Buffer, y: u16, spans: Vec<Span>| {
+        if y < r.bottom() {
+            buf.set_line(r.x, y, &Line::from(spans), r.width);
+        }
+    };
+    let right = |buf: &mut Buffer, y: u16, text: &str, st: Style| {
+        let tw = text.width() as u16;
+        if y < r.bottom() && tw < r.width {
+            buf.set_string(r.right() - tw, y, text, st);
+        }
+    };
+
+    let state = a.state();
+    let (glyph, word, color) = match state {
+        State::Playing => ("▶", "playing", LINE_ROUTE),
+        State::Paused => ("‖", "paused", ROUTE_TEXT),
+        State::Ended => ("■", "ended · space plays again", MUTED),
+        State::Silent => ("·", "silent", DOT),
+    };
+    let bold = Style::new().fg(to_color(color)).add_modifier(Modifier::BOLD);
+    put_line(buf, y, vec![Span::styled(format!("{glyph} "), bold), Span::styled(word, bold)]);
+    if word.width() + a.info.width() + 4 <= w {
+        right(buf, y, &a.info, muted);
+    }
+    y += 1;
+    if let Some(e) = &a.err {
+        put_line(buf, y, vec![Span::styled(e.clone(), Style::new().fg(to_color(DOT)))]);
+    }
+    y += 1;
+
+    // Waveform: eighth-block bars from the bottom, one column per slice of the file.
+    let total_peaks = a.total().map(|t| (t.as_secs_f32() / audio::WAVE_STEP).ceil() as usize);
+    let prog = a.progress();
+    let head = (prog * (w - 1) as f32).round() as usize;
+    a.bar = Rect { x: r.x, y, width: r.width, height: wave_h + 1 };
+    match total_peaks {
+        Some(n) if !a.wave.is_empty() || a.wave_done => {
+            let cols = audio::columns(&a.wave, n, w);
+            let read = if a.wave_done { w } else { (a.wave.len() * w / n.max(1)).min(w) };
+            let played = to_color(mix(LINE_ROUTE, FLASH, 0.25));
+            let ahead = to_color(mix(LINE_ACTIVE, POP_BG, 0.2));
+            for (x, v) in cols.iter().enumerate() {
+                let level = if x < read { ((v * (wave_h * 8) as f32).round() as usize).max(1) } else { 0 };
+                let fg = if x == head && state != State::Silent {
+                    to_color(FLASH)
+                } else if x < head {
+                    played
+                } else {
+                    ahead
+                };
+                for row in 0..wave_h as usize {
+                    let fill = level.saturating_sub(row * 8).min(8);
+                    let cy = y + wave_h - 1 - row as u16;
+                    if cy >= r.bottom() {
+                        continue;
+                    }
+                    let ch = if fill == 0 && row == 0 && x >= read { '·' } else { EIGHTHS[fill] };
+                    let fg = if x >= read { to_color(LINE_DIM) } else { fg };
+                    buf[(r.x + x as u16, cy)].set_char(ch).set_fg(fg);
+                }
+            }
+        }
+        _ => {
+            let msg = if a.wave_done { "no waveform" } else { "reading waveform…" };
+            let mid = y + (wave_h - 1) / 2;
+            if mid < r.bottom() {
+                buf.set_string(r.x + (r.width.saturating_sub(msg.width() as u16)) / 2, mid, msg, muted);
+            }
+        }
+    }
+    y += wave_h;
+
+    // Scrubber.
+    for x in (0..w).filter(|_| y < r.bottom()) {
+        let (ch, c) = match a.total() {
+            Some(_) if x < head => ('━', LINE_ROUTE),
+            Some(_) if x == head => ('●', FLASH),
+            _ => ('─', LINE_DIM),
+        };
+        buf[(r.x + x as u16, y)].set_char(ch).set_fg(to_color(c));
+    }
+    y += 1;
+    put_line(buf, y, vec![Span::styled(audio::clock(a.pos()), Style::new().fg(to_color(ROUTE_TEXT)))]);
+    if let Some(t) = a.total() {
+        let left = t.saturating_sub(a.pos());
+        right(buf, y, &format!("-{} / {}", audio::clock(left), audio::clock(t)), muted);
+    }
+    y += 2;
+
+    // Volume.
+    let mut vol = vec![Span::styled("vol ", muted)];
+    if a.muted {
+        vol.push(Span::styled("muted", Style::new().fg(to_color(DOT))));
+    } else {
+        let on = (a.volume * 10.0).round() as usize;
+        vol.push(Span::styled("▮".repeat(on), Style::new().fg(to_color(LINE_ROUTE))));
+        vol.push(Span::styled("▮".repeat(10 - on), Style::new().fg(to_color(LINE_DIM))));
+        vol.push(Span::styled(format!(" {}%", on * 10), muted));
+    }
+    put_line(buf, y, vol);
+    y += 2;
+
+    // Keys, dropping from the end until they fit.
+    let key = Style::new().fg(to_color(LINE_ROUTE)).add_modifier(Modifier::BOLD);
+    let hints: &[(&str, &str)] = &[
+        ("space", " pause  "),
+        ("← →", " 5s  "),
+        ("⇧← ⇧→", " 30s  "),
+        ("0-9", " jump  "),
+        ("↑ ↓", " volume  "),
+        ("m", " mute  "),
+        ("q", " close"),
+    ];
+    let mut n = hints.len();
+    while n > 1 && hints[..n].iter().map(|(k, d)| k.width() + d.width()).sum::<usize>() > w {
+        n -= 1;
+    }
+    let spans = hints[..n].iter().flat_map(|(k, d)| [Span::styled(*k, key), Span::styled(*d, muted)]).collect();
+    put_line(buf, y, spans);
+}
+
 /// Braille spinner (ratatui's throbber set).
 const SPINNER: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
@@ -633,6 +790,8 @@ pub struct Preview {
     pub closing: bool,
     /// Image / PDF pages; `text` is then only the caption shown while it can't draw.
     pub media: Option<Media>,
+    /// Sound files: playing while the popup is open.
+    pub audio: Option<Audio>,
     /// Text still rendering on a worker (glow on a long file takes a while); spinner meanwhile.
     pub pending: Option<Receiver<Text<'static>>>,
     pub born: Instant,
@@ -699,8 +858,11 @@ impl Preview {
             let _ = f.take(8192).read_to_end(&mut first);
         }
         let media = if size == 0 { None } else { Media::open(path) };
+        let audio = if size == 0 || media.is_some() { None } else { Audio::open(path) };
         let mut pending = None;
-        let text = if let Some(m) = &media {
+        let text = if audio.is_some() {
+            Text::default()
+        } else if let Some(m) = &media {
             let what = match (&m.err, m.dims) {
                 (Some(e), _) => format!("  can't render · {e}"),
                 (None, Some((w, h))) => format!("  {w}×{h}"),
@@ -725,6 +887,7 @@ impl Preview {
             open: Damped::new(0.0),
             closing: false,
             media,
+            audio,
             pending,
             born: Instant::now(),
             loading: if is_md(path) { "rendering markdown" } else { "loading" },
