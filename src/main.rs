@@ -9,6 +9,7 @@ mod mtime;
 mod shell;
 mod tree;
 mod ui;
+mod watch;
 
 use std::io::stdout;
 use std::os::unix::ffi::OsStrExt;
@@ -72,8 +73,8 @@ pub struct App {
     pub prompt: Option<String>,
     /// `/` query being typed; None = closed.
     pub search: Option<Search>,
-    /// Last confirmed query, for n / N.
-    last_search: String,
+    /// Last confirmed query and the folder whose column it searched, for n / N.
+    last_search: Option<(String, Option<usize>)>,
     history: Vec<String>,
     /// Steps back into history (0 = the fresh line).
     hist_at: usize,
@@ -83,6 +84,8 @@ pub struct App {
     cd_on_quit: bool,
     /// Started with --cwd-file, so q really does cd (status bar says so).
     pub can_cd: bool,
+    /// Polls the open folders for changes; None = off (TB_LIVE=off, and in tests).
+    live: Option<watch::Watch>,
 }
 
 pub struct Search {
@@ -134,10 +137,11 @@ impl App {
             repaint: false,
             prompt: None,
             search: None,
-            last_search: String::new(),
+            last_search: None,
             history: Vec::new(),
             hist_at: 0,
             pending: None,
+            live: None,
             cd_on_quit: false,
             can_cd: false,
         };
@@ -252,6 +256,69 @@ impl App {
         }
     }
 
+    /// Point the watcher at whatever is open now, and apply what it saw.
+    /// Returns true if the tree changed.
+    fn live_poll(&mut self) -> bool {
+        let Some(w) = &mut self.live else { return false };
+        w.set(self.tree.open_dirs().into_iter().map(|d| self.tree.nodes[d].path.clone()).collect());
+        let changes = w.poll();
+        !changes.is_empty() && self.apply_changes(changes)
+    }
+
+    /// Fold live changes into the tree: re-list each changed folder in place,
+    /// warm it and its ancestors, and move the cursor off anything deleted.
+    fn apply_changes(&mut self, changes: Vec<watch::Change>) -> bool {
+        let open: std::collections::HashMap<PathBuf, usize> =
+            self.tree.open_dirs().into_iter().map(|d| (self.tree.nodes[d].path.clone(), d)).collect();
+        let mut any = false;
+        for c in changes {
+            let Some(&id) = open.get(&c.dir) else { continue };
+            any = true;
+            if self.tree.refresh(id) || c.listing {
+                // Entries came or went: re-walk this folder for an exact heat.
+                self.mt.forget(&c.dir);
+                self.mt.request(&c.dir);
+            }
+            // Warm the folder and everything above it. A dot-folder on the way
+            // up stops the change from heating the dotfiles-hidden view above it.
+            let mut vis = c.newest_vis;
+            for a in self.tree.path_to(id).into_iter().rev() {
+                let p = self.tree.nodes[a].path.clone();
+                self.mt.bump(&p, c.newest, vis);
+                if self.tree.is_hidden(a) {
+                    vis = SystemTime::UNIX_EPOCH;
+                }
+            }
+        }
+        if !any {
+            return false;
+        }
+        self.reattach();
+        self.absorb();
+        self.epoch += 1;
+        true
+    }
+
+    /// If the cursor's entry (or a folder above it) was deleted, land on the
+    /// entry that took its place in the listing, else its folder.
+    fn reattach(&mut self) {
+        let path = self.tree.path_to(self.cursor);
+        let Some(w) = path.windows(2).find(|w| !self.tree.nodes[w[0]].children.as_ref().is_some_and(|k| k.contains(&w[1])))
+        else {
+            return;
+        };
+        let (dir, gone) = (w[0], w[1]);
+        let name = self.tree.nodes[gone].name.to_lowercase();
+        let kids = self.tree.kids(dir);
+        let to = kids.iter().copied().find(|&k| self.tree.nodes[k].name.to_lowercase() >= name).or(kids.last().copied());
+        self.set_cursor(to.unwrap_or(dir));
+        if let Some(s) = &mut self.search
+            && !self.tree.attached(s.origin)
+        {
+            s.origin = self.cursor;
+        }
+    }
+
     /// Folder commands run in and q lands in: the cursor if it's a folder, else its parent.
     pub fn work_dir(&self) -> PathBuf {
         let n = &self.tree.nodes[self.cursor];
@@ -300,45 +367,47 @@ impl App {
         }
     }
 
-    /// Entries in the cursor's column whose name contains `q` (smart case).
-    fn matches(&self, q: &str) -> Vec<usize> {
-        self.siblings().into_iter().filter(|&k| hit(&self.tree.nodes[k].name, q).is_some()).collect()
+    /// Entries of `col` whose name contains `q` (smart case).
+    fn matches(&self, q: &str, col: &[usize]) -> Vec<usize> {
+        col.iter().copied().filter(|&k| hit(&self.tree.nodes[k].name, q).is_some()).collect()
     }
 
     /// Where typing `q` lands: the first name starting with it, else the first containing it.
     pub fn find(&self, q: &str) -> Option<usize> {
-        let m = self.matches(q);
+        let m = self.matches(q, &self.siblings());
         m.iter().copied().find(|&k| hit(&self.tree.nodes[k].name, q).is_some_and(|r| r.start == 0)).or(m.first().copied())
     }
 
     /// Cursor's place among the matches of `q` (1-based, 0 when off them) and their count.
     pub fn match_pos(&self, q: &str) -> (usize, usize) {
-        let m = self.matches(q);
+        let m = self.matches(q, &self.siblings());
         (m.iter().position(|&k| k == self.cursor).map_or(0, |i| i + 1), m.len())
     }
 
-    /// Next or previous match of `q` after the cursor, wrapping.
-    fn cycle(&mut self, q: &str, dir: isize) {
-        let m = self.matches(q);
-        if q.is_empty() || m.is_empty() {
-            return;
-        }
-        let sib = self.siblings();
-        let at = |id| sib.iter().position(|&s| s == id).unwrap_or(0) as isize;
-        let (cur, n) = (at(self.cursor), sib.len() as isize);
-        let next = m.iter().copied().min_by_key(|&k| {
+    /// n / N: next or previous match in the searched column, wrapping. Enter moved the
+    /// cursor into the match, so its entry in that column is the cursor's ancestor there.
+    fn find_next(&mut self, dir: isize) {
+        let Some((q, col)) = self.last_search.clone() else { return };
+        let path = self.tree.path_to(self.cursor);
+        let under = |c| path.iter().position(|&a| a == c).and_then(|i| path.get(i + 1).copied());
+        let (list, cur) = match col.and_then(|c| under(c).map(|e| (self.tree.kids(c).to_vec(), e))) {
+            Some(found) => found,
+            None => (self.siblings(), self.cursor),
+        };
+        self.cycle(&q, dir, &list, cur);
+    }
+
+    /// Next or previous match of `q` in `list` after `cur`, wrapping.
+    fn cycle(&mut self, q: &str, dir: isize, list: &[usize], cur: usize) {
+        let at = |id| list.iter().position(|&s| s == id).unwrap_or(0) as isize;
+        let (cur, n) = (at(cur), list.len() as isize);
+        let next = self.matches(q, list).into_iter().min_by_key(|&k| {
             let d = (at(k) - cur) * dir;
             if d > 0 { d } else { d + n }
         });
         if let Some(k) = next {
             self.set_cursor(k);
         }
-    }
-
-    /// n / N: next or previous match of the last find.
-    fn find_next(&mut self, dir: isize) {
-        let q = self.last_search.clone();
-        self.cycle(&q, dir);
     }
 
     /// Line editing for the `/` prompt; the cursor follows the query as it's typed.
@@ -356,15 +425,19 @@ impl App {
         };
         if step != 0 {
             let q = s.query.clone();
-            self.cycle(&q, step);
+            self.cycle(&q, step, &self.siblings(), self.cursor);
             return;
         }
         match code {
+            // Open what the query landed on, as Enter would.
             KeyCode::Enter => {
-                if !s.query.is_empty() {
-                    self.last_search = s.query.clone();
-                }
+                let q = std::mem::take(&mut s.query);
                 self.search = None;
+                // The cursor may have been cycled off find()'s pick, so open the cursor.
+                if self.matches(&q, &self.siblings()).contains(&self.cursor) {
+                    self.last_search = Some((q, self.tree.nodes[self.cursor].parent));
+                    self.enter();
+                }
                 return;
             }
             KeyCode::Esc => self.search = None,
@@ -374,7 +447,7 @@ impl App {
                 s.query.pop();
             }
             // Up on an empty line recalls the last find.
-            KeyCode::Up => s.query = self.last_search.clone(),
+            KeyCode::Up => s.query = self.last_search.as_ref().map(|l| l.0.clone()).unwrap_or_default(),
             KeyCode::Char('u') if ctrl => s.query.clear(),
             KeyCode::Char('w') if ctrl => {
                 let t = s.query.trim_end_matches(|c: char| !c.is_alphanumeric());
@@ -596,6 +669,7 @@ fn main() -> std::io::Result<()> {
              ! run a command in the selected folder ($f = selection) · s shell there (exit returns) · q quit · esc quit\n\
              --cwd-file: on q, write the selected folder there (tb.bash turns that into cd)\n\
              image/pdf preview: j/k page · i pixels <-> half-blocks · TB_GRAPHICS=halfblocks|kitty|sixel|iterm2|off\n\
+             open folders update live (about once a second) · TB_LIVE=off turns that off\n\
              color = last modified (dirs: newest anything inside): red = minutes, orange = hours, tan = days, grey = weeks, blue = years"
         );
         return Ok(());
@@ -603,6 +677,9 @@ fn main() -> std::io::Result<()> {
     let start = std::fs::canonicalize(&arg)?;
     let mut app = App::new(start);
     app.can_cd = cwd_file.is_some();
+    if std::env::var("TB_LIVE").map_or(true, |v| v != "off") {
+        app.live = Some(watch::Watch::spawn(watch::EVERY));
+    }
     let mut term = ratatui::init();
     let hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -648,6 +725,7 @@ fn main() -> std::io::Result<()> {
                     app.epoch += 1;
                     dirty = true;
                 }
+                dirty |= app.live_poll();
                 continue;
             }
             Err(e) => break Err(e),
@@ -714,10 +792,8 @@ mod tests {
     use super::*;
     use std::fs;
 
-    fn app_in(files: &[&str]) -> App {
-        static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-        let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let root = std::env::temp_dir().join(format!("tb-search-{}-{n}", std::process::id()));
+    fn app_in(name: &str, files: &[&str]) -> App {
+        let root = std::env::temp_dir().join(format!("tb-search-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join("d")).unwrap();
         for f in files {
@@ -738,7 +814,7 @@ mod tests {
 
     #[test]
     fn search_follows_typing_prefers_prefix_and_cycles() {
-        let mut app = app_in(&["alpha", "beta", "Bravo.txt", "zebra-b"]);
+        let mut app = app_in("cycle", &["alpha", "beta", "Bravo.txt", "zebra-b"]);
         assert_eq!(at(&app), "alpha");
         typed(&mut app, "/b");
         assert_eq!(at(&app), "beta");
@@ -753,6 +829,7 @@ mod tests {
         typed(&mut app, "/b");
         app.key(KeyCode::Enter, KeyModifiers::NONE);
         assert_eq!(at(&app), "beta");
+        assert!(app.preview.take().is_some(), "enter opens the match");
         typed(&mut app, "n");
         assert_eq!(at(&app), "Bravo.txt");
         typed(&mut app, "n");
@@ -777,7 +854,7 @@ mod tests {
 
     #[test]
     fn search_cycles_while_typing_and_recalls() {
-        let mut app = app_in(&["alpha", "beta", "Bravo.txt", "zebra-b"]);
+        let mut app = app_in("tab", &["alpha", "beta", "Bravo.txt", "zebra-b"]);
         typed(&mut app, "/b");
         assert_eq!(app.match_pos("b"), (1, 3));
         app.key(KeyCode::Tab, KeyModifiers::NONE);
@@ -788,7 +865,8 @@ mod tests {
         app.key(KeyCode::Up, KeyModifiers::NONE);
         assert_eq!(at(&app), "Bravo.txt");
         app.key(KeyCode::Enter, KeyModifiers::NONE);
-        assert_eq!(at(&app), "Bravo.txt", "enter keeps the cycled match");
+        assert_eq!(at(&app), "Bravo.txt", "enter opens the cycled match, not find()'s first pick");
+        assert!(app.preview.take().is_some());
 
         typed(&mut app, "/B");
         assert_eq!(at(&app), "Bravo.txt", "smart case skips beta");
@@ -798,4 +876,82 @@ mod tests {
         assert_eq!(app.search.as_ref().unwrap().query, "b", "up on an empty line recalls the last find");
         app.key(KeyCode::Esc, KeyModifiers::NONE);
     }
+
+    #[test]
+    fn search_enter_opens_a_folder() {
+        let mut app = app_in("open", &["alpha"]);
+        let d = app.tree.nodes[app.cursor].path.parent().unwrap().join("sub");
+        fs::create_dir_all(d.join("inner")).unwrap();
+        app.reload();
+        typed(&mut app, "/su");
+        app.key(KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(at(&app), "inner");
+    }
+
+    #[test]
+    fn n_cycles_the_searched_column_not_the_opened_folder() {
+        let mut app = app_in("scope", &["bar", "zed"]);
+        let d = app.tree.nodes[app.cursor].path.parent().unwrap().to_path_buf();
+        fs::create_dir_all(d.join("ba-dir")).unwrap();
+        fs::write(d.join("ba-dir/ba-one"), "").unwrap();
+        fs::write(d.join("ba-dir/ba-two"), "").unwrap();
+        app.reload();
+        typed(&mut app, "/ba");
+        app.key(KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(at(&app), "ba-one");
+        typed(&mut app, "n");
+        assert_eq!(at(&app), "bar", "back in the searched column, past ba-dir");
+        typed(&mut app, "N");
+        assert_eq!(at(&app), "ba-dir");
+    }
+
+    fn change(app: &App, dir: usize, listing: bool) -> watch::Change {
+        let now = SystemTime::now();
+        watch::Change { dir: app.tree.nodes[dir].path.clone(), listing, newest: now, newest_vis: now }
+    }
+
+    #[test]
+    fn live_change_adds_entries_and_keeps_nodes() {
+        let mut app = app_in("live-add", &["alpha", "beta"]);
+        let d = app.tree.nodes[app.cursor].parent.unwrap();
+        let (alpha, beta) = (app.cursor, app.tree.kids(d)[1]);
+        fs::write(app.tree.nodes[d].path.join("apple"), "").unwrap();
+        assert!(app.apply_changes(vec![change(&app, d, true)]));
+        let names: Vec<_> = app.tree.kids(d).iter().map(|&k| app.tree.nodes[k].name.clone()).collect();
+        assert_eq!(names, ["alpha", "apple", "beta"]);
+        assert_eq!(app.cursor, alpha, "cursor stays put");
+        assert!(app.tree.kids(d).contains(&beta), "surviving entries keep their nodes");
+    }
+
+    #[test]
+    fn live_change_moves_the_cursor_off_a_deleted_entry() {
+        let mut app = app_in("live-rm", &["alpha", "beta", "gamma"]);
+        let d = app.tree.nodes[app.cursor].parent.unwrap();
+        app.step(1);
+        assert_eq!(at(&app), "beta");
+        fs::remove_file(app.tree.nodes[app.cursor].path.clone()).unwrap();
+        app.apply_changes(vec![change(&app, d, true)]);
+        assert_eq!(at(&app), "gamma", "lands on what took its place");
+        fs::remove_file(app.tree.nodes[app.cursor].path.clone()).unwrap();
+        app.apply_changes(vec![change(&app, d, true)]);
+        assert_eq!(at(&app), "alpha", "or the last entry when it was at the end");
+    }
+
+    #[test]
+    fn live_change_warms_the_folder_and_its_ancestors() {
+        let mut app = app_in("live-heat", &["alpha"]);
+        let d = app.tree.nodes[app.cursor].parent.unwrap();
+        let old = SystemTime::now() - Duration::from_secs(86400 * 400);
+        let root = app.tree.root;
+        for id in [d, root] {
+            let p = app.tree.nodes[id].path.clone();
+            app.mt.cache.insert(p, (old, true, true, old));
+        }
+        app.absorb();
+        assert!(app.heat_of(root) <= old);
+        app.apply_changes(vec![change(&app, d, false)]);
+        let recent = SystemTime::now() - Duration::from_secs(60);
+        assert!(app.heat_of(d) > recent && app.heat_of(root) > recent);
+    }
+
 }

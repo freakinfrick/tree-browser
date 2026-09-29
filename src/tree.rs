@@ -1,5 +1,5 @@
 //! Arena-backed file tree with lazy directory loading.
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -53,6 +53,14 @@ fn make(path: PathBuf, parent: Option<usize>) -> Node {
     }
 }
 
+/// A directory's entries, sorted case-insensitively, dirs and files mixed.
+fn listing(dir: &Path) -> Vec<PathBuf> {
+    let mut paths: Vec<PathBuf> =
+        fs::read_dir(dir).map(|rd| rd.filter_map(|e| e.ok().map(|e| e.path())).collect()).unwrap_or_default();
+    paths.sort_by_key(|p| display_name(p).to_lowercase());
+    paths
+}
+
 impl Tree {
     pub fn new(path: &Path) -> Tree {
         Tree { nodes: vec![make(path.to_path_buf(), None)], root: 0, show_hidden: false, reveal: HashSet::new() }
@@ -63,11 +71,7 @@ impl Tree {
         if self.nodes[id].children.is_some() || !self.nodes[id].is_dir {
             return;
         }
-        let mut paths: Vec<PathBuf> = fs::read_dir(&self.nodes[id].path)
-            .map(|rd| rd.filter_map(|e| e.ok().map(|e| e.path())).collect())
-            .unwrap_or_default();
-        paths.sort_by_key(|p| display_name(p).to_lowercase());
-        let kids = paths
+        let kids = listing(&self.nodes[id].path)
             .into_iter()
             .map(|p| {
                 self.nodes.push(make(p, Some(id)));
@@ -83,6 +87,57 @@ impl Tree {
         self.nodes[id].children = None;
         self.nodes[id].last = None;
         self.load(id);
+    }
+
+    /// Re-read a loaded directory in place: entries still there keep their
+    /// nodes (fold state, last cursor, animation), new ones are added, gone
+    /// ones dropped (left in the arena, unreachable). Returns true if the
+    /// entries changed rather than just their mtimes.
+    pub fn refresh(&mut self, id: usize) -> bool {
+        let Some(old) = self.nodes[id].children.clone() else { return false };
+        let by_path: HashMap<PathBuf, usize> = old.iter().map(|&k| (self.nodes[k].path.clone(), k)).collect();
+        let mut kids = Vec::new();
+        for p in listing(&self.nodes[id].path) {
+            let fresh = make(p, Some(id));
+            match by_path.get(&fresh.path) {
+                // Same kind: refresh the mtime, keep everything else.
+                Some(&k) if self.nodes[k].is_dir == fresh.is_dir => {
+                    self.nodes[k].mtime = fresh.mtime;
+                    kids.push(k);
+                }
+                _ => {
+                    self.nodes.push(fresh);
+                    kids.push(self.nodes.len() - 1);
+                }
+            }
+        }
+        let changed = kids != old;
+        if self.nodes[id].last.is_some_and(|l| !kids.contains(&l)) {
+            self.nodes[id].last = None;
+        }
+        self.nodes[id].children = Some(kids);
+        changed
+    }
+
+    /// Still reachable from the root (not dropped by a reload or refresh).
+    pub fn attached(&self, id: usize) -> bool {
+        let path = self.path_to(id);
+        path[0] == self.root
+            && path.windows(2).all(|w| self.nodes[w[0]].children.as_ref().is_some_and(|k| k.contains(&w[1])))
+    }
+
+    /// Loaded, expanded, reachable directories: what's open on screen.
+    pub fn open_dirs(&self) -> Vec<usize> {
+        let mut out = Vec::new();
+        let mut stack = vec![self.root];
+        while let Some(id) = stack.pop() {
+            let n = &self.nodes[id];
+            if let (true, Some(kids)) = (n.expanded || id == self.root, &n.children) {
+                out.push(id);
+                stack.extend(kids.iter().copied().filter(|&k| self.nodes[k].is_dir));
+            }
+        }
+        out
     }
 
     pub fn is_hidden(&self, id: usize) -> bool {
