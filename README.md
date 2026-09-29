@@ -39,7 +39,20 @@ White = cursor path; dim = branches off the cursor path.
 hjkl / arrows move · l/enter open (dir: expand, file: preview) · space fold
 · J/K jump 10 · g/G first/last · . dotfiles (hidden by default) · - reroot up
 · c collapse others · r reload
-· ? help · q quit. Mouse: click selects, click again opens, wheel moves/scrolls.
+· ? help · q / esc quit. Mouse: click selects, click again opens, wheel moves/scrolls.
+
+## Shell
+`!` opens a command line in the status bar; enter runs it in the selected folder
+(a file's own folder) through `$SHELL -ic`, so aliases and rc functions work.
+`$f` is the selected path (`!vim $f`). `s` opens a full shell there. Either way
+tb hands over the terminal and comes back exactly where it was when the program
+exits (ctrl-c, ctrl-d, :q ...), with that folder reloaded. One-liners that finish
+in under 3 s wait for a key so their output can be read. Up/down recall earlier
+commands; ctrl-u/ctrl-w erase; esc cancels.
+
+`source ~/tree-browser/tb.bash` in `~/.bashrc` wraps `tb` so that quitting with
+`q` leaves the shell in the selected folder; esc / ctrl-c leave it where it was.
+Underneath: `tb --cwd-file PATH` writes that folder to PATH on `q`.
 
 Preview: markdown via `glow`, everything else via `bat`, binaries via `file`.
 j/k, space/PgDn, ctrl-d/u, g/G scroll; q/esc/h close.

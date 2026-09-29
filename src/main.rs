@@ -3,10 +3,12 @@ mod anim;
 mod layout;
 mod media;
 mod mtime;
+mod shell;
 mod tree;
 mod ui;
 
 use std::io::stdout;
+use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime};
 
@@ -18,6 +20,7 @@ use ratatui::crossterm::execute;
 
 use anim::{Damped, Scene};
 use mtime::Mtime;
+use shell::Run;
 use tree::Tree;
 use ui::Preview;
 
@@ -53,6 +56,15 @@ pub struct App {
     pub graphics_shown: bool,
     /// Clear the terminal before the next frame.
     pub repaint: bool,
+    /// `!` command line being typed; None = prompt closed.
+    pub prompt: Option<String>,
+    history: Vec<String>,
+    /// Steps back into history (0 = the fresh line).
+    hist_at: usize,
+    /// Command queued for the main loop, which owns the terminal.
+    pending: Option<Run>,
+    /// Quit with q: the wrapper cd's the shell to work_dir().
+    cd_on_quit: bool,
 }
 
 impl App {
@@ -92,6 +104,11 @@ impl App {
             detected: ratatui_image::picker::ProtocolType::Halfblocks,
             graphics_shown: false,
             repaint: false,
+            prompt: None,
+            history: Vec::new(),
+            hist_at: 0,
+            pending: None,
+            cd_on_quit: false,
         };
         app.enter();
         app
@@ -204,6 +221,54 @@ impl App {
         }
     }
 
+    /// Folder commands run in and q lands in: the cursor if it's a folder, else its parent.
+    pub fn work_dir(&self) -> PathBuf {
+        let n = &self.tree.nodes[self.cursor];
+        match n.parent {
+            Some(p) if !n.is_dir => self.tree.nodes[p].path.clone(),
+            _ => n.path.clone(),
+        }
+    }
+
+    /// Line editing for the `!` prompt. Enter queues the command.
+    fn prompt_key(&mut self, code: KeyCode, mods: KeyModifiers) {
+        let Some(line) = &mut self.prompt else { return };
+        let ctrl = mods.contains(KeyModifiers::CONTROL);
+        match code {
+            KeyCode::Esc => self.prompt = None,
+            KeyCode::Char('c') if ctrl => self.prompt = None,
+            KeyCode::Backspace if line.is_empty() => self.prompt = None,
+            KeyCode::Backspace => {
+                line.pop();
+            }
+            KeyCode::Char('u') if ctrl => line.clear(),
+            KeyCode::Char('w') if ctrl => {
+                let t = line.trim_end().len();
+                let cut = line[..t].rfind(' ').map_or(0, |i| i + 1);
+                line.truncate(cut);
+            }
+            KeyCode::Up | KeyCode::Down => {
+                let at = if code == KeyCode::Up { self.hist_at + 1 } else { self.hist_at.saturating_sub(1) };
+                self.hist_at = at.min(self.history.len());
+                *line = match self.hist_at {
+                    0 => String::new(),
+                    k => self.history[self.history.len() - k].clone(),
+                };
+            }
+            KeyCode::Enter => {
+                let cmd = line.trim().to_string();
+                self.prompt = None;
+                if !cmd.is_empty() {
+                    self.history.retain(|h| *h != cmd);
+                    self.history.push(cmd.clone());
+                    self.pending = Some(Run::Cmd(cmd));
+                }
+            }
+            KeyCode::Char(c) if !ctrl => line.push(c),
+            _ => {}
+        }
+    }
+
     /// Open preview that is not already closing.
     fn open_preview(&mut self) -> Option<&mut Preview> {
         self.preview.as_mut().filter(|p| !p.closing)
@@ -211,6 +276,10 @@ impl App {
 
     /// Returns false to quit.
     fn key(&mut self, code: KeyCode, mods: KeyModifiers) -> bool {
+        if self.prompt.is_some() {
+            self.prompt_key(code, mods);
+            return true;
+        }
         if code == KeyCode::Char('i')
             && let (Some(p), Some(m)) = (&mut self.picker, self.preview.as_mut().and_then(|pv| pv.media.as_mut()))
         {
@@ -256,7 +325,11 @@ impl App {
             return true;
         }
         match code {
-            KeyCode::Char('q') | KeyCode::Esc => return false,
+            KeyCode::Char('q') => {
+                self.cd_on_quit = true;
+                return false;
+            }
+            KeyCode::Esc => return false,
             KeyCode::Char('c') if mods.contains(KeyModifiers::CONTROL) => return false,
             KeyCode::Char('j') | KeyCode::Down => self.step(1),
             KeyCode::Char('k') | KeyCode::Up => self.step(-1),
@@ -276,6 +349,11 @@ impl App {
             KeyCode::Char('c') => self.collapse_others(),
             KeyCode::Char('r') => self.reload(),
             KeyCode::Char('?') => self.help ^= true,
+            KeyCode::Char('!') => {
+                self.prompt = Some(String::new());
+                self.hist_at = 0;
+            }
+            KeyCode::Char('s') => self.pending = Some(Run::Shell),
             _ => {}
         }
         true
@@ -317,10 +395,21 @@ fn restore() {
 }
 
 fn main() -> std::io::Result<()> {
-    let arg = std::env::args().nth(1).unwrap_or_else(|| ".".into());
+    let mut args = std::env::args().skip(1);
+    let (mut arg, mut cwd_file) = (None, None);
+    while let Some(a) = args.next() {
+        match a.as_str() {
+            "--cwd-file" => cwd_file = args.next(),
+            _ if arg.is_none() => arg = Some(a),
+            _ => {}
+        }
+    }
+    let arg = arg.unwrap_or_else(|| ".".into());
     if arg == "-h" || arg == "--help" {
         println!(
-            "usage: tb [DIR]\n\nhjkl/arrows move · enter/l open · space fold · . dotfiles · - reroot up · c collapse others · r reload · ? help · q quit\n\
+            "usage: tb [--cwd-file PATH] [DIR]\n\nhjkl/arrows move · enter/l open · space fold · . dotfiles · - reroot up · c collapse others · r reload · ? help\n\
+             ! run a command in the selected folder ($f = selection) · s shell there (exit returns) · q quit · esc quit\n\
+             --cwd-file: on q, write the selected folder there (tb.bash turns that into cd)\n\
              image/pdf preview: j/k page · i pixels <-> half-blocks · TB_GRAPHICS=halfblocks|kitty|sixel|iterm2|off\n\
              color = last modified (dirs: newest anything inside): red = minutes, orange = hours, tan = days, grey = weeks, blue = years"
         );
@@ -386,6 +475,10 @@ fn main() -> std::io::Result<()> {
                         quit = true;
                         break;
                     }
+                    // Keys typed after Enter belong to the command, not the tree.
+                    if app.pending.is_some() {
+                        break;
+                    }
                 }
                 Ok(Event::Mouse(m)) if m.kind != MouseEventKind::Moved => app.mouse(m.kind, m.column, m.row),
                 Ok(_) => {}
@@ -399,11 +492,23 @@ fn main() -> std::io::Result<()> {
         if quit {
             break Ok(());
         }
+        if let Some(run) = app.pending.take() {
+            let sel = app.tree.nodes[app.cursor].path.clone();
+            if let Err(e) = shell::run(&mut term, &app.work_dir(), &sel, &run) {
+                break Err(e);
+            }
+            // The command may have created or removed files.
+            app.reload();
+            dirty = true;
+        }
         app.epoch += 1;
         if app.mt.poll() {
             app.absorb();
         }
     };
     restore();
+    if let (true, Some(f)) = (app.cd_on_quit, cwd_file) {
+        std::fs::write(f, app.work_dir().as_os_str().as_bytes())?;
+    }
     res
 }

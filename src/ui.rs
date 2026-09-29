@@ -373,6 +373,9 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
 fn status_bar(f: &mut Frame, app: &App, area: Rect) {
     let buf = f.buffer_mut();
     tint(buf, area, BAR_BG);
+    if let Some(line) = &app.prompt {
+        return prompt_bar(f, app, area, line);
+    }
     let cur = &app.tree.nodes[app.cursor];
     let t = app.heat_of(app.cursor);
     let partial = cur.rec.is_some_and(|c| !c.1);
@@ -429,7 +432,31 @@ fn status_bar(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-const KEYS: [(&str, &str); 14] = [
+/// `!` command line: `folder $ text█`, scrolled so the end stays visible.
+fn prompt_bar(f: &mut Frame, app: &App, area: Rect, line: &str) {
+    let dir = app.work_dir();
+    let name = dir.file_name().map_or_else(|| dir.to_string_lossy(), |n| n.to_string_lossy());
+    let head = format!(" {name} $ ");
+    let hint = "  enter run · esc cancel · $f = selection ";
+    let room = (area.width as usize).saturating_sub(head.width() + 1 + hint.width());
+    let mut shown = line;
+    while shown.width() > room {
+        let mut c = shown.chars();
+        c.next();
+        shown = c.as_str();
+    }
+    let mut spans = vec![
+        Span::styled(head, Style::new().fg(to_color(LINE_ROUTE)).add_modifier(Modifier::BOLD)),
+        Span::styled(shown, Style::new().fg(to_color(ROUTE_TEXT))),
+        Span::styled(" ", Style::new().add_modifier(Modifier::REVERSED)),
+    ];
+    if room > 0 {
+        spans.push(Span::styled(hint, Style::new().fg(to_color(MUTED))));
+    }
+    f.render_widget(Paragraph::new(Line::from(spans)), area);
+}
+
+const KEYS: [(&str, &str); 16] = [
     ("h j k l / arrows", "move"),
     ("l / enter", "open folder · preview file"),
     ("space / tab", "fold / unfold"),
@@ -442,8 +469,10 @@ const KEYS: [(&str, &str); 14] = [
     ("mouse", "click select · click again open · wheel"),
     ("preview", "j k · space · ctrl-d/u · g G · q"),
     ("image / pdf", "j k page · i pixels ⇄ blocks"),
+    ("!", "run a command here ($f = selection)"),
+    ("s", "shell here · exit / ctrl-d returns"),
     ("?", "toggle this help"),
-    ("q", "quit"),
+    ("q / esc", "quit (q + tb.bash: cd there)"),
 ];
 
 fn help(f: &mut Frame, t: f32) {
