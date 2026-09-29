@@ -33,7 +33,6 @@ const MUTED: Rgb = [110.0, 118.0, 150.0];
 /// Seconds for the camera to (mostly) arrive; slower than nodes so the eye
 /// sees the tree move before the view recenters.
 const CAM: f32 = 0.16;
-const PILL_T: f32 = 0.05;
 const POPUP_T: f32 = 0.085;
 
 pub fn ago(t: SystemTime) -> String {
@@ -169,13 +168,9 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
     let (ox, oy) = (cam.0.v.round() as i32, cam.1.v.round() as i32);
 
     // The selector is pinned to the line (the cursor's target slot); items
-    // slide into it. Only its x/width ease, when moving along the line.
-    let (px, py, pw) = (cx as f32, cy as f32, cw as f32);
-    let pill = app.pill.get_or_insert((Damped::new(px), Damped::new(py), Damped::new(pw)));
-    moving |= pill.0.step(px, PILL_T, dt);
-    moving |= pill.1.step(py, PILL_T, dt);
-    moving |= pill.2.step(pw, PILL_T, dt);
-    let (pill_x, pill_y, pill_w) = (pill.0.v.round() as i32, pill.1.v.round() as i32, pill.2.v.round() as i32);
+    // slide into it and the camera pan carries horizontal motion, so the
+    // selector itself never animates.
+    let (pill_x, pill_y, pill_w) = (cx, cy, cw);
 
     let buf = f.buffer_mut();
     tint(buf, canvas, BG);

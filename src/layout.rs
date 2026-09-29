@@ -261,8 +261,8 @@ mod tests {
         lines(&l.blocks, &|id| m.get(&id).copied(), route, route)
     }
 
-    fn deep() -> (Tree, usize, usize, usize) {
-        let root = fixture("line", &["a/1/x", "a/2", "a/3", "b/9"]);
+    fn deep(name: &str) -> (Tree, usize, usize, usize) {
+        let root = fixture(name, &["a/1/x", "a/2", "a/3", "b/9"]);
         let mut t = Tree::new(&root);
         t.load(0);
         t.nodes[0].expanded = true;
@@ -276,7 +276,7 @@ mod tests {
 
     #[test]
     fn spine_is_one_straight_line() {
-        let (mut t, _, one, _) = deep();
+        let (mut t, _, one, _) = deep("straight");
         t.load(one);
         t.nodes[one].expanded = true;
         let l = layout(&t, one, &name_of(&t));
@@ -290,7 +290,7 @@ mod tests {
 
     #[test]
     fn column_scrolls_about_the_line() {
-        let (t, _, one, three) = deep();
+        let (t, _, one, three) = deep("scroll");
         let at1 = layout(&t, one, &name_of(&t));
         let at3 = layout(&t, three, &name_of(&t));
         assert_eq!((pos(&at1, &t, "1").1, pos(&at3, &t, "3").1), (0, 0), "selection always on the line");

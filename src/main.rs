@@ -29,7 +29,6 @@ pub struct App {
     pub mt: Mtime,
     pub scene: Scene,
     pub cam: Option<(Damped, Damped)>,
-    pub pill: Option<(Damped, Damped, Damped)>,
     /// Route flash on navigation, decays 1 -> 0.
     pub flash: f32,
     pub help: bool,
@@ -63,7 +62,6 @@ impl App {
             mt: Mtime::spawn(),
             scene: Scene::default(),
             cam: None,
-            pill: None,
             flash: 0.0,
             help: false,
             help_anim: 0.0,
