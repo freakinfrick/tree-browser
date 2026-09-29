@@ -360,6 +360,10 @@ impl App {
     }
 
     fn mouse(&mut self, kind: MouseEventKind, col: u16, row: u16) {
+        // Clicks would silently change the folder the typed command runs in.
+        if self.prompt.is_some() {
+            return;
+        }
         if let Some(pv) = self.open_preview() {
             match kind {
                 MouseEventKind::ScrollDown if pv.media.is_some() => pv.media.as_mut().unwrap().flip(1),

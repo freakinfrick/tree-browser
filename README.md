@@ -49,6 +49,8 @@ tb hands over the terminal and comes back exactly where it was when the program
 exits (ctrl-c, ctrl-d, :q ...), with that folder reloaded. One-liners that finish
 in under 3 s wait for a key so their output can be read. Up/down recall earlier
 commands; ctrl-u/ctrl-w erase; esc cancels.
+Ctrl-Z inside a `!` command ends that program rather than pausing it (its shell
+exits underneath it); inside `s` it is ordinary job control.
 
 `source ~/tree-browser/tb.bash` in `~/.bashrc` wraps `tb` so that quitting with
 `q` leaves the shell in the selected folder; esc / ctrl-c leave it where it was.
