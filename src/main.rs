@@ -3,6 +3,7 @@
 compile_error!("tb needs a Unix-like OS (Linux, macOS, BSD): it drives the tty with termios and signals");
 
 mod anim;
+mod audio;
 mod layout;
 mod media;
 mod mtime;
@@ -488,6 +489,26 @@ impl App {
         if let Some(pv) = self.open_preview() {
             let page = pv.page.max(1) as i32;
             let ctrl = mods.contains(KeyModifiers::CONTROL);
+            if let Some(a) = &mut pv.audio {
+                let shift = mods.contains(KeyModifiers::SHIFT);
+                match code {
+                    KeyCode::Char('q') | KeyCode::Esc => pv.closing = true,
+                    KeyCode::Char('c') if ctrl => pv.closing = true,
+                    KeyCode::Char(' ' | 'p') | KeyCode::Enter => a.toggle(),
+                    KeyCode::Left | KeyCode::Right if shift => a.seek_by(if code == KeyCode::Left { -30.0 } else { 30.0 }),
+                    KeyCode::Left | KeyCode::Char('h') => a.seek_by(-5.0),
+                    KeyCode::Right | KeyCode::Char('l') => a.seek_by(5.0),
+                    KeyCode::Char('H') | KeyCode::PageUp => a.seek_by(-30.0),
+                    KeyCode::Char('L') | KeyCode::PageDown => a.seek_by(30.0),
+                    KeyCode::Char('g') | KeyCode::Home => a.seek(Duration::ZERO),
+                    KeyCode::Char(d @ '0'..='9') => a.seek_frac(d.to_digit(10).unwrap() as f32 / 10.0),
+                    KeyCode::Up | KeyCode::Char('+' | '=') => a.volume_by(0.1),
+                    KeyCode::Down | KeyCode::Char('-' | '_') => a.volume_by(-0.1),
+                    KeyCode::Char('m') => a.toggle_mute(),
+                    _ => {}
+                }
+                return true;
+            }
             if let Some(m) = &mut pv.media {
                 // Pages instead of lines.
                 match code {
@@ -565,6 +586,21 @@ impl App {
             return;
         }
         if let Some(pv) = self.open_preview() {
+            if let Some(a) = &mut pv.audio {
+                let b = a.bar;
+                let on_bar = b.width > 0 && row >= b.y && row < b.bottom() && col + 1 >= b.x && col <= b.right();
+                let at = || (col.saturating_sub(b.x) as f32 / b.width.saturating_sub(1).max(1) as f32).clamp(0.0, 1.0);
+                match kind {
+                    MouseEventKind::ScrollDown => a.seek_by(5.0),
+                    MouseEventKind::ScrollUp => a.seek_by(-5.0),
+                    MouseEventKind::Down(MouseButton::Left) | MouseEventKind::Drag(MouseButton::Left) if on_bar => {
+                        a.seek_frac(at())
+                    }
+                    MouseEventKind::Down(MouseButton::Left) => pv.closing = true,
+                    _ => {}
+                }
+                return;
+            }
             match kind {
                 MouseEventKind::ScrollDown if pv.media.is_some() => pv.media.as_mut().unwrap().flip(1),
                 MouseEventKind::ScrollUp if pv.media.is_some() => pv.media.as_mut().unwrap().flip(-1),
@@ -618,6 +654,13 @@ impl App {
         self.column_at(c, r).filter(|&id| id != self.cursor)
     }
 
+    /// Something on screen moves on its own (a playing sound, a waveform still being read).
+    fn ticking(&self) -> bool {
+        self.preview.as_ref().and_then(|p| p.audio.as_ref()).is_some_and(|a| {
+            a.state() == audio::State::Playing || !a.wave_done
+        })
+    }
+
     /// Track the pointer; true when the hover cue changed and needs a frame.
     fn pointer(&mut self, col: u16, row: u16) -> bool {
         let before = self.hover();
@@ -648,6 +691,7 @@ pub fn hit(name: &str, q: &str) -> Option<std::ops::Range<usize>> {
 }
 
 fn restore() {
+    audio::unhush();
     let _ = execute!(stdout(), DisableMouseCapture);
     ratatui::restore();
 }
@@ -669,6 +713,7 @@ fn main() -> std::io::Result<()> {
              ! run a command in the selected folder ($f = selection) · s shell there (exit returns) · q quit · esc quit\n\
              --cwd-file: on q, write the selected folder there (tb.bash turns that into cd)\n\
              image/pdf preview: j/k page · i pixels <-> half-blocks · TB_GRAPHICS=halfblocks|kitty|sixel|iterm2|off\n\
+             audio preview: plays at once · space pause · left/right 5 s · shift 30 s · 0-9 jump · up/down volume · m mute\n\
              open folders update live (about once a second) · TB_LIVE=off turns that off\n\
              color = last modified (dirs: newest anything inside): red = minutes, orange = hours, tan = days, grey = weeks, blue = years"
         );
@@ -683,6 +728,7 @@ fn main() -> std::io::Result<()> {
     let mut term = ratatui::init();
     let hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
+        audio::unhush();
         let _ = execute!(stdout(), DisableMouseCapture);
         hook(info);
     }));
@@ -716,7 +762,11 @@ fn main() -> std::io::Result<()> {
         }
         // Sleep until the next frame is due, or indefinitely-ish when idle
         // (wake periodically to pick up background mtime results).
-        let timeout = if animating { FRAME.saturating_sub(last.elapsed()) } else { Duration::from_millis(100) };
+        let timeout = match (animating, app.ticking()) {
+            (true, _) => FRAME.saturating_sub(last.elapsed()),
+            (false, true) => Duration::from_millis(50),
+            (false, false) => Duration::from_millis(100),
+        };
         match event::poll(timeout) {
             Ok(true) => {}
             Ok(false) => {
@@ -726,6 +776,7 @@ fn main() -> std::io::Result<()> {
                     dirty = true;
                 }
                 dirty |= app.live_poll();
+                dirty |= app.ticking();
                 continue;
             }
             Err(e) => break Err(e),
