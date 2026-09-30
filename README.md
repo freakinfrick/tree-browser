@@ -224,7 +224,7 @@ closes the panel.
 | Legend | the color key in the status bar | on |
 | Motion | slow, normal, fast, instant (no animation) | normal |
 | Live updates, Ripples, Git status, Dim ignored | on / off | on |
-| Step through | what `j` `k` `J` `K` and the wheel walk: folder (its own list), column (every open list in the column), tree (the whole open tree in reading order); `g` `G` always stay in the folder | tree |
+| Step through | what `j` `k` `J` `K` and the wheel walk: folder (its own list), column (every open list in the column), tree (the whole open tree in reading order); `g` `G` always stay in the folder, and the wheel always scrolls the column under the pointer | tree |
 | Mouse | off gives the mouse back to the terminal for selecting text | on |
 | Image previews | auto, pixels, blocks (half-blocks), off (captions only) | auto |
 | Text preview | styled (glow for markdown, bat for the rest), bat, plain | styled |

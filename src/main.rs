@@ -396,13 +396,25 @@ impl App {
         out
     }
 
-    /// j / k / J / K and the wheel, through whatever Step through says.
+    /// j / k / J / K, through whatever Step through says.
     fn step(&mut self, delta: isize) {
         let list = match self.settings.step {
             StepThrough::Folder => self.siblings(),
             StepThrough::Column => self.column(),
             StepThrough::Tree => self.outline(),
         };
+        self.step_in(&list, delta);
+    }
+
+    /// The wheel scrolls the column under the pointer, so it never walks the
+    /// tree: a step into a child column would leave the pointer over the
+    /// parent's, and the next tick would take the parent back.
+    fn wheel_step(&mut self, delta: isize) {
+        let list = if self.settings.step == StepThrough::Folder { self.siblings() } else { self.column() };
+        self.step_in(&list, delta);
+    }
+
+    fn step_in(&mut self, list: &[usize], delta: isize) {
         let i = list.iter().position(|&s| s == self.cursor).unwrap_or(0) as isize;
         let j = (i + delta).clamp(0, list.len() as isize - 1) as usize;
         self.set_cursor(list[j]);
@@ -1037,7 +1049,7 @@ impl App {
                         self.cam_hold.get_or_insert(self.cam_tx);
                         self.set_cursor(id);
                     }
-                    _ => self.step(if kind == MouseEventKind::ScrollDown { 1 } else { -1 }),
+                    _ => self.wheel_step(if kind == MouseEventKind::ScrollDown { 1 } else { -1 }),
                 }
             }
             MouseEventKind::Down(MouseButton::Left) => {
@@ -1652,6 +1664,12 @@ mod tests {
         go(&mut app, "a/1");
         app.key(KeyCode::Char('G'), KeyModifiers::NONE);
         assert_eq!(at(&app), "2", "G stays in the folder");
+        go(&mut app, "a");
+        app.mouse(MouseEventKind::ScrollDown, 0, 0);
+        assert_eq!(at(&app), "b", "the wheel scrolls the column, it doesn't dive into a");
+        app.mouse(MouseEventKind::ScrollDown, 0, 0);
+        assert_eq!(at(&app), "c");
+        go(&mut app, "a/2");
 
         // Column: every open list one column over, closed b passed by.
         app.settings.step = StepThrough::Column;
