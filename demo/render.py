@@ -9,6 +9,9 @@ OUT = os.path.join(S, "frames")
 CW, CH, COLS, ROWS, BAND = 20, 40, 96, 25, 80
 FR = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
 FB = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"
+# Glyphs the mono font lacks (⎇ in the status bar, braille spinner) come from DejaVu Sans.
+XR = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+XB = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 SGR = re.compile(r"(\x1b\[[0-9;]*m)")
 DEF_FG, DEF_BG = (229, 229, 229), (9, 10, 15)
 
@@ -23,6 +26,16 @@ def c256(n):
 def render(job):
     idx, ansi, cap = job
     R, B = ImageFont.truetype(FR, 33), ImageFont.truetype(FB, 33)
+    notdef = bytes(R.getmask("\U0010fffd"))
+    fallback = {}  # (char, bold) -> None if the mono font has it, else a DejaVu Sans font sized to one cell
+    def glyph(ch, bold):
+        k = (ch, bold)
+        if k not in fallback:
+            fallback[k] = None
+            if ord(ch) > 0x7f and bytes(R.getmask(ch)) == notdef:
+                f = ImageFont.truetype(XB if bold else XR, 33)
+                fallback[k] = ImageFont.truetype(XB if bold else XR, min(33, int(33 * CW / f.getlength(ch))))
+        return fallback[k]
     CF = ImageFont.truetype(FB, 34)
     img = Image.new("RGB", (COLS * CW, ROWS * CH + BAND), DEF_BG)
     d = ImageDraw.Draw(img)
@@ -56,7 +69,11 @@ def render(job):
                 if bg != DEF_BG:
                     d.rectangle([x * CW, y * CH, x * CW + CW - 1, y * CH + CH - 1], fill=bg)
                 if ch != " ":
-                    d.text((x * CW, y * CH + 2), ch, font=B if bold else R, fill=fg)
+                    xf = glyph(ch, bold)
+                    if xf:  # centered in its cell so the next cell's background can't clip it
+                        d.text((x * CW + CW / 2, y * CH + CH / 2), ch, font=xf, fill=fg, anchor="mm")
+                    else:
+                        d.text((x * CW, y * CH + 2), ch, font=B if bold else R, fill=fg)
                 x += 1
     # Caption band.
     top = ROWS * CH

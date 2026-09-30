@@ -11,9 +11,9 @@ and color tells you where work happened recently.
 [![Rust 1.88+](https://img.shields.io/badge/rust-1.88%2B-orange?logo=rust)](https://www.rust-lang.org)
 ![Linux | macOS](https://img.shields.io/badge/platform-linux%20%7C%20macOS-lightgrey)
 
-<a href="docs/demo.mp4"><img src="docs/demo.gif" alt="tb browsing a demo tree: columns fan out, Mordor glows red from a recent change, an image previews inline" width="860"></a>
+<a href="docs/demo.mp4"><img src="docs/demo.gif" alt="tb browsing a demo tree: columns fan out along the journey, color marks recent changes, a PDF previews page by page" width="860"></a>
 
-<sub>20-second preview · <a href="docs/demo.mp4">full demo video (56 s, 1080p60)</a></sub>
+<sub>20-second preview · <a href="docs/demo.mp4">full demo video (61 s, 1080p60)</a></sub>
 
 </div>
 
