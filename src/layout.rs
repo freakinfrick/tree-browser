@@ -78,9 +78,10 @@ pub struct Layout {
     pub blocks: Vec<Block>,
     /// Cursor (x, y, width) at target position.
     pub cursor: (i32, i32, i32),
-    /// One band per column on the line: world x range [lo, hi) and its
-    /// line node. A band spans the pill margin plus the gap to the next column.
-    pub cols: Vec<(i32, i32, usize)>,
+    /// One band per column: world x range [lo, hi) and its line node, None
+    /// past the line's end (open folders off the line reach further). A band
+    /// spans the pill margin plus the gap to the next column.
+    pub cols: Vec<(i32, i32, Option<usize>)>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -278,16 +279,12 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
             .filter(|(id, ..)| tree.nodes[*id].expanded && !tree.kids(*id).is_empty())
             .collect();
         if parents.is_empty() {
-            if let Some(&s) = on_line {
-                out.cols.push((x - 2, x + colw + 3, s));
-            }
+            out.cols.push((x - 2, x + colw + 3, on_line.copied()));
             break;
         }
         let n = parents.len() as i32;
         let next_x = x + colw + n + sp.gap.max(3) + sp.branch.max(0);
-        if let Some(&s) = on_line {
-            out.cols.push((x - 2, next_x - 2, s));
-        }
+        out.cols.push((x - 2, next_x - 2, on_line.copied()));
 
         // y0 per parent. The spine block is pinned so its spine child sits on
         // the line; blocks above pack upward from it, blocks below downward.
@@ -583,20 +580,25 @@ mod tests {
 
     #[test]
     fn column_bands_follow_the_line() {
-        let (mut t, a, one, _) = deep("bands");
+        let (mut t, a, one, three) = deep("bands");
         t.load(one);
         t.nodes[one].expanded = true;
         let l = layout(&t, one, &name_of(&t), Spacing::default());
-        let ids: Vec<usize> = l.cols.iter().map(|c| c.2).collect();
+        let ids: Vec<usize> = l.cols.iter().filter_map(|c| c.2).collect();
         assert_eq!(ids, spine(&t, one), "a band per line column, ancestors and descendants");
         assert_eq!(ids[1], a);
         for w in l.cols.windows(2) {
             assert_eq!(w[0].1, w[1].0, "bands tile with no gaps");
         }
-        for (lo, hi, id) in &l.cols {
-            let p = l.placed.iter().find(|p| p.id == *id).unwrap();
-            assert!(*lo < p.x && p.x < *hi, "{} inside its band", t.nodes[*id].name);
+        for (lo, hi, id) in l.cols.iter().filter_map(|c| Some((c.0, c.1, c.2?))) {
+            let p = l.placed.iter().find(|p| p.id == id).unwrap();
+            assert!(lo < p.x && p.x < hi, "{} inside its band", t.nodes[id].name);
         }
+        // The cursor on 3: 1 stays open off the line, so x's column has a band too.
+        let back = layout(&t, three, &name_of(&t), Spacing::default());
+        let last = back.cols.last().unwrap();
+        let (x, _) = pos(&back, &t, "x");
+        assert!(last.2.is_none() && last.0 < x && x < last.1, "a band past the line's end, with no line node");
     }
 
     #[test]

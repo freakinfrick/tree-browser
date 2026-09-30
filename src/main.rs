@@ -67,8 +67,9 @@ pub struct App {
     pub view: (u16, u16),
     /// Last frame's clickable labels: (screen x, y, width, node).
     pub hits: Vec<(i32, i32, i32, usize)>,
-    /// Last frame's line columns: screen x range [lo, hi) and the line node.
-    pub cols: Vec<(i32, i32, usize)>,
+    /// Last frame's columns: screen x range [lo, hi) and the line node (None
+    /// past the line's end).
+    pub cols: Vec<(i32, i32, Option<usize>)>,
     /// Last known pointer cell, for the hover cue.
     pub mouse: Option<(u16, u16)>,
     /// Camera x target held still after the wheel takes over another column,
@@ -1067,10 +1068,22 @@ impl App {
         }
     }
 
-    /// Line node whose column band holds the cell, from last frame's bands.
+    /// Node the wheel takes over at the cell: the column's line node, or past
+    /// the line's end the entry nearest the pointer. From last frame's bands.
     pub fn column_at(&self, col: u16, row: u16) -> Option<usize> {
         let c = col as i32;
-        (row < self.view.1).then(|| self.cols.iter().find(|b| c >= b.0 && c < b.1).map(|b| b.2)).flatten()
+        let b = self.cols.iter().find(|b| c >= b.0 && c < b.1).filter(|_| row < self.view.1)?;
+        let mut here = self.hits.iter().filter(|h| h.0 >= b.0 && h.0 < b.1);
+        match b.2 {
+            // Right over another open folder's list in the line's column: that list.
+            Some(line) => {
+                let parent = |id: usize| self.tree.nodes[id].parent;
+                let under = here.find(|h| h.1 == row as i32).map(|h| h.3);
+                Some(under.filter(|&u| parent(u) != parent(line)).unwrap_or(line))
+            }
+            // Past the line's end there's no line node: the entry nearest the pointer.
+            None => here.min_by_key(|h| (h.1 - row as i32).abs()).map(|h| h.3),
+        }
     }
 
     /// Column the wheel would take over: pointer over a line column other than the cursor's.
@@ -1685,6 +1698,27 @@ mod tests {
         go(&mut app, "c/4");
         k(&mut app);
         assert_eq!(at(&app), "4");
+    }
+
+    #[test]
+    fn the_wheel_takes_the_list_under_the_pointer() {
+        let mut app = app_in("wheel", &["x"]);
+        let d = app.tree.nodes[app.cursor].path.parent().unwrap().to_path_buf();
+        for f in ["a/1", "a/2", "b/3"] {
+            fs::create_dir_all(d.join(f)).unwrap();
+        }
+        app.reload();
+        let id = |app: &mut App, p: &str| app.node_at(&d.join(p)).unwrap();
+        let (one, two, three) = (id(&mut app, "a/1"), id(&mut app, "a/2"), id(&mut app, "b/3"));
+        app.view = (80, 24);
+        // Column 10..20 on the line (its line node 3, b's), column 20..30 past its end.
+        app.cols = vec![(10, 20, Some(three)), (20, 30, None)];
+        app.hits = vec![(12, 4, 1, one), (12, 5, 1, two), (12, 6, 1, three), (22, 2, 1, one), (22, 9, 1, two)];
+        assert_eq!(app.column_at(14, 4), Some(one), "right over a's list: a's entry");
+        assert_eq!(app.column_at(14, 6), Some(three), "over the line's own list: the line node");
+        assert_eq!(app.column_at(14, 12), Some(three), "on no entry: the line node");
+        assert_eq!(app.column_at(24, 7), Some(two), "past the line's end: nearest the pointer");
+        assert_eq!(app.column_at(5, 7), None, "outside every column");
     }
 
     #[test]

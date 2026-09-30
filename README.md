@@ -104,9 +104,9 @@ tb --cwd-file PATH [DIR]  # on q, write the selected folder to PATH
 | `q` | quit (and `cd` there, with the shell integration below) |
 | `Esc` `Ctrl-C` | quit and stay where you were |
 
-**Mouse:** click selects, click again opens. The wheel scrolls the column under the pointer: over a parent
-or child column on the line, the first tick takes that column over (a faint pill marks it on hover) and
-the next ones scroll it. Turn **Mouse** off in the settings to select text with it instead.
+**Mouse:** click selects, click again opens. The wheel scrolls the column under the pointer: over any other
+column, or another open folder's list, the first tick takes it over (a faint pill marks it on hover)
+and the next ones scroll it. Turn **Mouse** off in the settings to select text with it instead.
 
 **In a preview:** `j` `k`, `Space` `PgDn`, `Ctrl-D` `Ctrl-U`, `g` `G` scroll text; for images and PDFs
 `j` `k` `Space` flip pages and `g` `G` jump to the first / last. `i` switches between pixels and
