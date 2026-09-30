@@ -273,7 +273,7 @@ it); inside `s` it's ordinary job control.
 To make `q` leave your shell in the folder you ended on, source the wrapper from `~/.bashrc`:
 
 ```sh
-source /path/to/tree-browser/tb.bash
+source /path/to/treebeard/tb.bash
 ```
 
 `Esc` and `Ctrl-C` still leave the shell where it was. The wrapper is a thin layer over
