@@ -108,19 +108,21 @@ pub fn set_line_style(s: LineStyle) {
     STYLE.store(s as u8, Ordering::Relaxed);
 }
 
-pub fn glyph(mask: u8) -> char {
-    GLYPHS[STYLE.load(Ordering::Relaxed) as usize][mask as usize & 15]
+pub fn cell_glyph(c: &Cell) -> char {
+    styled_cell_glyph(STYLE.load(Ordering::Relaxed) as usize, c)
 }
 
 /// Glyph for a cell: the route's horizontal run is a double "tube"
 /// (like the original's hollow cables); crossings keep the light verticals.
-pub fn cell_glyph(c: &Cell) -> char {
+fn styled_cell_glyph(style: usize, c: &Cell) -> char {
+    let plain = GLYPHS[style][c.mask as usize & 15];
     if c.route & (LEFT | RIGHT) == 0 {
-        return glyph(c.mask);
+        return plain;
     }
-    // The tube can't stand out against double lines, and ASCII has no double set.
-    match STYLE.load(Ordering::Relaxed) {
-        3 => return glyph(c.mask),
+    // Unicode has no double-horizontal joins with heavy verticals, the tube can't
+    // stand out against double lines, and ASCII has no double set.
+    match style {
+        2 | 3 => return plain,
         4 => return if c.mask & (UP | DOWN) == 0 { '=' } else { '+' },
         _ => {}
     }
@@ -172,11 +174,15 @@ fn detail(tree: &Tree, id: usize, what: Details, now: SystemTime) -> String {
         Details::Off => String::new(),
         Details::Age => age(),
         Details::Size => size(),
-        Details::Both => match size() {
-            s if s.is_empty() => age(),
-            s => format!("{} · {s:>4}", age()),
-        },
+        Details::Both => age_and_size(&age(), &size()),
     }
+}
+
+/// Both padded to four columns, so the dots line up down a column. A size
+/// not known yet leaves its place blank.
+fn age_and_size(age: &str, size: &str) -> String {
+    let dot = if size.is_empty() { "   " } else { " · " };
+    format!("{age:>4}{dot}{size:>4}")
 }
 
 /// `now 5m 3h 2d 4w 8mo 3y`.
@@ -199,7 +205,8 @@ pub fn short_age(secs: u64) -> String {
 pub fn short_size(n: u64) -> String {
     let mut v = n as f64;
     for u in ["B", "K", "M", "G", "T"] {
-        if v < 1000.0 || u == "T" {
+        // 999.5 would round up to a fifth column.
+        if v < 999.5 || u == "T" {
             return match u {
                 "B" => format!("{n}B"),
                 _ if v < 9.95 => format!("{v:.1}{u}"),
@@ -476,8 +483,8 @@ mod tests {
         let d = 86400;
         let ages: Vec<String> = [5, 300, 7200, 3 * d, 15 * d, 100 * d, 800 * d].map(short_age).into();
         assert_eq!(ages, ["now", "5m", "2h", "3d", "2w", "3mo", "2y"]);
-        let sizes: Vec<String> = [980, 4300, 12 << 20, 1395864371].map(short_size).into();
-        assert_eq!(sizes, ["980B", "4.2K", "12M", "1.3G"]);
+        let sizes: Vec<String> = [980, 4300, 12 << 20, 1395864371, 1023 * 1024].map(short_size).into();
+        assert_eq!(sizes, ["980B", "4.2K", "12M", "1.3G", "1.0M"]);
     }
 
     #[test]
@@ -490,6 +497,17 @@ mod tests {
             assert_ne!(g(UP | DOWN | RIGHT), g(UP | DOWN), "a join isn't a bar");
         }
         assert!(GLYPHS[4].iter().all(char::is_ascii), "ascii style is ascii");
+        let join = Cell { mask: LEFT | RIGHT | DOWN, route: LEFT | RIGHT, ..Cell::default() };
+        assert_eq!(styled_cell_glyph(0, &join), '╤', "rounded: the route is a double tube");
+        assert_eq!(styled_cell_glyph(2, &join), '┳', "heavy: joins match the heavy branches");
+    }
+
+    #[test]
+    fn age_and_size_line_up() {
+        let (a, b) = (age_and_size("1d", "331K"), age_and_size("11mo", "11K"));
+        assert_eq!((a.width(), a.find('·')), (b.width(), b.find('·')));
+        let walking = age_and_size("1d", "");
+        assert_eq!((walking.width(), walking.find("1d")), (a.width(), a.find("1d")), "age stays in its place");
     }
 
     #[test]
