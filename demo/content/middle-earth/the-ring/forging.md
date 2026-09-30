@@ -8,7 +8,7 @@
 archivists, TA 3018 ·
 **Ticket:** FORGE-1600-001 ·
 **Status:** CLOSED — artifact destroyed 3019-03-25 (see
-`mordor/mount-doom/ring-destruction.md`).
+`15_mordor/mount-doom/ring-destruction.md`).
 
 ## The recipe (as far as it is known)
 
@@ -30,7 +30,7 @@ The Ring can be unmade only where it was made. Every other fire is
 insufficient. This single fact is the entire reason a hobbit had to walk to
 a volcano.
 
-> See `mordor/mount-doom/ring-destruction.md` for the other end of the story.
+> See `15_mordor/mount-doom/ring-destruction.md` for the other end of the story.
 
 ## The Ring's will
 
@@ -47,7 +47,7 @@ invisibility, long life, and the undivided attention of Sauron."
 
 **Addendum (TA 3018, Rivendell):** "One Ring to rule them all, One Ring to
 find them" — the verse, read aloud by Gandalf at the Council
-(`rivendell/council-minutes/session-01.md`). The writing burned into the band
+(`05_rivendell/council-minutes/session-01.md`). The writing burned into the band
 is not a poem; it is the device's own handshake, and reciting it in the
 Black Speech is how you answer the ping.
 

@@ -6,7 +6,7 @@ mod layout;
 /// Where is everyone? — the Fellowship location ledger.
 ///
 /// Updated as the Company breaks at Rauros (3019-02-26). See
-/// `anduin/last-known-locations.json` for the machine-readable copy and
+/// `09_anduin/last-known-locations.json` for the machine-readable copy and
 /// `CAST.md` for who these people are.
 fn main() {
     let mut fellowship = HashMap::new();
@@ -19,7 +19,7 @@ fn main() {
         ("Merry", "Rohan"),
         ("Pippin", "Minas Tirith"),
         ("Gandalf", "everywhere, just in time"),
-        ("Boromir", "Anduin (boat)"), // posthumous; see anduin/amon-hen/
+        ("Boromir", "Anduin (boat)"), // posthumous; see 09_anduin/amon-hen/
     ] {
         fellowship.insert(who, at);
     }

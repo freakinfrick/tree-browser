@@ -1,0 +1,7 @@
+boat,occupants,departed,status,notes
+one,Frodo & Sam,Rivendell,sunk later,"the ring, and the gardener"
+two,Merry & Pippin,Rivendell,captured at shore,"later separated at Rohan border"
+three,Aragorn & Legolas & Gimli,Rivendell,abandoned,"pursued the captives on foot"
+funeral,Boromir (no crew),Amon Hen,over Rauros,"sword, horn, shield; recovered downriver by Faramir"
+cargo,Bill the pony,Rivendell,returned,"sent back before Moria; missed"
+supplies,lembas (all of it),Lothlórien,consumed,"see 08_lothlorien/lembas-recipe.yaml"

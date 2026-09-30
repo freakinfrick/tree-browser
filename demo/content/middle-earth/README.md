@@ -23,34 +23,64 @@ order they *are* the book.
 ```
 
 The **One Ring** is the system's single point of failure. It originated in
-`the-shire`, was carried through `bree` → `rivendell` → `moria` → `lothlorien`
-→ `anduin`, and must reach the one service that can retire it: **Mount Doom**.
-See `SECURITY.md` for the vulnerability report and `ARCHITECTURE.md` for the
-design nobody approved.
+`02_the-shire`, was carried through `04_bree` → `05_rivendell` → `07_moria`
+→ `08_lothlorien` → `09_anduin`, and must reach the one service that can
+retire it: **Mount Doom** (`15_mordor/mount-doom/`). See `SECURITY.md` for
+the vulnerability report and `ARCHITECTURE.md` for the design nobody approved.
+
+## Locations (chronological)
+
+Places are filed as `NN_name` so the tree reads in story order — from the
+Hobbit's map (2941) to the last ship West (3021). Every location directory
+opens with a `README.md`: its service record, geography, history, and the
+artifacts filed inside it.
+
+| # | directory | place | first on the record |
+|---|---|---|---|
+| 01 | `01_lonely-mountain` | Erebor, the Lonely Mountain | 2941 — Smaug retired |
+| 02 | `02_the-shire` | the Shire | 2941 — the Ring comes home |
+| 03 | `03_old-forest` | the Old Forest & the Barrow-downs | 3018-09-30 |
+| 04 | `04_bree` | Bree & Weathertop | 3018-09-29 |
+| 05 | `05_rivendell` | Imladris, the Last Homely House | 3018-10 |
+| 06 | `06_misty-mountains` | the Hithaeglir (Caradhras) | 3019-01-12 |
+| 07 | `07_moria` | Khazad-dûm | 3019-01-15 |
+| 08 | `08_lothlorien` | Lórien | 3019-01-17 |
+| 09 | `09_anduin` | the Great River (Rauros) | 3019-02-26 |
+| 10 | `10_fangorn` | Fangorn Forest | 3019-02-26 |
+| 11 | `11_rohan` | Rohan (Edoras, Helm's Deep) | 3019-03-02 |
+| 12 | `12_isengard` | Isengard (Orthanc) | 3019-03-03 |
+| 13 | `13_dead-marshes` | the Dead Marshes | 3019-03 (Frodo & Sam) |
+| 14 | `14_gondor` | Gondor (Ithilien, Minas Tirith) | 3019-03-07 |
+| 15 | `15_mordor` | Mordor (Mount Doom) | 3019-03-13 |
+| 16 | `16_grey-havens` | Mithlond, the Grey Havens | 3021-09-29 |
+
+Entities that are not places keep unnumbered homes: `the-ring` (the object),
+`gollum` (the guide), `eagles` (air rescue), `palantiri` (the seeing-stones),
+plus `runbooks/` (incident response) and `src/` (the only code that compiles).
 
 ## Regions (services)
 
 | region | what it runs | health |
 |---|---|---|
 | `the-ring` | the object itself: provenance, bearers, the rhyme | 🔥 destroyed |
-| `the-shire` | agriculture, inns, a postal service, second breakfast | 🟢 recovering |
-| `bree` | the Prancing Pony: register, bar tab, lost & found | 🟢 |
-| `old-forest` | Tom Bombadil, Old Man Willow, the Barrow-downs | 🟢 unbothered |
-| `rivendell` | the Council, the library, maps, moon-letters | 🟢 |
-| `misty-mountains` | weather (hostile), one pass that says *no* | 🟡 |
-| `moria` | a mine, a book of records, drums | 🔴 do not enter |
-| `dead-marshes` | the pools you must not look into | ⚠️ follow the guide |
-| `lothlorien` | the Mirror, lembas, cloaks, a mallorn census | 🟢 |
-| `fangorn` | entmoot (in session), tree migration | 🟢 slow |
-| `isengard` | uruk-hai production, one stolen palantír | ⚫ decommissioned |
-| `rohan` | horses, a wall with a culvert bug | 🟢 |
-| `gondor` | beacons, stewards, a city under siege | 🟡 |
-| `mordor` | the Eye, HR, nine Nazgûl, one volcano | 🔴 the target |
-| `anduin` | river logistics, the breaking of the Fellowship | 🟡 |
+| `01_lonely-mountain` | a dragon's retirement audit | 🟡 dormant |
+| `02_the-shire` | agriculture, inns, a postal service, second breakfast | 🟢 recovering |
+| `03_old-forest` | Tom Bombadil, Old Man Willow, the Barrow-downs | 🟢 unbothered |
+| `04_bree` | the Prancing Pony: register, bar tab, lost & found | 🟢 |
+| `05_rivendell` | the Council, the library, maps, moon-letters | 🟢 |
+| `06_misty-mountains` | weather (hostile), one pass that says *no* | 🟡 |
+| `07_moria` | a mine, a book of records, drums | 🔴 do not enter |
+| `08_lothlorien` | the Mirror, lembas, cloaks, a mallorn census | 🟢 |
+| `09_anduin` | river logistics, the breaking of the Fellowship | 🟡 |
+| `10_fangorn` | entmoot (in session), tree migration | 🟢 slow |
+| `11_rohan` | horses, a wall with a culvert bug | 🟢 |
+| `12_isengard` | uruk-hai production, one stolen palantír | ⚫ decommissioned |
+| `13_dead-marshes` | the pools you must not look into | ⚠️ follow the guide |
+| `14_gondor` | beacons, stewards, a city under siege | 🟡 |
+| `15_mordor` | the Eye, HR, nine Nazgûl, one volcano | 🔴 the target |
 | `gollum` | one guide, conditionally trustworthy | ⚠️ |
 | `eagles` | air rescue (grounded, then reactivated) | 🟢 |
-| `grey-havens` | departures, one-way | 🟢 |
-| `lonely-mountain` | a dragon's retirement audit | 🟡 dormant |
+| `16_grey-havens` | departures, one-way | 🟢 |
 | `palantiri` | the seven seeing-stones: unauthenticated scrying | 🟠 monitor |
 
 ## Start here
@@ -77,7 +107,7 @@ check there: a name in a document is a filing, not a cameo.
 ## The one thing to remember
 
 > One does not simply walk into Mordor. Its black gates are guarded by more
-> than orcs — but there is a ticket for that in `mordor/black-gate/`.
+> than orcs — but there is a ticket for that in `15_mordor/black-gate/`.
 
 ```rust
 fn main() { println!("one ring"); }

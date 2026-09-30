@@ -2,7 +2,7 @@
 //!
 //! Hobbits start slow, speed up after second breakfast (09:00), and are
 //! effectively running by elevenses. The curve is a smoothstep so the plot
-//! does not stutter between meals. See `the-shire/bag-end/second-breakfast.md`
+//! does not stutter between meals. See `02_the-shire/bag-end/second-breakfast.md`
 //! for the meal that powers it.
 
 /// Walking pace in leagues per hour-ish, given the hour of the day.

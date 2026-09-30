@@ -1,0 +1,68 @@
+# Beacons of Gondor: light in order, west from Minas Tirith.
+# Filed: 3019-03-09 01:04 · filed_by: the guard of the Citadel (on watch) · ref: BEACON-7
+# severity: CRITICAL (a signal that waits on weather, fuel, and a clear line of sight)
+# see also: 11_rohan/edoras/, runbooks/siege.md, 14_gondor/minas-tirith/siege-of-gondor.md
+
+[[beacon]]
+name = "Amon Dîn"
+keeper = "the warden of Amon Dîn (name lost; watch-rotation gap)"
+lit = true
+lit_at = "3019-03-09 01:10"
+lit_by = "Pippin Took, Guard of the Citadel (seconded)"
+note = "first flame; the hobbit climbed the stack after the garrison demurred"
+
+[[beacon]]
+name = "Eilenach"
+keeper = "the warden of Eilenach"
+lit = true
+lit_at = "3019-03-09 01:31"
+lit_by = "warden, answering Amon Dîn"
+note = "high ridge, weather-worn; flame took and held"
+
+[[beacon]]
+name = "Nardol"
+keeper = "the warden of Nardol"
+lit = true
+lit_at = "3019-03-09 01:58"
+lit_by = "warden, answering Eilenach"
+note = "watch-fire reported the pass clear"
+
+[[beacon]]
+name = "Erelas"
+keeper = "the warden of Erelas"
+lit = true
+lit_at = "3019-03-09 02:24"
+lit_by = "warden, answering Nardol"
+note = "green hills, long sight; flame visible to Min-Rimmon"
+
+[[beacon]]
+name = "Min-Rimmon"
+keeper = "the warden of Min-Rimmon"
+lit = true
+lit_at = "3019-03-09 02:51"
+lit_by = "warden, answering Erelas"
+note = "northern-most; keeper lit before the order arrived by word"
+
+[[beacon]]
+name = "Calenhad"
+keeper = "the warden of Calenhad"
+lit = true
+lit_at = "3019-03-09 03:17"
+lit_by = "warden, answering Min-Rimmon"
+note = "grass-grown; fuel low, but the flame held"
+
+[[beacon]]
+name = "Halifirien"
+keeper = "the warden of Halifirien (veteran of the border)"
+lit = true
+lit_at = "3019-03-09 03:44"
+lit_by = "warden, answering Calenhad"
+note = "Rohan answers"
+
+[policy]
+who_may_order_lighting = "the Steward"
+has_the_steward_ordered_it = false
+workaround = "a hobbit climbs up and lights it"
+workaround_deployed = true
+workaround_by = "Pippin Took, per Gandalf the White (contrary to standing order)"
+later = "Rohan's muster began within the hour of Halifirien; three days' ride to the Pelennor (3019-03-13). See 11_rohan/edoras/."

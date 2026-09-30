@@ -14,7 +14,7 @@ services:
     ports:
       - "0.0.0.0:3000:3000"          # everything is observed
     volumes:
-      - ./mordor/barad-dur/eye-uptime.prom:/metrics/eye.prom
+      - ./15_mordor/barad-dur/eye-uptime.prom:/metrics/eye.prom
 
   minas-tirith:
     image: gondor/white-city:7th-level
@@ -24,7 +24,7 @@ services:
       STEWARD: "denethor"
       SIEGE: "true"
     volumes:
-      - ./gondor/minas-tirith/:/etc/citadel/
+      - ./14_gondor/minas-tirith/:/etc/citadel/
 
   beacons:
     image: gondor/beacon:pyre

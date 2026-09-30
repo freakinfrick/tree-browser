@@ -1,0 +1,26 @@
+# Orthanc tower configuration — the White Hand's control plane.
+# filed by: Saruman, operator, Orthanc (3018; last touched 3019-03-05)
+# status: DEPROVISIONED (flooded by ents, 3019-03-03); occupant trapped
+# severity: critical
+# see also: palantiri/registry.md, SECURITY.md (CVE-3019-0002),
+#           10_fangorn/breaking-of-isengard.md, uruk-hai-production.csv
+tower:
+  name: Orthanc
+  material: "black stone, unbreakable"
+  floors: 500
+  keys: 1   # held by: Saruman (until further notice)
+  flooded: true              # 3019-03-03; the ents did not file a change request
+  occupant: "Saruman (trapped)"   # "your staff is broken" — Gandalf, Orthanc, 3019-03-05
+ring_of_isengard:
+  gates: 1
+  furnaces: 12               # 12 -> 0 on 3019-03-03; see uruk-hai-production.csv
+  trees_remaining: few       # now: many. the trees came back and brought friends
+palantir:
+  mount: "orthanc-stone"     # see palantiri/registry.md
+  holder: "saruman"
+  status: "thrown from a window"   # by Gríma Wormtongue, 3019-03-05; retrieved by peregrin.took, 3019-03-06
+  cve: "CVE-3019-0002"       # unauthenticated scrying; see SECURITY.md
+policy:
+  alliance: "Mordor (it's complicated)"   # "we have no allegiance to the lidless eye" — Saruman, Orthanc, 3018 (disputed)
+  colours: white    # changed to "many colours"; nobody liked it
+  overlord: "Sauron (remote)"   # via palantir; see palantir-access.log

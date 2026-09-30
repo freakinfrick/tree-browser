@@ -19,7 +19,7 @@ pub const ROUTE: &[Leg] = &[
 ];
 
 /// The route continues past Rauros, but only for two of the original nine.
-/// See `anduin/last-known-locations.json`.
+/// See `09_anduin/last-known-locations.json`.
 pub const LAST_LEGS: &[Leg] = &[
     Leg { from: "Rauros", to: "Cirith Ungol", leagues: 90 }, // guided, conditionally
     Leg { from: "Cirith Ungol", to: "Mount Doom", leagues: 12 },

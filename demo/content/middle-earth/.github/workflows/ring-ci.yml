@@ -31,7 +31,7 @@ jobs:
         run: cargo run --manifest-path src/Cargo.toml
       - name: do not follow the lights
         run: |
-          test -f dead-marshes/do-not-follow-the-lights.txt
+          test -f 13_dead-marshes/do-not-follow-the-lights.txt
           echo "guide rating: 5/5 (creepy but correct)"
 
   security-scan:

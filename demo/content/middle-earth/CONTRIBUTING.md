@@ -38,7 +38,7 @@ but there is always something.
 ## Pull requests
 
 - One ring per PR, maximum.
-- Do not submit a PR to `mordor`. Mordor is upstream and merges everything
+- Do not submit a PR to `15_mordor`. Mordor is upstream and merges everything
   into fire.
 - The Council reviews on a schedule. It may be lunch first.
 - Treebeard's reviews take a while. Do not be hasty.

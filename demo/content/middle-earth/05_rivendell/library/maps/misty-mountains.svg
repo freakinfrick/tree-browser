@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400">
+  <title>The Misty Mountains — Rivendell library, map 4 of 9</title>
+  <desc>Survey of the Hithaeglir drawn for the Council of Elrond (3018-10). The
+    Fellowship argued the Redhorn Pass; the map's own caption records the
+    verdict: under, not over. See 06_misty-mountains/caradhras/route-vote.md and
+    07_moria/.</desc>
+  <metadata>
+    <provenance
+      filed-by="the Rivendell library (cartography desk)"
+      filed-ta="3018-10-22"
+      ticket="MAP-HITH-0004"
+      status="superseded by weather (see caradhras/weather-report.json)"
+      note="The dashed line is the route as planned at the Council; it is
+      dashed for a reason."/>
+  </metadata>
+  <rect width="800" height="400" fill="#efe3c2"/>
+  <g fill="none" stroke="#5b4630" stroke-width="3" stroke-linejoin="round">
+    <path d="M40 330 L110 180 L150 250 L210 110 L270 260 L320 150 L380 290"/>
+    <path d="M360 300 L430 120 L480 230 L540 90 L600 250 L650 160 L720 320"/>
+    <path d="M540 90 L560 130 M430 120 L445 150 M210 110 L225 145" stroke-width="2"/>
+  </g>
+  <path d="M60 360 C 200 330, 330 380, 470 350 S 700 330, 780 360" stroke="#3b6aa0" stroke-width="4" fill="none"/>
+  <circle cx="160" cy="300" r="7" fill="#8a1c1c"/>
+  <circle cx="610" cy="300" r="7" fill="#8a1c1c"/>
+  <path d="M167 300 C 300 260, 480 330, 603 300" stroke="#8a1c1c" stroke-width="2" stroke-dasharray="8 6" fill="none"/>
+  <g font-family="serif" fill="#3a2a18">
+    <text x="400" y="40" text-anchor="middle" font-size="30">The Misty Mountains</text>
+    <text x="540" y="75" text-anchor="middle" font-size="18">Caradhras</text>
+    <text x="150" y="325" text-anchor="middle" font-size="16">Rivendell</text>
+    <text x="610" y="325" text-anchor="middle" font-size="16">Lórien</text>
+    <text x="400" y="385" text-anchor="middle" font-size="14" font-style="italic">route: under, not over (see 07_moria/)</text>
+  </g>
+</svg>

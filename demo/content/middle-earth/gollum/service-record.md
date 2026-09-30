@@ -4,7 +4,7 @@
 **Role:** guide to Mordor · **Contract:** none · **Payment:** the Precious
 **Status:** TERMINATED 3019-03-25 (cause of termination: the Precious)
 **Filed by:** the machine (auto-transcription) · **ID:** GLLM-SRV-0001 · **TA 3019-03-25** (retrospective)
-**See also:** `the-ring/bearers.csv`, `gollum/precious-ledger.csv`, `mordor/cirith-ungol/`
+**See also:** `the-ring/bearers.csv`, `gollum/precious-ledger.csv`, `15_mordor/cirith-ungol/`
 
 ## Employment history
 

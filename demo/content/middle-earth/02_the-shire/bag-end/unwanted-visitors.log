@@ -1,0 +1,11 @@
+2968-09-22T10:04:11 WARN  door: knock pattern=sackville-baggins action=ignore
+2968-09-22T10:04:55 WARN  door: knock pattern=sackville-baggins action=ignore retries=2
+2968-09-22T10:06:30 INFO  window: lobelia observed measuring the parlour for curtains
+2968-09-22T12:15:02 INFO  door: knock pattern=gandalf action=open
+2968-09-22T12:15:04 DEBUG kettle: state=on reason=wizard
+2968-09-22T21:48:17 ERROR party: host vanished mid-speech (flash, bang)
+2968-09-22T21:48:18 INFO  crowd: silence duration=3s then uproar
+2968-09-23T08:00:00 WARN  door: 14 relatives queued; notice "NO ADMITTANCE EXCEPT ON PARTY BUSINESS" ineffective
+2968-09-23T09:12:40 ERROR spoons: count=11 expected=12 suspect=lobelia
+2968-09-23T11:30:15 INFO  door: gandalf departing; last word to frodo: "Keep it secret. Keep it safe." — Gandalf, Bag End, 2968-09-23
+3018-09-23T21:15:00 WARN  door: black riders reached hobbiton asking for "Baggins"; bag end already vacated; see 02_the-shire/black-riders.md

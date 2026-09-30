@@ -17,7 +17,7 @@ WAR-SA-3434 · **Status:** CLOSED (battle), OPEN (the Ring survived it).
   only time in the record.
 - The alliance fought across the continent for seven years, then laid siege
   to Barad-dûr for seven more. This is the first recorded attempt on that
-  address; see `mordor/black-gate/` for the last.
+  address; see `15_mordor/black-gate/` for the last.
 
 ## The duel before the tower
 

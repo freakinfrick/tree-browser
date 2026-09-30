@@ -7,7 +7,7 @@ destroyed 3019-03-25; the Nine: wraith-ridden, see roster below)
 
 recited aloud at the Council by Gandalf, 3018-10-25, and not without
 incident — the sky went dark at "burzum" (see
-rivendell/council-minutes/session-01.md). do not recite in the Black Speech
+05_rivendell/council-minutes/session-01.md). do not recite in the Black Speech
 indoors.
 
 Three Rings for the Elven-kings under the sky
@@ -32,7 +32,7 @@ THE SEVEN (dwarven; the dwarves proved hard to own):
     (see SECURITY.md, "the Seven did not take")
 
 THE NINE (for men; all nine became wraiths):
-  see mordor/barad-dur/nazgul-roster.csv
+  see 15_mordor/barad-dur/nazgul-roster.csv
   three of the nine were Númenórean lords; all nine are now the Nazgûl,
     led by the Witch-king of Angmar (see runbooks/nazgul-sighting.md)
 
@@ -42,4 +42,4 @@ THE ONE (the subject of this repo):
 see also:
   the-ring/bearers.csv (chain of custody for the One)
   the-ring/forging.md (how the One was made)
-  rivendell/council-minutes/session-01.md (the verse, recited; minute taker left the room)
+  05_rivendell/council-minutes/session-01.md (the verse, recited; minute taker left the room)

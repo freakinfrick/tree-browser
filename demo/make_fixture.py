@@ -20,21 +20,21 @@ now, M, H, D = time.time(), 60, 3600, 86400
 # stable pseudo-random age of 1 month to 5 years.
 AGES = {
     "README.md": 2 * H,
-    "lothlorien/mirror-of-galadriel/visions.log": 25 * M,
-    "lothlorien/mirror-of-galadriel/not-yet-come-to-pass.md": 40 * M,
-    "rohan/helms-deep/wall-repairs.rs": 5 * H,
-    "rohan/helms-deep/culvert-bug.md": 4 * H,
-    "rohan/helms-deep/siege-postmortem.md": 3 * H,
-    "mordor/mount-doom/.eye-is-watching.log": 90,
-    "mordor/mount-doom/one-does-not-simply.txt": 2 * D,
-    "mordor/barad-dur/orc-hr/shift-roster.csv": 1 * D,
-    "mordor/barad-dur/orc-hr/complaints-to-sauron.txt": 7 * H,
-    "mordor/barad-dur/eye-uptime.prom": 12 * M,
+    "08_lothlorien/mirror-of-galadriel/visions.log": 25 * M,
+    "08_lothlorien/mirror-of-galadriel/not-yet-come-to-pass.md": 40 * M,
+    "11_rohan/helms-deep/wall-repairs.rs": 5 * H,
+    "11_rohan/helms-deep/culvert-bug.md": 4 * H,
+    "11_rohan/helms-deep/siege-postmortem.md": 3 * H,
+    "15_mordor/mount-doom/.eye-is-watching.log": 90,
+    "15_mordor/mount-doom/one-does-not-simply.txt": 2 * D,
+    "15_mordor/barad-dur/orc-hr/shift-roster.csv": 1 * D,
+    "15_mordor/barad-dur/orc-hr/complaints-to-sauron.txt": 7 * H,
+    "15_mordor/barad-dur/eye-uptime.prom": 12 * M,
     "src/main.rs": 20 * M, "src/layout.rs": 45 * M, "src/anim.rs": 10 * M, "src/Cargo.toml": 3 * H,
-    "fangorn/entmoot/minutes-day-2.txt": 6 * D,
-    "rivendell/council-minutes/who-carries-the-ring.md": 6 * D,
-    "the-shire/green-dragon-inn/tab.csv": 3 * D,
-    "gondor/minas-tirith/beacon-schedule.toml": 8 * D,
+    "10_fangorn/entmoot/minutes-day-2.txt": 6 * D,
+    "05_rivendell/council-minutes/who-carries-the-ring.md": 6 * D,
+    "02_the-shire/green-dragon-inn/tab.csv": 3 * D,
+    "14_gondor/minas-tirith/beacon-schedule.toml": 8 * D,
 }
 
 
@@ -123,14 +123,14 @@ def main():
         shutil.copyfile(a, os.path.join(base, it["path"])); made.append(it["path"])
     if os.path.exists(os.path.join(ASSETS, "CREDITS.md")):
         shutil.copyfile(os.path.join(ASSETS, "CREDITS.md"), os.path.join(base, "CREDITS.md")); made.append("CREDITS.md")
-    maps = os.path.join(base, "rivendell/library/maps")
+    maps = os.path.join(base, "05_rivendell/library/maps")
     atlas = [os.path.join(maps, n) for n in ("misty-mountains.svg", "carta-marina.jpg", "moria-west-gate.png") if os.path.exists(os.path.join(maps, n))]
     if image_pdf(atlas, os.path.join(maps, "atlas.pdf")):
-        made.append("rivendell/library/maps/atlas.pdf")
-    os.makedirs(os.path.join(base, "moria/mazarbul-chamber"), exist_ok=True)
-    drums(os.path.join(base, "moria/mazarbul-chamber/drums-in-the-deep.wav")); made.append("moria/mazarbul-chamber/drums-in-the-deep.wav")
-    with open(os.path.join(base, "moria/durins-bridge.dwg"), "wb") as f:
-        f.write(b"AC1032" + bytes(122) + b"one span, no rail" + bytes(64)); made.append("moria/durins-bridge.dwg")
+        made.append("05_rivendell/library/maps/atlas.pdf")
+    os.makedirs(os.path.join(base, "07_moria/mazarbul-chamber"), exist_ok=True)
+    drums(os.path.join(base, "07_moria/mazarbul-chamber/drums-in-the-deep.wav")); made.append("07_moria/mazarbul-chamber/drums-in-the-deep.wav")
+    with open(os.path.join(base, "07_moria/durins-bridge.dwg"), "wb") as f:
+        f.write(b"AC1032" + bytes(122) + b"one span, no rail" + bytes(64)); made.append("07_moria/durins-bridge.dwg")
 
     for rel in made:
         t = now - age(rel); os.utime(os.path.join(base, rel), (t, t))

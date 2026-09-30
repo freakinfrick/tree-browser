@@ -1,9 +1,9 @@
 # Runbook: Ring detected
 
-**Alert:** `RingDetected` (see `mordor/barad-dur/alerts.yml`)
+**Alert:** `RingDetected` (see `15_mordor/barad-dur/alerts.yml`)
 **Severity:** the highest there is.
 **Owner:** the Council of Elrond (on-call: Gandalf) · **Escalation:**
-Council → Elrond (`rivendell/`) → the Ring-bearer's companions. There is no
+Council → Elrond (`05_rivendell/`) → the Ring-bearer's companions. There is no
 higher tier; if the Council is unreachable, consult `the-ring/provenance.md`
 and do not improvise.
 
@@ -20,7 +20,7 @@ and do not improvise.
 
 - Route the object to the nearest Council-approved carrier (a hobbit, ideally
   one who does not want it).
-- Destination: Mount Doom (`mordor/mount-doom/`). Method: walking. No eagles.
+- Destination: Mount Doom (`15_mordor/mount-doom/`). Method: walking. No eagles.
 
 ## Escalation
 
@@ -30,7 +30,7 @@ is a bearer to be managed.
 
 ## Postmortem
 
-See `mordor/mount-doom/ring-destruction.md`. There is no other resolution.
+See `15_mordor/mount-doom/ring-destruction.md`. There is no other resolution.
 
 **Last run:** TA 3019-03-25, the Cracks of Doom. Outcome: alert cleared, but
 only after a second seizure attempt by a prior owner (`the-ring/bearers.csv`,

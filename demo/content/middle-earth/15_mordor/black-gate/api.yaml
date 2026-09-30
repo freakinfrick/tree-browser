@@ -1,0 +1,104 @@
+openapi: 3.0.0
+info:
+  title: The Black Gate API
+  version: "1.1"
+  description: |
+    Public interface of the Morannon. One does not simply call it.
+    Guarded by more than orcs; observed by the Eye.
+    API OWNER: the Mouth of Sauron (see 15_mordor/black-gate/opening-hours.md).
+    He has forgotten his own name and face, and now answers only to the
+    message. The message is: THE RING-BEARER IS OURS.
+  contact:
+    name: The Mouth of Sauron (press office)
+    email: parley@black-gate.mordor.internal
+    url: https://black-gate.mordor.internal/parley
+servers:
+  - url: https://black-gate.mordor.internal/v1
+paths:
+  /gate:
+    get:
+      summary: Inspect the gate (the Morannon)
+      description: |
+        Returns current gate state. Closed to everything except the armies
+        of the West, once, and everything leaving at the end. See
+        15_mordor/black-gate/opening-hours.md.
+      parameters:
+        - name: side
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [east, west]
+          description: Which side you are on. It does not matter.
+      responses:
+        "200":
+          description: |
+            Gate state returned. State is "closed" except during the final
+            sortie, which is not a response code but a door (see
+            15_mordor/black-gate/parley.md).
+        "401":
+          description: |
+            The Eye looked at you. The Eye does not need to authenticate
+            you, and does not ask.
+  /admit:
+    post:
+      summary: Request admission into Mordor
+      description: |
+        There is no admission except by parley. All requests are denied with
+        prejudice. The only approved entrant on record is the captured
+        package from Cirith Ungol (see
+        15_mordor/cirith-ungol/package-incident.md), and it was brought in
+        wrapped.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: |
+                    Your name. The Mouth of Sauron forgot his; you may keep
+                    yours, but it will not be read.
+                party_size:
+                  type: integer
+                  description: |
+                    Number in your party. Parties containing hobbits or
+                    ring-bearers are refused faster.
+              required: [name]
+      responses:
+        "403":
+          description: |
+            DENIED. One does not simply walk into Mordor (see
+            15_mordor/mount-doom/one-does-not-simply.txt).
+        "410":
+          description: |
+            GONE. The gate fell; the tower fell; the shadow departed
+            (3019-03-25). See 15_mordor/mount-doom/ring-destruction.md.
+  /pass:
+    get:
+      summary: Request passage into Mordor
+      responses:
+        "403":
+          description: Denied. There are no other response codes.
+        "410":
+          description: Gone. The gate fell. The tower fell. The shadow departed.
+  /side-entrance:
+    get:
+      summary: Enquire about a side entrance
+      responses:
+        "200":
+          description: |
+            There is a stair. You do not want the stair.
+            See 15_mordor/cirith-ungol/the-stair.md.
+security:
+  - eyeAuth: []
+components:
+  securitySchemes:
+    eyeAuth:
+      type: http
+      scheme: bearer
+      description: |
+        The Eye sees the token before you send it. Authentication is therefore
+        redundant, and the server checks nothing.

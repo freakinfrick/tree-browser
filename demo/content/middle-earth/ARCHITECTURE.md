@@ -52,17 +52,17 @@ ring ──(drop)──► Doom ──► 0x0000 0000 0000
 
 - **Single point of failure:** one ring, one bearer, one route, one volcano.
 - **Zero-trust violation:** palantíri ship with default credentials and no
-  rate limit (`isengard/orthanc/palantir-access.log`, `gondor/.../palantir`).
+  rate limit (`12_isengard/orthanc/palantir-access.log`, `14_gondor/.../palantir`).
 - **Unpatched vulnerability:** the culvert under the Deeping Wall
-  (`rohan/helms-deep/culvert-bug.md`).
+  (`11_rohan/helms-deep/culvert-bug.md`).
 - **No load test:** Minas Tirith accepted a siege of 100k+ without a
-  capacity plan (`gondor/minas-tirith/siege-of-gondor.md`).
+  capacity plan (`14_gondor/minas-tirith/siege-of-gondor.md`).
 
 ## Failure modes (known)
 
 - **The gate is a riddle, not a secret.** Anyone who can read opens Moria
-  (`moria/west-gate/lock.rs`). Fixed by being abandoned anyway.
-- **The wall ships with a hole.** The culvert (`rohan/helms-deep/wall-repairs.rs`)
+  (`07_moria/west-gate/lock.rs`). Fixed by being abandoned anyway.
+- **The wall ships with a hole.** The culvert (`11_rohan/helms-deep/wall-repairs.rs`)
   is a single point of failure that is now a feature (`CHANGELOG.md`, v2.1.0).
 - **The route only compiles overland.** `src/layout.rs` ends at Rauros; the
   Mordor legs are `LAST_LEGS`, unmapped by the Eye.

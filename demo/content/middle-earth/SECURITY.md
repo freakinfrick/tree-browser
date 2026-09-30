@@ -19,7 +19,7 @@ bearer is gradually owned by the artifact's original author.
 
 1. `Gollum:` `my preciousss` (already owned).
 2. `Bilbo:` "what have I got in my pocket?" (partial ownership).
-3. `Boromir:` "give it to me" (failed; see `anduin/amon-hen/`).
+3. `Boromir:` "give it to me" (failed; see `09_anduin/amon-hen/`).
 
 ### Mitigation
 
@@ -43,7 +43,7 @@ bearer is gradually owned by the artifact's original author.
 
 Any user who touches a seeing-stone is connected directly to the network.
 There is no authentication, no session token, and no logout. Consequences
-documented in `isengard/orthanc/palantir-access.log` (Saruman was `user_screamed`
+documented in `12_isengard/orthanc/palantir-access.log` (Saruman was `user_screamed`
 and the remote was still not sure who was controlling whom).
 
 ### Mitigation
@@ -57,26 +57,26 @@ Turn the stone face-down. Keep a wet cloth nearby.
 | field | value |
 |---|---|
 | severity | CRITICAL (9.5) |
-| affected | `rohan/helms-deep` |
+| affected | `11_rohan/helms-deep` |
 | vector | drainage ditch + explosive ("fire of Orthanc") |
-| fixed in | `rohan/helms-deep/wall-repairs.rs` |
+| fixed in | `11_rohan/helms-deep/wall-repairs.rs` |
 
 ### Description
 
 A load-bearing wall was shipped with a hole in it for a stream. The enemy
 read the docs (Gríma leaked them) and put a bomb in the hole. See
-`rohan/helms-deep/culvert-bug.md` for the postmortem.
+`11_rohan/helms-deep/culvert-bug.md` for the postmortem.
 
 ---
 
 ## Other known issues (not yet assigned CVEs)
 
-- **The Watcher in the Water** (`moria/west-gate/watcher-incident.md`): an
+- **The Watcher in the Water** (`07_moria/west-gate/watcher-incident.md`): an
   unauthenticated tentacle with no rate limit.
-- **The Morgul-blade** (`bree/weathertop/incident-report.md`): a wound that is
+- **The Morgul-blade** (`04_bree/weathertop/incident-report.md`): a wound that is
   also a countdown. Mitigation: Elrond, fast.
-- **The Black Gate API** (`mordor/black-gate/api.yaml`): accepts one ring and
-  nothing else; see `mordor/mount-doom/one-does-not-simply.txt`.
+- **The Black Gate API** (`15_mordor/black-gate/api.yaml`): accepts one ring and
+  nothing else; see `15_mordor/mount-doom/one-does-not-simply.txt`.
 
 ## Responsible disclosure
 

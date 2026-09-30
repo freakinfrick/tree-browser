@@ -3,7 +3,7 @@
 **Question:** asked since 1954 (the cataloguer notes the question predates
 most of the people who now answer it). **Answer:** several, all of them good.
 **Filed by:** the cataloguer · **TA n/a** (the question is timeless)
-**See also:** `eagles/flight-log.csv`, `eagles/membership.yaml`, `mordor/black-gate/`
+**See also:** `eagles/flight-log.csv`, `eagles/membership.yaml`, `15_mordor/black-gate/`
 
 ## The answers
 
@@ -19,7 +19,7 @@ most of the people who now answer it). **Answer:** several, all of them good.
 
 3. **The Ring would have taken the Eagle.** It corrupts the powerful most.
    Gwaihir carrying the Ring would not have stayed Gwaihir for long.
-   — Galadriel, Lady of Lórien, 3019 (at the Mirror; see `lothlorien/mirror-of-galadriel/`)
+   — Galadriel, Lady of Lórien, 3019 (at the Mirror; see `08_lothlorien/mirror-of-galadriel/`)
 
 4. **There is no story that way.** This is not a defect. It is the entire
    point: the Ring had to be carried by the one person who did not want it,
@@ -30,5 +30,5 @@ most of the people who now answer it). **Answer:** several, all of them good.
 
 The Eagles flew four times (`eagles/flight-log.csv`). Three of them were
 rescues at the end; one was at the beginning. They bookend the story; they
-were never the story. The fourth flight, at the `mordor/black-gate/`, was
+were never the story. The fourth flight, at the `15_mordor/black-gate/`, was
 air cover against the winged Nazgûl — not a taxi, the second time.
