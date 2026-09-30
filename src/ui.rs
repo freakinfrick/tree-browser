@@ -23,6 +23,7 @@ use crate::audio::{self, Audio, State};
 use crate::git::St;
 use crate::media::Media;
 use crate::tree::Sort;
+use crate::settings::TextPreview;
 use crate::App;
 
 pub const BG: Rgb = [9.0, 10.0, 15.0];
@@ -112,6 +113,26 @@ fn human(n: u64) -> String {
 
 fn age_of(t: SystemTime) -> f32 {
     SystemTime::now().duration_since(t).unwrap_or_default().as_secs_f32()
+}
+
+/// Break lines longer than `width` columns, for plain previews (the preview
+/// pane clips rather than wraps).
+fn wrap_text(raw: &[u8], width: usize) -> Vec<u8> {
+    let text = String::from_utf8_lossy(raw);
+    let mut out = String::with_capacity(text.len());
+    for line in text.split_inclusive('\n') {
+        let mut w = 0;
+        for c in line.chars() {
+            let cw = c.width().unwrap_or(0);
+            if w + cw > width && c != '\n' {
+                out.push('\n');
+                w = 0;
+            }
+            out.push(c);
+            w += cw;
+        }
+    }
+    out.into_bytes()
 }
 
 /// Write `text` at world-relative screen coords, clipping on every side.
@@ -347,8 +368,13 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         if g > 0.02 && id != app.cursor {
             style = style.bg(to_color(mix(BG, RIPPLE_BG, g * a.alpha)));
         }
-        put(buf, canvas, sx, sy, &a.label, style);
-        if let Some(r) = finding.filter(|_| !a.ghost && node.parent == column).and_then(|q| crate::hit(&a.label, q)) {
+        let (name, details) = a.label.split_at(a.name.min(a.label.len()));
+        put(buf, canvas, sx, sy, name, style);
+        if !details.is_empty() {
+            let st = Style::new().fg(to_color(mix(BG, a.rgb, a.alpha * dim * 0.5)));
+            put(buf, canvas, sx + name.width() as i32, sy, details, st);
+        }
+        if let Some(r) = finding.filter(|_| !a.ghost && node.parent == column).and_then(|q| crate::hit(name, q)) {
             let lit = Style::new().fg(to_color(mix(BG, FLASH, a.alpha))).bg(to_color(mix(BG, MATCH_BG, a.alpha)));
             put(buf, canvas, sx + a.label[..r.start].width() as i32, sy, &a.label[r], lit.add_modifier(Modifier::BOLD));
         }
@@ -734,7 +760,7 @@ const KEYS: [(&str, &str); 24] = [
     ("audio", "space pause · ← → seek · ↑ ↓ volume · 0-9"),
     ("!", "run a command here ($f = selection)"),
     ("s", "shell here · exit / ctrl-d returns"),
-    (",", "settings: spacing · colors · motion · …"),
+    (",", "settings: layout · colors · mouse · previews · …"),
     ("?", "toggle this help"),
     ("q / esc", "quit (q + tb.bash: cd there)"),
 ];
@@ -1147,7 +1173,7 @@ fn head(path: &Path) -> Vec<u8> {
 
 impl Preview {
     /// Whole file, colored: glow for markdown, bat otherwise, plain text as last resort.
-    pub fn load(path: &Path, width: u16) -> Preview {
+    pub fn load(path: &Path, width: u16, how: TextPreview, wrap: bool) -> Preview {
         let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         let title = format!("{name} · {}", human(size));
@@ -1172,7 +1198,7 @@ impl Preview {
         } else {
             let (tx, rx) = mpsc::channel();
             let path = path.to_path_buf();
-            std::thread::spawn(move || tx.send(Preview::render(&path, width, size, &first)));
+            std::thread::spawn(move || tx.send(Preview::render(&path, width, size, &first, how, wrap)));
             pending = Some(rx);
             Text::default()
         };
@@ -1219,9 +1245,9 @@ impl Preview {
         self.sy = Damped::new(0.0);
     }
 
-    /// Text files, colored: glow for markdown, bat otherwise, plain text as last resort.
-    /// Runs on a worker thread.
-    fn render(path: &Path, width: u16, size: u64, first: &[u8]) -> Text<'static> {
+    /// Text files, colored: glow for markdown, bat otherwise, plain text as last
+    /// resort (or as asked). Runs on a worker thread.
+    fn render(path: &Path, width: u16, size: u64, first: &[u8], how: TextPreview, wrap: bool) -> Text<'static> {
         let w = width.saturating_sub(3).max(20);
         if first.contains(&0) {
             let kind = run(Command::new("file").arg("-b").arg(path))
@@ -1241,12 +1267,19 @@ impl Preview {
                 run_tty(cmd, head(path), w)
             };
             let bat = || {
+                let wrap = if wrap { "--wrap=character" } else { "--wrap=never" };
                 run(Command::new("bat")
-                    .args(["--color=always", "--style=numbers", "--paging=never", "--wrap=character"])
+                    .args(["--color=always", "--style=numbers", "--paging=never", wrap])
                     .args(["--line-range", ":5000", "--terminal-width", &w.to_string()])
                     .arg(path))
             };
-            let raw = if is_md(path) { glow().or_else(bat) } else { bat() }.unwrap_or_else(|| head(path));
+            let plain = || if wrap { wrap_text(&head(path), w as usize) } else { head(path) };
+            let raw = match how {
+                TextPreview::Styled if is_md(path) => glow().or_else(bat),
+                TextPreview::Styled | TextPreview::Bat => bat(),
+                TextPreview::Plain => None,
+            }
+            .unwrap_or_else(plain);
             let mut t = raw.into_text().unwrap_or_else(|_| Text::raw(String::from_utf8_lossy(&raw).into_owned()));
             // Reset/black backgrounds from glow/bat would punch holes in the popup.
             let clear = |st: &mut Style| {

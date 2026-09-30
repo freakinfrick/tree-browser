@@ -11,6 +11,7 @@ mod git;
 mod layout;
 mod media;
 mod mtime;
+mod places;
 mod settings;
 mod shell;
 mod tree;
@@ -19,7 +20,7 @@ mod watch;
 
 use std::io::stdout;
 use std::os::unix::ffi::OsStrExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
 
 use ratatui::crossterm::event::{
@@ -83,6 +84,11 @@ pub struct App {
     pub picker: Option<ratatui_image::picker::Picker>,
     /// What the terminal claimed, so `i` can switch back from half-blocks.
     pub detected: ratatui_image::picker::ProtocolType,
+    /// The picker as the terminal query left it, and the protocol `auto`
+    /// picks; None = TB_GRAPHICS=off.
+    graphics: Option<(ratatui_image::picker::Picker, ratatui_image::picker::ProtocolType)>,
+    /// TB_GRAPHICS is set: the image previews setting waits for a run without it.
+    graphics_forced: bool,
     /// A preview drew pixels since the last full repaint.
     pub graphics_shown: bool,
     /// Clear the terminal before the next frame.
@@ -183,6 +189,8 @@ impl App {
             lay: None,
             picker: None,
             detected: ratatui_image::picker::ProtocolType::Halfblocks,
+            graphics: None,
+            graphics_forced: false,
             graphics_shown: false,
             repaint: false,
             prompt: None,
@@ -240,18 +248,29 @@ impl App {
     /// Room in the layout, from the settings.
     pub fn spacing(&self) -> layout::Spacing {
         let s = &self.settings;
-        layout::Spacing { rows: s.row_spacing as i32, gap: s.column_gap as i32, maxw: s.max_name as usize }
+        layout::Spacing {
+            rows: s.row_spacing as i32,
+            gap: s.column_gap as i32,
+            maxw: s.max_name as usize,
+            columns: s.columns,
+            details: s.details,
+        }
     }
 
     /// Push the settings into the tree, the colors and the background workers.
     fn apply_settings(&mut self) {
         let s = self.settings;
         anim::set_palette(s.palette);
+        anim::set_heat_range(s.heat_range.secs());
+        layout::set_line_style(s.lines);
         ui::set_accent(s.accent);
         let heat_changed = self.tree.show_hidden != s.show_hidden;
         self.tree.show_hidden = s.show_hidden;
-        if self.tree.sort != s.sort || (heat_changed && s.sort.key == SortKey::Modified) {
-            self.tree.sort = s.sort;
+        let order = (s.sort, s.folders_first, s.natural_sort);
+        if (self.tree.sort, self.tree.folders_first, self.tree.natural) != order
+            || (heat_changed && s.sort.key == SortKey::Modified)
+        {
+            (self.tree.sort, self.tree.folders_first, self.tree.natural) = order;
             self.tree.resort();
         }
         if !s.live {
@@ -271,9 +290,33 @@ impl App {
         self.epoch += 1;
     }
 
+    /// Pick the preview graphics the setting asks for, from what the
+    /// terminal answered at startup. TB_GRAPHICS overrides it for the run.
+    fn apply_graphics(&mut self) {
+        use ratatui_image::picker::ProtocolType;
+        use settings::Graphics;
+        let Some((base, auto)) = &self.graphics else { return };
+        let proto = match self.settings.graphics {
+            _ if self.graphics_forced => *auto,
+            Graphics::Off => {
+                self.picker = None;
+                return;
+            }
+            Graphics::Auto => *auto,
+            Graphics::Pixels => self.detected,
+            Graphics::Blocks => ProtocolType::Halfblocks,
+        };
+        let mut p = base.clone();
+        p.set_protocol_type(proto);
+        self.picker = Some(p);
+    }
+
     /// One setting changed in the menu: apply it and save it.
     fn setting_changed(&mut self, key: &str) {
         self.apply_settings();
+        if key == "graphics" {
+            self.apply_graphics();
+        }
         let Some(p) = &self.config else { return };
         // A new sort key starts unreversed, so the file's reverse must follow.
         let keys: &[&str] = if key == "sort" { &["sort", "sort_reverse"] } else { &[key] };
@@ -361,6 +404,52 @@ impl App {
             self.tree.load(id);
             self.tree.nodes[id].expanded ^= true;
         }
+    }
+
+    /// The node at `p`, reading folders on the way; None if it's outside
+    /// the tree or gone.
+    fn node_at(&mut self, p: &Path) -> Option<usize> {
+        let rel = p.strip_prefix(&self.tree.nodes[self.tree.root].path).ok()?;
+        let mut id = self.tree.root;
+        for part in rel.components() {
+            self.tree.load(id);
+            let kids = self.tree.nodes[id].children.as_ref()?;
+            id = kids.iter().copied().find(|&k| self.tree.nodes[k].name.as_str() == part.as_os_str())?;
+        }
+        Some(id)
+    }
+
+    /// Open folders and the selection, for Remember place.
+    fn place(&self) -> places::Place {
+        let mut open = Vec::new();
+        let mut stack = vec![self.tree.root];
+        while let Some(id) = stack.pop() {
+            let n = &self.tree.nodes[id];
+            if n.expanded && n.is_dir {
+                if id != self.tree.root {
+                    open.push(n.path.clone());
+                }
+                stack.extend(self.tree.kids(id).iter().rev());
+            }
+        }
+        places::Place { open, at: Some(self.tree.nodes[self.cursor].path.clone()) }
+    }
+
+    /// Reopen a remembered place; whatever no longer exists is skipped.
+    fn restore_place(&mut self, place: places::Place) {
+        for p in &place.open {
+            if let Some(id) = self.node_at(p).filter(|&id| self.tree.nodes[id].is_dir) {
+                self.tree.load(id);
+                self.tree.nodes[id].expanded = true;
+            }
+        }
+        if let Some(id) = place.at.as_deref().and_then(|p| self.node_at(p)) {
+            for a in self.tree.path_to(id).into_iter().filter(|&a| a != id) {
+                self.tree.nodes[a].expanded = true;
+            }
+            self.set_cursor(id);
+        }
+        self.epoch += 1;
     }
 
     /// Fold every branch that isn't on the cursor path.
@@ -487,7 +576,7 @@ impl App {
     fn open_file(&mut self, id: usize) {
         let w = ui::popup(ratatui::layout::Rect::new(0, 0, self.view.0, self.view.1 + 1)).width;
         let path = self.tree.nodes[id].path.clone();
-        let mut pv = Preview::load(&path, w);
+        let mut pv = Preview::load(&path, w, self.settings.preview, self.settings.wrap);
         if pv.media.is_none()
             && pv.audio.is_none()
             && self.git_state(id).is_some_and(|s| s >= git::St::Staged)
@@ -998,7 +1087,7 @@ fn main() -> std::io::Result<()> {
              --cwd-file: on q, write the selected folder there (tb.bash turns that into cd)\n\
              image/pdf preview: j/k page · i pixels <-> half-blocks · TB_GRAPHICS=halfblocks|kitty|sixel|iterm2|off\n\
              audio preview: plays at once · space pause · left/right 5 s · shift 30 s · 0-9 jump · up/down volume · m mute\n\
-             , opens the settings (saved to ~/.config/tb/config.toml, or $TB_CONFIG)\n\
+             , opens the settings (saved to ~/.config/tb/config.toml, or $TB_CONFIG): layout, sort, colors, lines, mouse, previews, remember place\n\
              e explodes the selected folder: opens every folder inside (hidden and git-ignored ones stay closed) · esc stops it\n\
              o cycles the sort (name · modified · size · type) · O reverses it · TB_SORT=size (or -size, modified, type) sets the start\n\
              open folders update live (about once a second) · TB_LIVE=off turns that off\n\
@@ -1008,7 +1097,7 @@ fn main() -> std::io::Result<()> {
         return Ok(());
     }
     let start = std::fs::canonicalize(&arg)?;
-    let mut app = App::new(start);
+    let mut app = App::new(start.clone());
     app.config = settings::path();
     (app.settings, app.config_errs) = Settings::load(app.config.as_deref());
     // Environment variables win for this run.
@@ -1030,6 +1119,10 @@ fn main() -> std::io::Result<()> {
     app.can_cd = cwd_file.is_some();
     app.services = true;
     app.apply_settings();
+    let saved = places::path().filter(|_| app.settings.remember).and_then(|f| places::load(&f, &start));
+    if let Some(place) = saved {
+        app.restore_place(place);
+    }
     let mut term = ratatui::init();
     let hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -1037,11 +1130,16 @@ fn main() -> std::io::Result<()> {
         let _ = execute!(stdout(), DisableMouseCapture);
         hook(info);
     }));
-    execute!(stdout(), EnableMouseCapture)?;
+    let mut mouse = app.settings.mouse;
+    if mouse {
+        execute!(stdout(), EnableMouseCapture)?;
+    }
     // Query after entering the alternate screen, before reading events.
     if let Some((p, detected)) = media::picker() {
-        app.picker = Some(p);
+        app.graphics = Some((p.clone(), p.protocol_type()));
         app.detected = detected;
+        app.graphics_forced = std::env::var("TB_GRAPHICS").is_ok_and(|v| !v.is_empty());
+        app.apply_graphics();
     }
 
     let mut dirty = true;
@@ -1125,9 +1223,14 @@ fn main() -> std::io::Result<()> {
         if quit {
             break Ok(());
         }
+        if app.settings.mouse != mouse {
+            mouse = app.settings.mouse;
+            let _ = if mouse { execute!(stdout(), EnableMouseCapture) } else { execute!(stdout(), DisableMouseCapture) };
+            app.mouse = None;
+        }
         if let Some(run) = app.pending.take() {
             let sel = app.tree.nodes[app.cursor].path.clone();
-            if let Err(e) = shell::run(&mut term, &app.work_dir(), &sel, &run) {
+            if let Err(e) = shell::run(&mut term, &app.work_dir(), &sel, &run, mouse) {
                 break Err(e);
             }
             // The command may have created or removed files.
@@ -1142,6 +1245,10 @@ fn main() -> std::io::Result<()> {
         app.explode_poll();
     };
     restore();
+    // Checked at quit, so turning it on in the menu counts for this run.
+    if let (true, Some(f)) = (app.settings.remember, places::path()) {
+        let _ = places::save(&f, &start, app.place());
+    }
     if let (true, Some(f)) = (app.cd_on_quit, cwd_file) {
         std::fs::write(f, app.work_dir().as_os_str().as_bytes())?;
     }
@@ -1326,6 +1433,42 @@ mod tests {
         }
         assert_eq!(at(&app), "a");
         (app, d)
+    }
+
+    #[test]
+    fn folders_first_holds_under_every_sort() {
+        let (mut app, d) = sort_fixture("folders");
+        app.set_sort(Sort { key: SortKey::Modified, rev: false });
+        assert_eq!(names(&app, d), ["mid.txt", "Zed", "a", "big.log"]);
+        app.settings.folders_first = true;
+        app.apply_settings();
+        assert_eq!(names(&app, d), ["a", "mid.txt", "Zed", "big.log"]);
+        app.set_sort(Sort { key: SortKey::Modified, rev: true });
+        assert_eq!(names(&app, d), ["a", "big.log", "Zed", "mid.txt"], "reversing keeps folders on top");
+    }
+
+    #[test]
+    fn remembered_place_reopens_folders_and_selection() {
+        let mut app = app_in("place", &["one"]);
+        let d = app.tree.nodes[app.cursor].path.parent().unwrap().to_path_buf();
+        fs::create_dir_all(d.join("deep/er")).unwrap();
+        fs::write(d.join("deep/er/leaf"), "").unwrap();
+        app.reload();
+        let deep = app.node_at(&d.join("deep")).unwrap();
+        app.set_cursor(deep);
+        app.enter();
+        app.enter();
+        assert_eq!(at(&app), "leaf");
+        let place = app.place();
+        assert_eq!(place.open, [d.clone(), d.join("deep"), d.join("deep/er")]);
+
+        let mut fresh = App::new(d.clone());
+        let gone = places::Place { open: vec![d.join("nope")], ..places::Place::default() };
+        fresh.restore_place(gone);
+        assert_eq!(at(&fresh), "deep", "a vanished folder is skipped");
+        fresh.restore_place(place);
+        assert_eq!(at(&fresh), "leaf");
+        assert!(fresh.tree.nodes[fresh.tree.nodes[fresh.cursor].parent.unwrap()].expanded);
     }
 
     #[test]

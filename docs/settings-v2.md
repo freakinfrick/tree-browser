@@ -40,8 +40,8 @@ color. Implemented as one scale on age before `anim::heat` looks it up:
 `age * (5y / range)`. Legend unchanged.
 
 **Tree lines** `lines = "rounded" | "square" | "heavy" | "double" | "ascii"`,
-default `rounded`. Swaps the junction table in `layout.rs:89` and the plain
-`─` in `ui.rs:986`. ascii: `+ | -`.
+default `rounded`. Swaps the junction table in `layout.rs`. ascii: `+ | -`,
+with `=` for the route tube; double drops the tube (it would match the lines).
 
 ## Behavior
 
@@ -51,7 +51,7 @@ terminal can select text. Applies live (Enable/DisableMouseCapture), and
 
 **Image previews** `graphics = "auto" | "pixels" | "blocks" | "off"`, default
 `auto` (today's detection). `TB_GRAPHICS` still wins for the run it's set in.
-The `i` key in a preview keeps toggling for that preview only.
+The `i` key in a preview keeps toggling pixels/blocks for the rest of the run, as before.
 
 **Text preview** `preview = "styled" | "bat" | "plain"`, default `styled`.
 - styled: today (glow for markdown, bat otherwise).
@@ -64,7 +64,7 @@ The `i` key in a preview keeps toggling for that preview only.
 **Remember place** `remember = bool`, default `false`. On quit, save the open
 folders and the selection for the starting folder; on the next `tb` in that
 folder, reopen them. Stored in `$XDG_STATE_HOME/tb/places` (else
-`~/.local/state/tb/places`), newest 50 folders kept. Paths that no longer
+`~/.local/state/tb/places`, code in `src/places.rs`), newest 50 folders kept. Paths that no longer
 exist are skipped.
 
 ## Menu order

@@ -28,7 +28,7 @@ pub enum Run {
 /// dies on ctrl-c while tb (same foreground group) shrugs it off.
 extern "C" fn shrug(_: libc::c_int) {}
 
-pub fn run(term: &mut DefaultTerminal, dir: &Path, sel: &Path, what: &Run) -> io::Result<()> {
+pub fn run(term: &mut DefaultTerminal, dir: &Path, sel: &Path, what: &Run, mouse: bool) -> io::Result<()> {
     execute!(stdout(), DisableMouseCapture, LeaveAlternateScreen, Show)?;
     disable_raw_mode()?;
     // Cooked-mode settings as tb left them; a child that crashes mid-raw can't leak its mode back.
@@ -98,6 +98,9 @@ pub fn run(term: &mut DefaultTerminal, dir: &Path, sel: &Path, what: &Run) -> io
         libc::signal(libc::SIGINT, int);
         libc::signal(libc::SIGQUIT, quit);
     }
-    execute!(stdout(), EnterAlternateScreen, EnableMouseCapture)?;
+    execute!(stdout(), EnterAlternateScreen)?;
+    if mouse {
+        execute!(stdout(), EnableMouseCapture)?;
+    }
     term.clear()
 }
