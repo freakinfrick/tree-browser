@@ -4,6 +4,7 @@ compile_error!("tb needs a Unix-like OS (Linux, macOS, BSD): it drives the tty w
 
 mod anim;
 mod audio;
+mod explode;
 mod git;
 mod layout;
 mod media;
@@ -118,7 +119,23 @@ pub struct App {
     pub config_errs: Vec<String>,
     /// Why the last save failed, shown in the menu.
     pub save_err: Option<String>,
+    /// `e` reading everything under a folder; None = idle.
+    pub exploding: Option<Exploding>,
+    /// A short message for the status bar, and when it was posted.
+    pub note: Option<(String, Instant)>,
 }
+
+pub struct Exploding {
+    /// The folder being exploded.
+    pub target: usize,
+    rx: std::sync::mpsc::Receiver<explode::Msg>,
+    /// Folders read so far.
+    pub folders: usize,
+    pub born: Instant,
+}
+
+/// How long a status bar note stays up.
+pub const NOTE: Duration = Duration::from_secs(3);
 
 pub struct Search {
     pub query: String,
@@ -182,6 +199,8 @@ impl App {
             config: None,
             config_errs: Vec::new(),
             save_err: None,
+            exploding: None,
+            note: None,
             cd_on_quit: false,
             can_cd: false,
         };
@@ -381,6 +400,73 @@ impl App {
         w.set(self.tree.open_dirs().into_iter().map(|d| self.tree.nodes[d].path.clone()).collect());
         let changes = w.poll();
         !changes.is_empty() && self.apply_changes(changes)
+    }
+
+    /// `e`: open every folder under the selected one (a file's own folder),
+    /// reading them on a worker while a spinner turns.
+    fn explode(&mut self) {
+        if self.exploding.is_some() {
+            return;
+        }
+        let n = &self.tree.nodes[self.cursor];
+        let target = if n.is_dir { self.cursor } else { n.parent.unwrap_or(self.cursor) };
+        let skip = self.git.as_ref().map(|g| g.ignored()).unwrap_or_default();
+        let rx = explode::spawn(self.tree.nodes[target].path.clone(), self.tree.show_hidden, skip);
+        self.exploding = Some(Exploding { target, rx, folders: 0, born: Instant::now() });
+    }
+
+    /// Take the explode worker's news. Returns true if anything changed.
+    fn explode_poll(&mut self) -> bool {
+        let Some(x) = &mut self.exploding else { return false };
+        let mut done = None;
+        let mut any = false;
+        loop {
+            match x.rx.try_recv() {
+                Ok(explode::Msg::Progress(n)) => {
+                    x.folders = n;
+                    any = true;
+                }
+                Ok(explode::Msg::Done(dirs, capped)) => {
+                    done = Some((dirs, capped));
+                    break;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => return any,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => break,
+            }
+        }
+        let target = x.target;
+        self.exploding = None;
+        if let Some((dirs, capped)) = done {
+            self.burst(target, dirs, capped);
+        }
+        true
+    }
+
+    /// Hang the walked folders on the tree and open them all at once, so
+    /// they unfurl together.
+    fn burst(&mut self, target: usize, dirs: Vec<(PathBuf, Vec<tree::Node>)>, capped: bool) {
+        if !self.tree.attached(target) {
+            return;
+        }
+        let mut id_of = std::collections::HashMap::from([(self.tree.nodes[target].path.clone(), target)]);
+        let mut opened = 0;
+        // Parents come before their children, so each folder's id is known by the time it's reached.
+        for (dir, nodes) in dirs {
+            let Some(&id) = id_of.get(&dir) else { continue };
+            self.tree.load_nodes(id, nodes);
+            self.tree.nodes[id].expanded = true;
+            opened += 1;
+            for &k in self.tree.nodes[id].children.as_deref().unwrap_or(&[]) {
+                if self.tree.nodes[k].is_dir {
+                    id_of.insert(self.tree.nodes[k].path.clone(), k);
+                }
+            }
+        }
+        let what = if opened == 1 { "1 folder".to_string() } else { format!("{opened} folders") };
+        let msg = if capped { format!("opened the first {what} (stopped there)") } else { format!("opened {what}") };
+        self.note = Some((msg, Instant::now()));
+        self.absorb();
+        self.epoch += 1;
     }
 
     /// Point git at the open folders and take its results. Returns true if they changed.
@@ -717,6 +803,11 @@ impl App {
             }
             return true;
         }
+        // Esc stops an explode instead of quitting.
+        if code == KeyCode::Esc && self.exploding.take().is_some() {
+            self.note = Some(("explode cancelled".into(), Instant::now()));
+            return true;
+        }
         if self.help && code != KeyCode::Char('?') {
             // Any key dismisses help (q included, so it never quits by surprise).
             self.help = false;
@@ -753,6 +844,7 @@ impl App {
                 self.help = false;
             }
             KeyCode::Char('c') => self.collapse_others(),
+            KeyCode::Char('e') => self.explode(),
             KeyCode::Char('r') => self.reload(),
             KeyCode::Char('?') => self.help ^= true,
             KeyCode::Char('!') => {
@@ -844,9 +936,11 @@ impl App {
 
     /// Something on screen moves on its own (a playing sound, a waveform still being read).
     fn ticking(&self) -> bool {
-        self.preview.as_ref().and_then(|p| p.audio.as_ref()).is_some_and(|a| {
-            a.state() == audio::State::Playing || !a.wave_done
-        })
+        self.exploding.is_some()
+            || self.note.as_ref().is_some_and(|n| n.1.elapsed() < NOTE)
+            || self.preview.as_ref().and_then(|p| p.audio.as_ref()).is_some_and(|a| {
+                a.state() == audio::State::Playing || !a.wave_done
+            })
     }
 
     /// Track the pointer; true when the hover cue changed and needs a frame.
@@ -903,6 +997,7 @@ fn main() -> std::io::Result<()> {
              image/pdf preview: j/k page · i pixels <-> half-blocks · TB_GRAPHICS=halfblocks|kitty|sixel|iterm2|off\n\
              audio preview: plays at once · space pause · left/right 5 s · shift 30 s · 0-9 jump · up/down volume · m mute\n\
              , opens the settings (saved to ~/.config/tb/config.toml, or $TB_CONFIG)\n\
+             e explodes the selected folder: opens every folder inside (hidden and git-ignored ones stay closed) · esc stops it\n\
              o cycles the sort (name · modified · size · type) · O reverses it · TB_SORT=size (or -size, modified, type) sets the start\n\
              open folders update live (about once a second) · TB_LIVE=off turns that off\n\
              git: M modified · + staged · ? untracked · ! conflict · ignored names dim · d in a preview shows the diff · TB_GIT=off\n\
@@ -986,6 +1081,7 @@ fn main() -> std::io::Result<()> {
                 }
                 dirty |= app.live_poll();
                 dirty |= app.git_poll();
+                dirty |= app.explode_poll();
                 dirty |= app.ticking();
                 continue;
             }
@@ -1041,6 +1137,7 @@ fn main() -> std::io::Result<()> {
             app.absorb();
         }
         app.git_poll();
+        app.explode_poll();
     };
     restore();
     if let (true, Some(f)) = (app.cd_on_quit, cwd_file) {
@@ -1337,6 +1434,38 @@ mod tests {
         typed(&mut app, "oO.");
         assert_eq!(app.settings.sort, Sort { key: SortKey::Modified, rev: true });
         assert!(app.settings.show_hidden && app.tree.show_hidden);
+    }
+
+    #[test]
+    fn e_explodes_the_selected_folder_and_esc_stops_it() {
+        let mut app = app_in("explode", &["file.txt"]);
+        let d = app.tree.nodes[app.cursor].parent.unwrap();
+        let base = app.tree.nodes[d].path.clone();
+        for p in ["src/a/b", "src/c", "src/.cache/x"] {
+            fs::create_dir_all(base.join(p)).unwrap();
+        }
+        app.reload();
+        let src = app.tree.kids(d).into_iter().find(|&k| app.tree.nodes[k].name == "src").unwrap();
+        app.set_cursor(src);
+        typed(&mut app, "e");
+        assert!(app.exploding.as_ref().is_some_and(|x| x.target == src));
+        let t0 = Instant::now();
+        while app.exploding.is_some() && t0.elapsed() < Duration::from_secs(5) {
+            app.explode_poll();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let open = |app: &App, rel: &str| {
+            let p = base.join(rel);
+            app.tree.nodes.iter().position(|n| n.path == p).is_some_and(|i| app.tree.nodes[i].expanded && app.tree.attached(i))
+        };
+        assert!(open(&app, "src") && open(&app, "src/a") && open(&app, "src/a/b") && open(&app, "src/c"));
+        assert!(!open(&app, "src/.cache"), "hidden folders stay shut while dotfiles are hidden");
+        assert_eq!(app.cursor, src, "the cursor stays on the exploded folder");
+        assert!(app.note.as_ref().is_some_and(|n| n.0 == "opened 4 folders"), "{:?}", app.note);
+
+        typed(&mut app, "e");
+        assert!(app.key(KeyCode::Esc, KeyModifiers::NONE), "esc stops the explode, not tb");
+        assert!(app.exploding.is_none());
     }
 
     #[test]

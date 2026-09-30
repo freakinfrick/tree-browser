@@ -357,7 +357,12 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         // Git: a file's marker sits where a folder's bud would; a closed
         // folder's bud takes the loudest state inside it.
         let git = git.filter(|&s| s != St::Ignored);
-        if bud && !a.ghost {
+        let spinning = app.exploding.as_ref().filter(|x| x.target == id && !a.ghost);
+        if let Some(x) = spinning {
+            // `e` at work: the bud turns into a spinner until everything unfurls.
+            let st = Style::new().fg(to_color(mix(BG, acc().route, a.alpha))).add_modifier(Modifier::BOLD);
+            put(buf, canvas, sx + a.w + 1, sy, spinner(x.born), st);
+        } else if bud && !a.ghost {
             let c = match git {
                 Some(s) => mix(BG, git_color(s), a.alpha),
                 None => mix(BG, a.rgb, a.alpha * 0.55 * dim),
@@ -422,6 +427,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
     if app.help_anim > 0.01 {
         help(f, app.help_anim);
     }
+    moving |= app.exploding.is_some();
     moving |= approach(&mut app.menu_anim, if app.menu.is_some() { 1.0 } else { 0.0 }, 0.05, dt);
     if app.menu_anim > 0.01 {
         settings_panel(f, app, canvas, app.menu_anim);
@@ -508,7 +514,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             } else {
                 let sy = pv.sy.v.round().max(0.0) as u16;
                 if pv.pending.is_some() {
-                    let spin = SPINNER[(pv.born.elapsed().as_millis() / 80) as usize % SPINNER.len()];
+                    let spin = spinner(pv.born);
                     let row = Line::from(vec![
                         Span::styled(format!("{spin} "), Style::new().fg(to_color(acc().route))),
                         Span::styled(pv.loading, Style::new().fg(to_color(MUTED))),
@@ -574,9 +580,18 @@ fn status_bar(f: &mut Frame, app: &App, area: Rect) {
         human(cur.size)
     };
 
-    // Right side: git · sort · meta · age swatch · legend · help key.
+    // Right side: explode · note · git · sort · meta · age swatch · legend · help key.
     let muted = Style::new().fg(to_color(MUTED));
     let mut right = Vec::new();
+    if let Some(x) = &app.exploding {
+        right.push(Span::styled(format!("{} ", spinner(x.born)), Style::new().fg(to_color(acc().route))));
+        let n = if x.folders == 0 { "reading".into() } else { format!("{} folders", x.folders) };
+        right.push(Span::styled(format!("exploding · {n} · "), Style::new().fg(to_color(ROUTE_TEXT))));
+        right.push(Span::styled("esc", Style::new().fg(to_color(acc().route)).add_modifier(Modifier::BOLD)));
+        right.push(Span::styled(" stops · ", muted));
+    } else if let Some((msg, _)) = app.note.as_ref().filter(|n| n.1.elapsed() < crate::NOTE) {
+        right.push(Span::styled(format!("{msg} · "), Style::new().fg(to_color(ROUTE_TEXT))));
+    }
     if let Some((top, repo)) = app.git.as_ref().and_then(|g| g.repo_of(&cur.path)) {
         right.push(Span::styled("⎇ ", Style::new().fg(to_color(acc().route))));
         right.push(Span::styled(format!("{} · ", repo.branch), Style::new().fg(to_color(ROUTE_TEXT))));
@@ -696,7 +711,7 @@ fn search_bar(f: &mut Frame, app: &App, area: Rect, q: &str) {
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-const KEYS: [(&str, &str); 23] = [
+const KEYS: [(&str, &str); 24] = [
     ("h j k l / arrows", "move"),
     ("l / enter", "open folder · preview file"),
     ("space / tab", "fold / unfold"),
@@ -706,6 +721,7 @@ const KEYS: [(&str, &str); 23] = [
     ("tab ↑↓ while /", "cycle matches · Caps = exact case"),
     ("-", "re-root one level up"),
     ("c", "collapse other branches"),
+    ("e", "explode: open every folder inside · esc stops"),
     (".", "show / hide dotfiles"),
     ("o O", "sort: name · newest · largest · type · reverse"),
     ("r", "reload (open folders update live)"),
@@ -1019,6 +1035,11 @@ fn audio_panel(buf: &mut Buffer, a: &mut Audio, r: Rect) {
 
 /// Braille spinner (ratatui's throbber set).
 const SPINNER: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+/// The spinner frame for something that started at `born`.
+fn spinner(born: Instant) -> &'static str {
+    SPINNER[(born.elapsed().as_millis() / 80) as usize % SPINNER.len()]
+}
 
 pub fn popup(r: Rect) -> Rect {
     let w = (r.width as u32 * 9 / 10) as u16;

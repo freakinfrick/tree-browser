@@ -91,6 +91,7 @@ tb --cwd-file PATH [DIR]  # on q, write the selected folder to PATH
 | `n` `N` | next / previous match of the last find |
 | `-` `Backspace` | re-root one level up |
 | `c` | collapse everything off the cursor path |
+| `e` | explode: open every folder inside the selected one (a file's own folder); `Esc` stops it |
 | `.` | show / hide dotfiles (hidden by default) |
 | `o` | cycle the sort: name → newest → largest → type |
 | `O` | reverse the sort |
@@ -124,6 +125,16 @@ half-blocks. `d` shows a changed file's git diff (and back). `q` `Esc` `h` close
 | `q` `Esc` | stop and close |
 
 Click or drag on the waveform or scrubber to seek there; the wheel seeks 5 s.
+
+### Explode
+
+`e` is the opposite of `c`: it opens every folder inside the selected one, all the way down, and
+they unfurl together. The folders are read on a background thread. While that runs, a spinner turns
+where the folder's `›` bud sits and the status bar counts folders; `Esc` stops it. The walk goes a
+level at a time and stops after 400 folders or 6,000 entries, so a huge tree opens its top levels
+rather than flooding the screen, and the status bar says when it stopped early. Hidden folders
+(unless dotfiles are shown) and folders git ignores, like `node_modules/` and `target/`, are listed
+but left closed. Symlinks are never followed. `c` folds everything back up.
 
 ## Color = recency
 
