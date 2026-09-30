@@ -57,6 +57,20 @@ pub fn approach(cur: &mut f32, target: f32, tau: f32, dt: f32) -> bool {
 
 pub type Rgb = [f32; 3];
 
+/// Live-change ripple brightness `t` seconds after it reaches a node
+/// (negative = not there yet): a quick flash, then an exponential fade.
+pub fn pulse(t: f32) -> f32 {
+    const RISE: f32 = 0.07;
+    const FADE: f32 = 0.45;
+    if t < 0.0 {
+        0.0
+    } else if t < RISE {
+        t / RISE
+    } else {
+        (-(t - RISE) / FADE).exp()
+    }
+}
+
 pub fn mix(a: Rgb, b: Rgb, t: f32) -> Rgb {
     [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
 }
@@ -200,6 +214,15 @@ impl Scene {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pulse_flashes_then_fades_out() {
+        assert_eq!(pulse(-0.1), 0.0);
+        assert!(pulse(0.035) > 0.4 && pulse(0.035) < 0.6);
+        assert!((pulse(0.07) - 1.0).abs() < 1e-4);
+        assert!(pulse(0.5) < pulse(0.2));
+        assert!(pulse(2.2) < 0.01, "gone by the time the ripple is dropped");
+    }
 
     #[test]
     fn damped_settles_without_overshoot() {

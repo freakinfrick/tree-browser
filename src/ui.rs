@@ -17,8 +17,8 @@ use ratatui::widgets::{Block, BorderType, Clear, Paragraph, Scrollbar, Scrollbar
 use ratatui::Frame;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-use crate::anim::{approach, heat, mix, to_color, Damped, Rgb, HEAT, RECOLOR};
-use crate::layout::{cell_glyph, layout, lines, ACTIVE, ROUTE};
+use crate::anim::{approach, heat, mix, pulse, to_color, Damped, Rgb, HEAT, RECOLOR};
+use crate::layout::{cell_glyph, layout, lines, ACTIVE, DOWN, ROUTE, UP};
 use crate::audio::{self, Audio, State};
 use crate::media::Media;
 use crate::tree::Sort;
@@ -36,6 +36,9 @@ const PILL: Rgb = [34.0, 39.0, 72.0];
 const DOT: Rgb = [255.0, 58.0, 58.0];
 const MUTED: Rgb = [110.0, 118.0, 150.0];
 const MATCH_BG: Rgb = [92.0, 70.0, 22.0];
+/// A live change's flash, and the ember behind the name that changed.
+const RIPPLE: Rgb = [255.0, 200.0, 150.0];
+const RIPPLE_BG: Rgb = [110.0, 38.0, 28.0];
 
 /// Seconds for the camera to (mostly) arrive; slower than nodes so the eye
 /// sees the tree move before the view recenters.
@@ -165,6 +168,17 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
     }
     moving |= approach(&mut app.flash, 0.0, 0.22, dt);
 
+    // Live-change ripples: brightness per node this frame.
+    let tick = std::time::Instant::now();
+    app.ripples.retain(|_, r| tick < r.start + crate::RIPPLE_LIFE);
+    moving |= !app.ripples.is_empty();
+    let since = |start: std::time::Instant| match tick.checked_duration_since(start) {
+        Some(d) => d.as_secs_f32(),
+        None => -start.duration_since(tick).as_secs_f32(),
+    };
+    let glow: std::collections::HashMap<usize, f32> =
+        app.ripples.iter().map(|(&id, r)| (id, pulse(since(r.start)) * r.strength)).collect();
+
     // Camera: anchored to the cursor column's left edge (not the label's
     // center, which would pan on every j/k to a name of another length).
     let (cx, cy, cw) = lay.cursor;
@@ -227,6 +241,18 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
     let mut sap_of = |owner: usize| {
         *sap.entry(owner).or_insert_with(|| heat(now.duration_since(tree.heat(owner)).unwrap_or_default().as_secs_f32()))
     };
+    // A ripple crossing the elbow from a node up to its folder, lit halfway
+    // between the two: (folder, x range between their labels, the two rows, glow).
+    let wires: Vec<(usize, i32, i32, i32, i32, f32)> = app
+        .ripples
+        .iter()
+        .filter_map(|(&id, r)| {
+            let p = tree.nodes[id].parent?;
+            let ((cx, cy, _), (px, py, pw)) = (pos(id)?, pos(p)?);
+            let g = pulse(since(r.start + crate::RIPPLE_STEP / 2)) * r.strength;
+            (g > 0.01).then_some((p, px + pw, cx, py, cy, g))
+        })
+        .collect();
     for ((x, y), cell) in lines(&lay.blocks, &pos, &route, &spine) {
         let (sx, sy) = (x - ox, y - oy);
         if sx < 0 || sy < 0 || sx >= canvas.width as i32 || sy >= canvas.height as i32 {
@@ -237,6 +263,17 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             ROUTE => mix(LINE_ROUTE, h, 0.18),
             ACTIVE => mix(LINE_ACTIVE, h, 0.42),
             _ => mix(LINE_DIM, mix(h, BG, 0.55), 0.35),
+        };
+        // Only this branch's elbow: its two rows, and the trunk between them.
+        let lit = wires.iter().filter(|w| {
+            w.0 == cell.owner
+                && (w.1..w.2).contains(&x)
+                && (w.3.min(w.4)..=w.3.max(w.4)).contains(&y)
+                && (y == w.3 || y == w.4 || cell.mask & (UP | DOWN) != 0)
+        });
+        let c = match lit.map(|w| w.5).reduce(f32::max) {
+            Some(g) => mix(c, RIPPLE, 0.9 * g),
+            None => c,
         };
         buf[(canvas.x + sx as u16, canvas.y + sy as u16)].set_char(cell_glyph(&cell)).set_fg(to_color(c));
     }
@@ -262,9 +299,14 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             continue;
         }
         let node = &app.tree.nodes[id];
-        let mut style = Style::new().fg(to_color(mix(BG, a.rgb, a.alpha)));
+        let g = if a.ghost { 0.0 } else { glow.get(&id).copied().unwrap_or(0.0) };
+        let mut style = Style::new().fg(to_color(mix(BG, mix(a.rgb, RIPPLE, g), a.alpha)));
         if node.is_dir || route.contains(&id) {
             style = style.add_modifier(Modifier::BOLD);
+        }
+        // The pill keeps the cursor's row; everywhere else an ember shows behind the name.
+        if g > 0.02 && id != app.cursor {
+            style = style.bg(to_color(mix(BG, RIPPLE_BG, g * a.alpha)));
         }
         put(buf, canvas, sx, sy, &a.label, style);
         if let Some(r) = finding.filter(|_| !a.ghost && node.parent == column).and_then(|q| crate::hit(&a.label, q)) {
