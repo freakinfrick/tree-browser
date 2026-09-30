@@ -11,9 +11,9 @@ and color tells you where work happened recently.
 [![Rust 1.88+](https://img.shields.io/badge/rust-1.88%2B-orange?logo=rust)](https://www.rust-lang.org)
 ![Linux | macOS](https://img.shields.io/badge/platform-linux%20%7C%20macOS-lightgrey)
 
-<a href="docs/demo.mp4"><img src="docs/demo.gif" alt="tb browsing a demo tree: columns fan out along the journey, color marks recent changes, a PDF previews page by page" width="860"></a>
+<a href="docs/demo.mp4"><img src="docs/demo.gif" alt="tb highlight reel: heat colors, explode, audio waveform, GIF preview, a live change re-heating its folders, mouse wheel, git diff, bat, a shell, find, sort and settings" width="860"></a>
 
-<sub>20-second preview · <a href="docs/demo.mp4">full demo video (61 s, 1080p60)</a></sub>
+<sub>36-second highlights · <a href="docs/demo.mp4">full demo video (77 s, 1080p60)</a></sub>
 
 </div>
 
@@ -289,7 +289,7 @@ To override the detection, set `TB_GRAPHICS` to `kitty`, `sixel`, `iterm2`, `hal
 
 The video above was recorded from the real binary, not mocked up. `demo/` has the whole pipeline:
 a Middle-earth fixture tree with staggered mtimes, a tmux-driven recorder that captures the
-terminal about 270 times a second, and a renderer that turns the captures into 1080p frames for
+terminal about 250 times a second, and a renderer that turns the captures into 1080p frames for
 ffmpeg. See [`demo/README.md`](demo/README.md) to rebuild it.
 
 ## License
