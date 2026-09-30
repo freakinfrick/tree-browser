@@ -4,6 +4,7 @@ compile_error!("tb needs a Unix-like OS (Linux, macOS, BSD): it drives the tty w
 
 mod anim;
 mod audio;
+mod git;
 mod layout;
 mod media;
 mod mtime;
@@ -102,6 +103,8 @@ pub struct App {
     live: Option<watch::Watch>,
     /// Live changes climbing the tree, by node.
     pub ripples: std::collections::HashMap<usize, Ripple>,
+    /// Git status of the repos the open folders are in; None = off (TB_GIT=off, and in tests).
+    pub git: Option<git::Git>,
 }
 
 pub struct Search {
@@ -159,6 +162,7 @@ impl App {
             pending: None,
             live: None,
             ripples: std::collections::HashMap::new(),
+            git: None,
             cd_on_quit: false,
             can_cd: false,
         };
@@ -222,8 +226,7 @@ impl App {
     fn enter(&mut self) {
         let id = self.cursor;
         if !self.tree.nodes[id].is_dir {
-            let w = ui::popup(ratatui::layout::Rect::new(0, 0, self.view.0, self.view.1 + 1)).width;
-            self.preview = Some(Preview::load(&self.tree.nodes[id].path, w));
+            self.open_file(id);
             return;
         }
         self.tree.load(id);
@@ -274,6 +277,9 @@ impl App {
             self.mt.cache.remove(&p);
         }
         let name = self.tree.nodes[self.cursor].path.clone();
+        if let Some(g) = &self.git {
+            g.poke();
+        }
         self.tree.reload(id);
         self.absorb();
         let again = self.tree.kids(id).iter().copied().find(|&k| self.tree.nodes[k].path == name);
@@ -289,6 +295,33 @@ impl App {
         w.set(self.tree.open_dirs().into_iter().map(|d| self.tree.nodes[d].path.clone()).collect());
         let changes = w.poll();
         !changes.is_empty() && self.apply_changes(changes)
+    }
+
+    /// Point git at the open folders and take its results. Returns true if they changed.
+    fn git_poll(&mut self) -> bool {
+        let Some(g) = &mut self.git else { return false };
+        g.set(self.tree.open_dirs().into_iter().map(|d| self.tree.nodes[d].path.clone()).collect());
+        g.poll()
+    }
+
+    /// Git state of a node, None if clean or not in a repo.
+    pub fn git_state(&self, id: usize) -> Option<git::St> {
+        self.git.as_ref()?.state(&self.tree.nodes[id].path)
+    }
+
+    /// Open the file preview, with a diff one `d` away when git has changes for it.
+    fn open_file(&mut self, id: usize) {
+        let w = ui::popup(ratatui::layout::Rect::new(0, 0, self.view.0, self.view.1 + 1)).width;
+        let path = self.tree.nodes[id].path.clone();
+        let mut pv = Preview::load(&path, w);
+        if pv.media.is_none()
+            && pv.audio.is_none()
+            && self.git_state(id).is_some_and(|s| s >= git::St::Staged)
+            && let Some((top, _)) = self.git.as_ref().and_then(|g| g.repo_of(&path))
+        {
+            pv.diff = Some(top.to_path_buf());
+        }
+        self.preview = Some(pv);
     }
 
     /// Fold live changes into the tree: re-list each changed folder in place,
@@ -326,6 +359,9 @@ impl App {
         }
         if !any {
             return false;
+        }
+        if let Some(g) = &self.git {
+            g.poke();
         }
         self.reattach();
         self.absorb();
@@ -578,6 +614,7 @@ impl App {
                 KeyCode::Char('j') | KeyCode::Down => pv.scroll += 1,
                 KeyCode::Char('k') | KeyCode::Up => pv.scroll -= 1,
                 KeyCode::Char('d') if ctrl => pv.scroll += page / 2,
+                KeyCode::Char('d') => pv.toggle_diff(),
                 KeyCode::Char('u') if ctrl => pv.scroll -= page / 2,
                 KeyCode::PageDown | KeyCode::Char(' ') => pv.scroll += page,
                 KeyCode::PageUp => pv.scroll -= page,
@@ -774,6 +811,7 @@ fn main() -> std::io::Result<()> {
              audio preview: plays at once · space pause · left/right 5 s · shift 30 s · 0-9 jump · up/down volume · m mute\n\
              o cycles the sort (name · modified · size · type) · O reverses it · TB_SORT=size (or -size, modified, type) sets the start\n\
              open folders update live (about once a second) · TB_LIVE=off turns that off\n\
+             git: M modified · + staged · ? untracked · ! conflict · ignored names dim · d in a preview shows the diff · TB_GIT=off\n\
              color = last modified (dirs: newest anything inside): red = minutes, orange = hours, tan = days, grey = weeks, blue = years"
         );
         return Ok(());
@@ -792,6 +830,9 @@ fn main() -> std::io::Result<()> {
     app.can_cd = cwd_file.is_some();
     if std::env::var("TB_LIVE").map_or(true, |v| v != "off") {
         app.live = Some(watch::Watch::spawn(watch::EVERY));
+    }
+    if std::env::var("TB_GIT").map_or(true, |v| v != "off") {
+        app.git = Some(git::Git::spawn(git::EVERY));
     }
     let mut term = ratatui::init();
     let hook = std::panic::take_hook();
@@ -844,6 +885,7 @@ fn main() -> std::io::Result<()> {
                     dirty = true;
                 }
                 dirty |= app.live_poll();
+                dirty |= app.git_poll();
                 dirty |= app.ticking();
                 continue;
             }
@@ -898,6 +940,7 @@ fn main() -> std::io::Result<()> {
         if app.mt.poll() {
             app.absorb();
         }
+        app.git_poll();
     };
     restore();
     if let (true, Some(f)) = (app.cd_on_quit, cwd_file) {
