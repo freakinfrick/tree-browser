@@ -1,6 +1,8 @@
 //! Audio previews: the file plays through the default output device while the popup
 //! is open, with a waveform read on a worker thread and a scrubber over it.
 //! Playback needs the `audio` feature (on by default); without it the popup says so.
+//! Linux and the BSDs play through libasound loaded at run time (crate::alsa); macOS
+//! through rodio's own output (CoreAudio). Both sit behind the same small `Out`.
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
@@ -52,10 +54,58 @@ pub struct Audio {
     _hush: Hush,
 }
 
+#[cfg(all(feature = "audio", unix, not(target_os = "macos")))]
+use crate::alsa::Out;
+
 #[cfg(feature = "audio")]
+pub type Dec = rodio::Decoder<std::io::BufReader<std::fs::File>>;
+
+#[cfg(all(feature = "audio", target_os = "macos"))]
 struct Out {
     player: rodio::Player,
     _sink: rodio::MixerDeviceSink,
+    path: PathBuf,
+}
+
+#[cfg(all(feature = "audio", target_os = "macos"))]
+impl Out {
+    fn open(path: &Path, dec: Dec) -> Result<Out, String> {
+        let mut sink = rodio::DeviceSinkBuilder::from_default_device()
+            .and_then(|b| b.with_error_callback(|_| {}).open_stream())
+            .map_err(|e| format!("{e}"))?;
+        sink.log_on_drop(false);
+        let player = rodio::Player::connect_new(sink.mixer());
+        player.append(dec);
+        Ok(Out { player, _sink: sink, path: path.to_path_buf() })
+    }
+    fn is_ended(&self) -> bool {
+        self.player.empty()
+    }
+    fn is_paused(&self) -> bool {
+        self.player.is_paused()
+    }
+    fn play(&self) {
+        self.player.play()
+    }
+    fn pause(&self) {
+        self.player.pause()
+    }
+    fn pos(&self) -> Duration {
+        self.player.get_pos()
+    }
+    fn seek(&self, to: Duration) {
+        // Played out: the decoder is gone, queue a fresh one. Paused stays paused.
+        if self.player.empty() {
+            match Audio::decoder(&self.path) {
+                Ok(d) => self.player.append(d),
+                Err(_) => return,
+            }
+        }
+        let _ = self.player.try_seek(to);
+    }
+    fn set_volume(&self, gain: f32) {
+        self.player.set_volume(gain)
+    }
 }
 
 pub fn is_audio(path: &Path) -> bool {
@@ -169,7 +219,7 @@ impl Audio {
 
 #[cfg(feature = "audio")]
 impl Audio {
-    fn decoder(path: &Path) -> Result<rodio::Decoder<std::io::BufReader<std::fs::File>>, String> {
+    pub(crate) fn decoder(path: &Path) -> Result<Dec, String> {
         let f = std::fs::File::open(path).map_err(|e| format!("{e}"))?;
         rodio::Decoder::try_from(f).map_err(|e| format!("{e}"))
     }
@@ -199,15 +249,8 @@ impl Audio {
         std::thread::spawn(move || scan(&path, &tx));
         self.wave_rx = Some(rx);
 
-        let sink = rodio::DeviceSinkBuilder::from_default_device()
-            .and_then(|b| b.with_error_callback(|_| {}).open_stream());
-        match sink {
-            Ok(mut sink) => {
-                sink.log_on_drop(false);
-                let player = rodio::Player::connect_new(sink.mixer());
-                player.append(dec);
-                self.out = Some(Out { player, _sink: sink });
-            }
+        match Out::open(&self.path, dec) {
+            Ok(o) => self.out = Some(o),
             Err(e) => self.err = Some(format!("no audio output · {e}")),
         }
     }
@@ -215,8 +258,8 @@ impl Audio {
     pub fn state(&self) -> State {
         match &self.out {
             None => State::Silent,
-            Some(o) if o.player.empty() => State::Ended,
-            Some(o) if o.player.is_paused() => State::Paused,
+            Some(o) if o.is_ended() => State::Ended,
+            Some(o) if o.is_paused() => State::Paused,
             Some(_) => State::Playing,
         }
     }
@@ -224,7 +267,7 @@ impl Audio {
     pub fn pos(&self) -> Duration {
         match (&self.out, self.state()) {
             (_, State::Ended) => self.total.unwrap_or_default(),
-            (Some(o), _) => o.player.get_pos(),
+            (Some(o), _) => o.pos(),
             (None, _) => Duration::ZERO,
         }
     }
@@ -233,34 +276,28 @@ impl Audio {
     pub fn toggle(&mut self) {
         match self.state() {
             State::Ended => self.seek(Duration::ZERO),
-            State::Paused => self.out.as_ref().unwrap().player.play(),
-            State::Playing => self.out.as_ref().unwrap().player.pause(),
+            State::Paused => self.out.as_ref().unwrap().play(),
+            State::Playing => self.out.as_ref().unwrap().pause(),
             State::Silent => {}
         }
     }
 
     pub fn pause(&mut self) {
         if let Some(o) = &self.out {
-            o.player.pause();
+            o.pause();
         }
     }
 
     pub fn seek(&mut self, to: Duration) {
         let to = self.total.map_or(to, |t| to.min(t));
-        let Some(o) = &self.out else { return };
-        // Played out: the decoder is gone, queue a fresh one. Paused stays paused.
-        if o.player.empty() {
-            match Self::decoder(&self.path) {
-                Ok(d) => o.player.append(d),
-                Err(_) => return,
-            }
+        if let Some(o) = &self.out {
+            o.seek(to);
         }
-        let _ = o.player.try_seek(to);
     }
 
     fn apply_volume(&self) {
         if let Some(o) = &self.out {
-            o.player.set_volume(if self.muted { 0.0 } else { self.volume * self.volume });
+            o.set_volume(if self.muted { 0.0 } else { self.volume * self.volume });
         }
     }
 }
@@ -377,7 +414,7 @@ pub fn unhush() {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[test]
@@ -402,7 +439,7 @@ mod tests {
 
     /// 16-bit mono PCM WAV of `secs` seconds: a quiet first half, a loud second half.
     #[cfg(feature = "audio")]
-    fn wav(path: &Path, rate: u32, secs: u32) {
+    pub(crate) fn wav(path: &Path, rate: u32, secs: u32) {
         let n = rate * secs;
         let mut b = Vec::new();
         b.extend(b"RIFF");

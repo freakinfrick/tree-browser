@@ -18,11 +18,16 @@ image = "0.25"
 libc = "0.2"
 ratatui = "0.29"
 ratatui-image = "8"
-rodio = { version = "0.22", default-features = false, features = ["playback", "flac", "mp3", "mp4", "vorbis", "wav"], optional = true }
+rodio = { version = "0.22", default-features = false, features = ["flac", "mp3", "mp4", "vorbis", "wav"], optional = true }
 unicode-width = "0.2"
+
+# Linux and the BSDs play through the system's libasound, loaded at run time (src/alsa.rs),
+# so the build needs no ALSA headers. macOS uses rodio's own CoreAudio output, which needs none.
+[target.'cfg(target_os = "macos")'.dependencies]
+rodio = { version = "0.22", default-features = false, features = ["playback"], optional = true }
 
 [features]
 default = ["audio"]
-# Sound playback in previews. On Linux it needs the ALSA headers (libasound2-dev /
-# alsa-lib-devel); build with --no-default-features to leave it out.
+# Sound playback in previews. Builds with no system packages; build with
+# --no-default-features to leave it out.
 audio = ["dep:rodio"]

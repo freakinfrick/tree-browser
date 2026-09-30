@@ -57,9 +57,9 @@ cargo install --path .     # puts `tb` in ~/.cargo/bin
 ```
 
 **Requirements:** Rust 1.88+, a Unix-like OS (Linux, macOS, BSD; Windows isn't supported) and a
-truecolor terminal. On Linux, sound playback builds against ALSA, so install its headers first
-(`libasound2-dev` on Debian/Ubuntu, `alsa-lib-devel` on Fedora, `alsa-lib` on Arch), or build
-without sound using `cargo install --no-default-features ...`. Previews use these tools from `PATH` when they're installed:
+truecolor terminal. The build needs no system packages: on Linux and the BSDs, sound plays through the
+`libasound.so.2` already on the system (loaded when a preview opens; without it previews stay
+quiet), and `cargo install --no-default-features ...` leaves sound out entirely. Previews use these tools from `PATH` when they're installed:
 
 | Tool | Used for |
 |---|---|

@@ -2,6 +2,8 @@
 #[cfg(not(unix))]
 compile_error!("tb needs a Unix-like OS (Linux, macOS, BSD): it drives the tty with termios and signals");
 
+#[cfg(all(feature = "audio", unix, not(target_os = "macos")))]
+mod alsa;
 mod anim;
 mod audio;
 mod explode;
