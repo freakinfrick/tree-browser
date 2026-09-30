@@ -1991,20 +1991,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tb"
-version = "0.1.0"
-dependencies = [
- "ansi-to-tui",
- "crossterm",
- "image",
- "libc",
- "ratatui",
- "ratatui-image",
- "rodio",
- "unicode-width 0.2.0",
-]
-
-[[package]]
 name = "thiserror"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2095,6 +2081,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d38ac1cf9b95face32296c0a3ede1fdc270627c9d9c02a7274dd6d960dc4d56"
 dependencies = [
  "winnow",
+]
+
+[[package]]
+name = "treebeard"
+version = "0.1.0"
+dependencies = [
+ "ansi-to-tui",
+ "crossterm",
+ "image",
+ "libc",
+ "ratatui",
+ "ratatui-image",
+ "rodio",
+ "unicode-width 0.2.0",
 ]
 
 [[package]]

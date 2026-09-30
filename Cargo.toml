@@ -1,5 +1,5 @@
 [package]
-name = "tb"
+name = "treebeard"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.88"
@@ -10,6 +10,11 @@ readme = "README.md"
 keywords = ["file-browser", "tui", "terminal", "tree", "file-manager"]
 categories = ["command-line-utilities", "filesystem"]
 exclude = ["/demo"]
+
+# treebeard is the project; tb is the command you type.
+[[bin]]
+name = "tb"
+path = "src/main.rs"
 
 [dependencies]
 ansi-to-tui = "7"

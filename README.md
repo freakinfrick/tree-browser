@@ -1,17 +1,18 @@
 <div align="center">
 
-# tb
+# treebeard
 
 **A horizontal tree file browser for the terminal.**
 The tree grows left → right, every folder you open fans out as a new column,
 and color tells you where work happened recently.
+The command is `tb`.
 
 [![CI](https://github.com/freakinfrick/tree-browser/actions/workflows/ci.yml/badge.svg)](https://github.com/freakinfrick/tree-browser/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#license)
 [![Rust 1.88+](https://img.shields.io/badge/rust-1.88%2B-orange?logo=rust)](https://www.rust-lang.org)
 ![Linux | macOS](https://img.shields.io/badge/platform-linux%20%7C%20macOS-lightgrey)
 
-<a href="docs/demo.mp4"><img src="docs/demo.gif" alt="tb highlight reel: heat colors, explode, audio waveform, GIF preview, a live change re-heating its folders, mouse wheel, git diff, bat, a shell, find, sort and settings" width="860"></a>
+<a href="docs/demo.mp4"><img src="docs/demo.gif" alt="treebeard highlight reel: heat colors, explode, audio waveform, GIF preview, a live change re-heating its folders, mouse wheel, git diff, bat, a shell, find, sort and settings" width="860"></a>
 
 <sub>36-second highlights · <a href="docs/demo.mp4">full demo video (77 s, 1080p60)</a></sub>
 
