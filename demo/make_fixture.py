@@ -38,6 +38,31 @@ AGES = {
 }
 
 
+# Git story, applied after the fixture is committed: one file edited, one
+# edit staged, one file never added. tb shows M / + / ? and `d` diffs.
+MODIFIED = {"11_rohan/helms-deep/wall-repairs.rs": [
+    ('        ("tower", Damage::Fine),\n', '        ("tower", Damage::Fine),\n        ("deeping-coomb", Damage::Blasted { width_m: 3 }),\n'),
+    ('        ("postern", Damage::Flooded),\n', '        ("postern", Damage::Scaled), // Gamling: flood damage was ladders\n'),
+]}
+STAGED = {"11_rohan/helms-deep/culvert-bug.md": [("\n## See also\n", "\nStatus: sealed with an iron grate, 3019-03-05.\n\n## See also\n")]}
+UNTRACKED = ["08_lothlorien/mirror-of-galadriel/not-yet-come-to-pass.md"]
+
+
+def git(base, *args):
+    env = dict(os.environ, GIT_AUTHOR_DATE="2026-09-01T12:00:00", GIT_COMMITTER_DATE="2026-09-01T12:00:00",
+               GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_NOSYSTEM="1")
+    subprocess.run(["git", "-C", base, "-c", "user.name=Samwise Gamgee", "-c", "user.email=sam@bag-end.shire", *args],
+                   check=True, env=env, capture_output=True)
+
+
+def edit(path, subs):
+    s = open(path).read()
+    for old, new in subs:
+        assert old in s, (path, old)
+        s = s.replace(old, new)
+    open(path, "w").write(s)
+
+
 def age(rel):
     if rel in AGES:
         return AGES[rel]
@@ -131,6 +156,13 @@ def main():
     drums(os.path.join(base, "07_moria/mazarbul-chamber/drums-in-the-deep.wav")); made.append("07_moria/mazarbul-chamber/drums-in-the-deep.wav")
     with open(os.path.join(base, "07_moria/durins-bridge.dwg"), "wb") as f:
         f.write(b"AC1032" + bytes(122) + b"one span, no rail" + bytes(64)); made.append("07_moria/durins-bridge.dwg")
+
+    git(base, "init", "-q", "-b", "journey")
+    git(base, "add", "-A", "--", ".", *[f":!{u}" for u in UNTRACKED])
+    git(base, "commit", "-q", "-m", "There and back again")
+    for rel, subs in {**MODIFIED, **STAGED}.items():
+        edit(os.path.join(base, rel), subs)
+    git(base, "add", "--", *STAGED)
 
     for rel in made:
         t = now - age(rel); os.utime(os.path.join(base, rel), (t, t))

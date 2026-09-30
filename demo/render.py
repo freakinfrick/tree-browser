@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """caps.jsonl -> 1080p PNG frames (deduped) -> concat list with real durations."""
-import json, os, re, sys, time
+import json, os, re, sys, time, unicodedata
 from multiprocessing import Pool
 from PIL import Image, ImageDraw, ImageFont
 
@@ -12,6 +12,7 @@ FB = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"
 # Glyphs the mono font lacks (⎇ in the status bar, braille spinner) come from DejaVu Sans.
 XR = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 XB = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+EMOJI = "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf"  # bitmap font: size 109 only
 SGR = re.compile(r"(\x1b\[[0-9;]*m)")
 DEF_FG, DEF_BG = (229, 229, 229), (9, 10, 15)
 
@@ -22,6 +23,20 @@ def c256(n):
     if n < 232:
         n -= 16; v = [0, 95, 135, 175, 215, 255]; return (v[n // 36], v[(n // 6) % 6], v[n % 6])
     g = 8 + (n - 232) * 10; return (g, g, g)
+
+def emoji(ch):
+    """A color emoji scaled into two cells, or None if the emoji font lacks it."""
+    if not os.path.exists(EMOJI):
+        return None
+    big = Image.new("RGBA", (160, 160))
+    ImageDraw.Draw(big).text((0, 0), ch, font=ImageFont.truetype(EMOJI, 109), embedded_color=True)
+    box = big.getbbox()
+    if not box:
+        return None
+    side = min(2 * CW, CH) - 6
+    out = Image.new("RGBA", (2 * CW, CH))
+    out.paste(big.crop(box).resize((side, side), Image.LANCZOS), ((2 * CW - side) // 2, (CH - side) // 2))
+    return out
 
 def render(job):
     idx, ansi, cap = job
@@ -35,6 +50,8 @@ def render(job):
             if ord(ch) > 0x7f and bytes(R.getmask(ch)) == notdef:
                 f = ImageFont.truetype(XB if bold else XR, 33)
                 fallback[k] = ImageFont.truetype(XB if bold else XR, min(33, int(33 * CW / f.getlength(ch))))
+                if bytes(f.getmask(ch)) == bytes(f.getmask("\U0010fffd")):
+                    fallback[k] = emoji(ch)
         return fallback[k]
     CF = ImageFont.truetype(FB, 34)
     img = Image.new("RGB", (COLS * CW, ROWS * CH + BAND), DEF_BG)
@@ -70,11 +87,13 @@ def render(job):
                     d.rectangle([x * CW, y * CH, x * CW + CW - 1, y * CH + CH - 1], fill=bg)
                 if ch != " ":
                     xf = glyph(ch, bold)
-                    if xf:  # centered in its cell so the next cell's background can't clip it
+                    if isinstance(xf, Image.Image):
+                        img.paste(xf, (x * CW, y * CH), xf)
+                    elif xf:  # centered in its cell so the next cell's background can't clip it
                         d.text((x * CW + CW / 2, y * CH + CH / 2), ch, font=xf, fill=fg, anchor="mm")
                     else:
                         d.text((x * CW, y * CH + 2), ch, font=B if bold else R, fill=fg)
-                x += 1
+                x += 2 if unicodedata.east_asian_width(ch) in "WF" else 1  # the capture emits wide chars once
     # Caption band.
     top = ROWS * CH
     d.rectangle([0, top, COLS * CW, top + BAND], fill=(14, 16, 26))
