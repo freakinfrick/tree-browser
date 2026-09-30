@@ -115,6 +115,17 @@ pub enum Graphics {
     Off,
 }
 
+/// What j and k move through.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum StepThrough {
+    /// The folder's own list.
+    Folder,
+    /// Every open folder's list in the cursor's column.
+    Column,
+    /// The whole open tree in reading order: into a folder, then on to its next sibling.
+    Tree,
+}
+
 /// Which programs color text previews.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TextPreview {
@@ -147,7 +158,7 @@ pub struct Settings {
     pub ripples: bool,
     pub git: bool,
     pub dim_ignored: bool,
-    pub cross_folders: bool,
+    pub step: StepThrough,
     pub mouse: bool,
     pub graphics: Graphics,
     pub preview: TextPreview,
@@ -178,7 +189,7 @@ impl Default for Settings {
             ripples: true,
             git: true,
             dim_ignored: true,
-            cross_folders: true,
+            step: StepThrough::Tree,
             mouse: true,
             graphics: Graphics::Auto,
             preview: TextPreview::Styled,
@@ -218,7 +229,7 @@ pub const ITEMS: [Item; 27] = [
     Item { key: "ripples", label: "Ripples", section: "Behavior", help: "Flash a live change and let it climb the tree." },
     Item { key: "git", label: "Git status", section: "Behavior", help: "Markers, branch and diffs inside git repos." },
     Item { key: "dim_ignored", label: "Dim ignored", section: "Behavior", help: "Fade files git ignores, like target/ and node_modules/." },
-    Item { key: "cross_folders", label: "Cross folders", section: "Behavior", help: "j, k and the wheel run on into the next open folder's list in the same column." },
+    Item { key: "step", label: "Step through", section: "Behavior", help: "What j, k and the wheel walk: the folder, the column, or the whole open tree in reading order." },
     Item { key: "mouse", label: "Mouse", section: "Behavior", help: "Off hands the mouse back to the terminal, so you can select text." },
     Item { key: "graphics", label: "Image previews", section: "Behavior", help: "Pixels if the terminal can, half-blocks anywhere, or off. i in a preview flips it for this run." },
     Item { key: "preview", label: "Text preview", section: "Behavior", help: "Styled: glow for markdown, bat for code. Or bat for all, or plain text." },
@@ -235,6 +246,7 @@ const DETAILS: [Details; 4] = [Details::Off, Details::Age, Details::Size, Detail
 const RANGES: [HeatRange; 5] = [HeatRange::Day, HeatRange::Week, HeatRange::Month, HeatRange::Year, HeatRange::Years5];
 const LINES: [LineStyle; 5] = [LineStyle::Rounded, LineStyle::Square, LineStyle::Heavy, LineStyle::Double, LineStyle::Ascii];
 const GRAPHICS: [Graphics; 4] = [Graphics::Auto, Graphics::Pixels, Graphics::Blocks, Graphics::Off];
+const STEPS: [StepThrough; 3] = [StepThrough::Folder, StepThrough::Column, StepThrough::Tree];
 const PREVIEWS: [TextPreview; 3] = [TextPreview::Styled, TextPreview::Bat, TextPreview::Plain];
 
 /// Step through `all` from `cur`, wrapping.
@@ -324,6 +336,14 @@ fn graphics_word(g: Graphics) -> &'static str {
     }
 }
 
+fn step_word(s: StepThrough) -> &'static str {
+    match s {
+        StepThrough::Folder => "folder",
+        StepThrough::Column => "column",
+        StepThrough::Tree => "tree",
+    }
+}
+
 fn preview_word(p: TextPreview) -> &'static str {
     match p {
         TextPreview::Styled => "styled",
@@ -365,7 +385,7 @@ impl Settings {
             "ripples" => on_off(self.ripples),
             "git" => on_off(self.git),
             "dim_ignored" => on_off(self.dim_ignored),
-            "cross_folders" => on_off(self.cross_folders),
+            "step" => step_word(self.step).into(),
             "mouse" => on_off(self.mouse),
             "graphics" => graphics_word(self.graphics).into(),
             "preview" => preview_word(self.preview).into(),
@@ -381,7 +401,7 @@ impl Settings {
             "row_spacing" | "column_gap" | "max_name" | "branch_offset" => self.show(key),
             "sort_reverse" => self.sort.rev.to_string(),
             "show_hidden" => self.show_hidden.to_string(),
-            "legend" | "live" | "ripples" | "git" | "dim_ignored" | "folders_first" | "natural_sort" | "cross_folders" | "mouse" | "wrap"
+            "legend" | "live" | "ripples" | "git" | "dim_ignored" | "folders_first" | "natural_sort" | "mouse" | "wrap"
             | "remember" => (self.show(key) == "on").to_string(),
             _ => format!("\"{}\"", self.show(key)),
         }
@@ -412,7 +432,7 @@ impl Settings {
             "ripples" => self.ripples ^= true,
             "git" => self.git ^= true,
             "dim_ignored" => self.dim_ignored ^= true,
-            "cross_folders" => self.cross_folders ^= true,
+            "step" => self.step = cycle(&STEPS, self.step, dir),
             "mouse" => self.mouse ^= true,
             "graphics" => self.graphics = cycle(&GRAPHICS, self.graphics, dir),
             "preview" => self.preview = cycle(&PREVIEWS, self.preview, dir),
@@ -447,7 +467,7 @@ impl Settings {
             "ripples" => self.ripples = d.ripples,
             "git" => self.git = d.git,
             "dim_ignored" => self.dim_ignored = d.dim_ignored,
-            "cross_folders" => self.cross_folders = d.cross_folders,
+            "step" => self.step = d.step,
             "mouse" => self.mouse = d.mouse,
             "graphics" => self.graphics = d.graphics,
             "preview" => self.preview = d.preview,
@@ -486,7 +506,7 @@ impl Settings {
             "ripples" => self.ripples = flag()?,
             "git" => self.git = flag()?,
             "dim_ignored" => self.dim_ignored = flag()?,
-            "cross_folders" => self.cross_folders = flag()?,
+            "step" => self.step = find(&STEPS, v, step_word).ok_or(bad("folder, column, tree"))?,
             "mouse" => self.mouse = flag()?,
             "graphics" => self.graphics = find(&GRAPHICS, v, graphics_word).ok_or(bad("auto, pixels, blocks, off"))?,
             "preview" => self.preview = find(&PREVIEWS, v, preview_word).ok_or(bad("styled, bat, plain"))?,

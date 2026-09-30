@@ -31,7 +31,7 @@ use ratatui::crossterm::execute;
 
 use anim::{Damped, Scene};
 use mtime::Mtime;
-use settings::{Settings, ITEMS};
+use settings::{Settings, StepThrough, ITEMS};
 use shell::Run;
 use tree::{Sort, SortKey, Tree};
 use ui::Preview;
@@ -382,10 +382,27 @@ impl App {
         out
     }
 
-    /// j / k / J / K and the wheel: through the folder's list, and on into
-    /// the next open folder's with Cross folders on.
+    /// Every visible node in reading order: a folder, then what's open
+    /// inside it, then its next sibling.
+    fn outline(&self) -> Vec<usize> {
+        let mut out = Vec::new();
+        let mut stack = vec![self.tree.root];
+        while let Some(id) = stack.pop() {
+            out.push(id);
+            if self.tree.nodes[id].expanded {
+                stack.extend(self.tree.kids(id).into_iter().rev());
+            }
+        }
+        out
+    }
+
+    /// j / k / J / K and the wheel, through whatever Step through says.
     fn step(&mut self, delta: isize) {
-        let list = if self.settings.cross_folders { self.column() } else { self.siblings() };
+        let list = match self.settings.step {
+            StepThrough::Folder => self.siblings(),
+            StepThrough::Column => self.column(),
+            StepThrough::Tree => self.outline(),
+        };
         let i = list.iter().position(|&s| s == self.cursor).unwrap_or(0) as isize;
         let j = (i + delta).clamp(0, list.len() as isize - 1) as usize;
         self.set_cursor(list[j]);
@@ -1602,35 +1619,54 @@ mod tests {
     }
 
     #[test]
-    fn j_and_k_cross_into_the_next_open_folder() {
+    fn j_and_k_walk_the_folder_the_column_or_the_tree() {
         let mut app = app_in("cross", &["x"]);
         let d = app.tree.nodes[app.cursor].path.parent().unwrap().to_path_buf();
-        for f in ["a/1", "a/2", "b/3", "c/4"] {
+        for f in ["a/1", "a/2/deep", "b/3", "c/4"] {
             fs::create_dir_all(d.join(f)).unwrap();
         }
         app.reload();
-        for dir in ["a", "c"] {
+        for dir in ["a", "a/2", "c"] {
             let id = app.node_at(&d.join(dir)).unwrap();
             app.tree.load(id);
             app.tree.nodes[id].expanded = true;
         }
-        let two = app.node_at(&d.join("a/2")).unwrap();
-        app.set_cursor(two);
-        app.key(KeyCode::Char('j'), KeyModifiers::NONE);
-        assert_eq!(at(&app), "4", "past a's end, over closed b, into c");
-        app.key(KeyCode::Char('j'), KeyModifiers::NONE);
-        assert_eq!(at(&app), "4", "the column's end");
-        app.key(KeyCode::Char('k'), KeyModifiers::NONE);
-        assert_eq!(at(&app), "2");
-        app.key(KeyCode::Char('g'), KeyModifiers::NONE);
-        assert_eq!(at(&app), "1", "g stays in the folder");
-        app.key(KeyCode::Char('J'), KeyModifiers::NONE);
-        assert_eq!(at(&app), "4");
+        let go = |app: &mut App, path: &str| {
+            let id = app.node_at(&d.join(path)).unwrap();
+            app.set_cursor(id);
+        };
+        let j = |app: &mut App| app.key(KeyCode::Char('j'), KeyModifiers::NONE);
+        let k = |app: &mut App| app.key(KeyCode::Char('k'), KeyModifiers::NONE);
+
+        // Tree (the default): into open folders, back out to the next sibling.
+        go(&mut app, "a");
+        let mut seen = Vec::new();
+        for _ in 0..7 {
+            j(&mut app);
+            seen.push(at(&app).to_string());
+        }
+        assert_eq!(seen, ["1", "2", "deep", "b", "c", "4", "x"]);
+        k(&mut app);
+        k(&mut app);
+        assert_eq!(at(&app), "c", "k walks it backwards");
+        go(&mut app, "a/1");
         app.key(KeyCode::Char('G'), KeyModifiers::NONE);
+        assert_eq!(at(&app), "2", "G stays in the folder");
+
+        // Column: every open list one column over, closed b passed by.
+        app.settings.step = StepThrough::Column;
+        j(&mut app);
         assert_eq!(at(&app), "4");
-        app.settings.cross_folders = false;
-        app.key(KeyCode::Char('k'), KeyModifiers::NONE);
-        assert_eq!(at(&app), "4", "off: the folder's list is the limit");
+        j(&mut app);
+        assert_eq!(at(&app), "4", "the column's end");
+        app.key(KeyCode::Char('K'), KeyModifiers::NONE);
+        assert_eq!(at(&app), "1");
+
+        // Folder: its own list only.
+        app.settings.step = StepThrough::Folder;
+        go(&mut app, "c/4");
+        k(&mut app);
+        assert_eq!(at(&app), "4");
     }
 
     #[test]
