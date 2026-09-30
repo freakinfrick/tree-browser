@@ -312,15 +312,29 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
             prev_end = y0s[j] + len - 1;
         }
 
+        // Trunk slots, counted leftward from the bar. A block hanging below its
+        // parent must sit right of every lower parent's trunk, so lower parents
+        // go further left; a block raised above its parent is the mirror image.
+        // Blocks going opposite ways never share rows, so each direction counts
+        // from the bar on its own and every trunk hugs its block.
+        let raised: Vec<bool> =
+            parents.iter().zip(&y0s).map(|((pid, py, ..), y0)| y0 + tree.kids(*pid).len() as i32 - 1 < *py).collect();
+        let ups = raised.iter().filter(|&&r| r).count() as i32;
+        let (mut up, mut down) = (0, 0);
+        let mut slots = Vec::with_capacity(raised.len());
+        for &r in &raised {
+            if r {
+                slots.push(ups - 1 - up);
+                up += 1;
+            } else {
+                slots.push(down);
+                down += 1;
+            }
+        }
         let mut next = Vec::new();
-        for (k, (pid, py, ..)) in parents.iter().enumerate() {
+        for (k, (pid, ..)) in parents.iter().enumerate() {
             let kids = tree.kids(*pid).to_vec();
-            // Trunk slots, counted leftward from the bar. A block hanging below
-            // its parent must sit right of every lower parent's trunk, so lower
-            // parents go further left; a block raised above its parent is the
-            // mirror image. Blocks going opposite ways never share rows.
-            let raised = y0s[k] + kids.len() as i32 - 1 < *py;
-            let slot = if raised { n - 1 - k as i32 } else { k as i32 };
+            let slot = slots[k];
             let active = on_spine.contains(pid);
             for (i, &kid) in kids.iter().enumerate() {
                 next.push((kid, y0s[k] + i as i32, cut(label_of(kid)), active));
