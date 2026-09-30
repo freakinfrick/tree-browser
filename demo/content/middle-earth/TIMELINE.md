@@ -30,8 +30,8 @@ TA 2463     Déagol finds it; Gollum takes it. see the-ring/bearers.csv.
 3019-03-04  Helm's Deep holds. Gimli 42, Legolas 41 (disputed).
 3019-03-06  Pippin uses the stone. see 12_isengard/orthanc/palantir-access.log.
 3019-03-07  the Forbidden Pool: Faramir captures Gollum, then lets him go. see 14_gondor/ithilien/forbidden-pool.md.
+3019-03-08  the Paths of the Dead. see 11_rohan/paths-of-the-dead/.
 3019-03-09  the beacons are lit. see 14_gondor/minas-tirith/beacon-schedule.toml.
-3019-03-10  the Paths of the Dead. see 11_rohan/paths-of-the-dead/.
 3019-03-13  the siege of Minas Tirith begins. see 14_gondor/minas-tirith/siege-of-gondor.md.
 3019-03-13  Frodo is taken at Cirith Ungol; Sam carries the Ring. see 15_mordor/cirith-ungol/package-incident.md.
 3019-03-15  Denethor and the pyre; the battle of the Pelennor. the Witch-king falls. see 14_gondor/pelennor-fields/.

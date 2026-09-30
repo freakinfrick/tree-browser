@@ -46,6 +46,10 @@ Everyone who matters, and where the machines filed them.
 | Shadowfax | the Lord of all horses | `11_rohan/edoras/horse-parking.md` |
 | Celeborn | Lord of Lórien | `08_lothlorien/celeborn.md` |
 | Shelob | spider, last child of Ungoliant | `15_mordor/cirith-ungol/shelob-warning.md` |
+| Brand | King of Dale, fell before the Gate of Erebor | `elsewhere/dale/succession.yaml`, `elsewhere/dale/siege-of-3019.log` |
+| Bard II | King of Dale after Brand | `elsewhere/dale/succession.yaml` |
+| Imrahil | Prince of Dol Amroth | `elsewhere/dol-amroth/imrahil-dispatches.log` |
+| the Chieftain of the Black Serpent | commander of Harad, slain by Théoden | `elsewhere/harad/muster.yaml` |
 
 > A character without a file is not a character; they are scenery.
 

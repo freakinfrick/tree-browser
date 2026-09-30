@@ -39,7 +39,7 @@ He spoke first of the river, and last of the way ahead:
 - On mercy and judgement, to the whole Company and to no one in particular
   (the hobbits took it to heart): "do not be too eager to deal out death in
   judgement; for even the very wise cannot see all ends." (disputed — Gandalf
-  spoke near-identical words in Bag End, `02_the-shire/bag-end/`, TA 2968; the
+  spoke near-identical words in Bag End, `02_the-shire/bag-end/`, TA 3018; the
   two sayings have since been cross-filed and neither will own the other.)
 
 ## The ending

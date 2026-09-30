@@ -14,7 +14,7 @@ The command is `tb`.
 
 <a href="docs/demo.mp4"><img src="docs/demo.gif" alt="treebeard highlight reel: heat colors, explode, audio waveform, GIF preview, a live change re-heating its folders, mouse wheel, git diff, bat, a shell, find, sort and settings" width="860"></a>
 
-<sub>36-second highlights · <a href="docs/demo.mp4">full demo video (77 s, 1080p60)</a></sub>
+<sub>38-second highlights · <a href="docs/demo.mp4">full demo video (85 s, 1080p60)</a></sub>
 
 </div>
 

@@ -14,13 +14,14 @@ CUTS = [
     ("audio", 2.0, 2.4),              # waveform, scrubber moving
     ("images and GIFs", 0.3, 2.0),
     ("live:", 0.2, 2.8),              # Moria re-heats, the ripple climbs
+    ("RFC 0001", 0.2, 2.2),           # Fangorn's rename RFC through glow (its red shows in the first cut)
     ("the mouse wheel", 1.0, 2.0),
     ("markdown through glow", 1.5, 2.6),   # glow, then d: the staged diff
     ("code through bat", 0.8, 2.6),
     ("s opens a shell", 0.3, 3.0),
     ("/ finds", 0.8, 2.4),
     ("Mordor burns", 0.3, 1.6),
-    ("o sorts", 0.5, 3.4),
+    ("o sorts", 0.5, 3.0),
     (", settings", 1.3, 3.0),
     ("? lists", 0.1, 1.6),
 ]

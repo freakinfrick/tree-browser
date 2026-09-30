@@ -21,6 +21,8 @@ GIT_STORY = {"M  11_rohan/helms-deep/culvert-bug.md", " M 11_rohan/helms-deep/wa
              "?? 08_lothlorien/mirror-of-galadriel/not-yet-come-to-pass.md"}
 RIPPLE = "07_moria/mazarbul-chamber/book-of-records.txt"   # touched mid-take
 HOT_LOG = "15_mordor/barad-dur/structural-failure.log"     # reads ~1m old on arrival
+RFC = "10_fangorn/treebeard/rfcs/0001-rename-from-tree-browser.md"
+VOTE = "10_fangorn/treebeard/entmoot/name-vote.csv"        # these two keep Fangorn red
 
 def tmux(*a):
     return subprocess.run(T + list(a), capture_output=True, text=True).stdout
@@ -90,6 +92,7 @@ if set(status.splitlines()) != GIT_STORY:
     raise SystemExit("fixture is stale or missing: run make_fixture.py")
 touch(RIPPLE, mf.age(RIPPLE))
 touch(HOT_LOG, 20)
+touch(RFC, mf.age(RFC)); touch(VOTE, mf.age(VOTE))
 shutil.rmtree(os.path.join(HOME, ".config"), ignore_errors=True)
 with open(os.path.join(HOME, ".bashrc"), "w") as f:
     f.write("PS1='\\[\\e[1;32m\\]sam@bag-end\\[\\e[0m\\]:\\[\\e[1;34m\\]\\W\\[\\e[0m\\]\\$ '\n")
@@ -101,7 +104,7 @@ tmux("new", "-d", "-s", "d", "-x", str(W), "-y", str(H),
 t0 = time.time()
 th = threading.Thread(target=capture, args=(t0,)); th.start()
 
-say("tb  —  a horizontal tree file browser", 2.2)
+say("treebeard  —  a horizontal tree file browser", 2.2)
 expect("01_lonely-mountain")
 say("color = newest change inside  ·  red = minutes → blue = years", 2.4)
 say("j / k scroll the column  ·  the line stays put")
@@ -117,7 +120,7 @@ say("e explodes a folder: everything inside unfurls")
 key("e", gap=2.4); expect("05_rivendell")
 
 say("audio: waveform and scrubber")
-key("j", "j", gap=0.3); expect("07_moria")
+key("Down", "Down", gap=0.3); expect("07_moria")  # arrows stay in the column; j would walk into the exploded folder
 key("l", gap=0.5); key("j", "j", "j", gap=0.2); key("l", gap=0.5)  # balrog-incident-report.md -> mazarbul-chamber -> book-of-records.txt
 key("j", gap=0.4); expect("drums-in-the-deep.wav")
 key("Enter", gap=2.8); key("q", gap=0.5)
@@ -129,8 +132,19 @@ key("Enter", gap=2.2); key("q", gap=0.6)
 say("live: a file changes and its folders re-heat")
 time.sleep(0.4); touch(RIPPLE, 0); time.sleep(2.8)                 # book-of-records.txt: Moria turns red
 
+say("Fangorn glows: the rename RFC passed minutes ago")
+key("h", "h", gap=0.4); expect("07_moria")
+key("Down", "Down", "Down", gap=0.25); expect("10_fangorn"); time.sleep(0.5)
+key("l", gap=0.35); key("G", gap=0.35); expect("treebeard")
+key("l", gap=0.35)
+key("/", gap=0.2); type_("rf"); time.sleep(0.2); key("Enter", gap=0.5)  # into rfcs/, on 0000-template.md
+key("j", gap=0.35); expect("0001-rename-from-tree-browser.md")
+say("RFC 0001: the rename, read through glow")
+key("Enter", gap=1.9); key("q", gap=0.4)
+key("h", "h", "h", gap=0.22); expect("10_fangorn")
+key("Up", "Up", "Up", gap=0.2); expect("07_moria")
+
 say("the mouse wheel scrolls any column")
-key("h", "h", gap=0.5); expect("07_moria")
 wheel("07_moria", 4); time.sleep(0.4); expect("11_rohan")
 
 say("git: M modified  ·  + staged  ·  ? untracked")
@@ -170,7 +184,7 @@ say("c collapses every other branch")
 key("c", gap=1.6)
 say("? lists every key")
 key("?", gap=2.2); key("?", gap=0.6)
-say("tb  ·  Rust + ratatui", 1.8)
+say("treebeard  ·  Rust + ratatui", 1.8)
 
 stop.set(); th.join()
 tmux("send-keys", "-t", "d", "q"); time.sleep(0.3)

@@ -5,7 +5,7 @@ Text comes from content/ (committed). Images come from assets/ (run
 fetch_images.py once; missing images are skipped). Generated here:
   *.pdf.src -> *.pdf    (PostScript -> ps2pdf, pages split on form feed)
   maps/atlas.pdf        (map images, one per page, via Ghostscript viewjpeg)
-  drums-in-the-deep.wav, durins-bridge.dwg (binary, for the `file` fallback)
+  drums-in-the-deep.wav, entish-hum.wav, durins-bridge.dwg (binary, for the `file` fallback)
 Folder mtimes are forced old, so any heat a folder shows comes from inside."""
 import json, math, os, shutil, struct, subprocess, sys, tempfile, time, unicodedata, wave, zlib
 
@@ -32,6 +32,8 @@ AGES = {
     "15_mordor/barad-dur/eye-uptime.prom": 12 * M,
     "src/main.rs": 20 * M, "src/layout.rs": 45 * M, "src/anim.rs": 10 * M, "src/Cargo.toml": 3 * H,
     "10_fangorn/entmoot/minutes-day-2.txt": 6 * D,
+    "10_fangorn/treebeard/rfcs/0001-rename-from-tree-browser.md": 8 * M,  # Fangorn glows: the rename just passed
+    "10_fangorn/treebeard/entmoot/name-vote.csv": 15 * M,
     "05_rivendell/council-minutes/who-carries-the-ring.md": 6 * D,
     "02_the-shire/green-dragon-inn/tab.csv": 3 * D,
     "14_gondor/minas-tirith/beacon-schedule.toml": 8 * D,
@@ -123,6 +125,19 @@ def drums(dest):
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(rate); w.writeframes(bytes(out))
 
 
+def hum(dest):
+    """An Entish drone: ~6 s of low hum that swells, slowly, and fades."""
+    rate, secs = 22050, 6.0
+    out = bytearray()
+    for i in range(int(secs * rate)):
+        t = i / rate
+        env = math.sin(math.pi * t / secs) ** 2 * (0.8 + 0.2 * math.sin(2 * math.pi * 0.5 * t))
+        v = math.sin(2 * math.pi * 44 * t) + 0.5 * math.sin(2 * math.pi * 88.4 * t) + 0.25 * math.sin(2 * math.pi * 132 * t)
+        out += struct.pack("<h", int(14000 * env * v))
+    with wave.open(dest, "wb") as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(rate); w.writeframes(bytes(out))
+
+
 def main():
     shutil.rmtree(ROOT, ignore_errors=True)
     base = os.path.join(ROOT, ME)
@@ -154,6 +169,7 @@ def main():
         made.append("05_rivendell/library/maps/atlas.pdf")
     os.makedirs(os.path.join(base, "07_moria/mazarbul-chamber"), exist_ok=True)
     drums(os.path.join(base, "07_moria/mazarbul-chamber/drums-in-the-deep.wav")); made.append("07_moria/mazarbul-chamber/drums-in-the-deep.wav")
+    hum(os.path.join(base, "10_fangorn/entish-hum.wav")); made.append("10_fangorn/entish-hum.wav")
     with open(os.path.join(base, "07_moria/durins-bridge.dwg"), "wb") as f:
         f.write(b"AC1032" + bytes(122) + b"one span, no rail" + bytes(64)); made.append("07_moria/durins-bridge.dwg")
 
