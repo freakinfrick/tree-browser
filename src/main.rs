@@ -32,6 +32,19 @@ use ui::Preview;
 /// Frame budget while animating. Idle = no frames at all.
 const FRAME: Duration = Duration::from_micros(16_667);
 
+/// A live-change ripple waits this long per level before lighting the next folder up.
+pub const RIPPLE_STEP: Duration = Duration::from_millis(90);
+/// And is dropped this long after it reaches a node, faded out by then.
+pub const RIPPLE_LIFE: Duration = Duration::from_millis(2200);
+
+/// A live change lighting a node: when the ripple reaches it, and how
+/// brightly (1 at the change, dimmer each level up).
+#[derive(Clone, Copy, Debug)]
+pub struct Ripple {
+    pub start: Instant,
+    pub strength: f32,
+}
+
 pub struct App {
     pub tree: Tree,
     pub cursor: usize,
@@ -87,6 +100,8 @@ pub struct App {
     pub can_cd: bool,
     /// Polls the open folders for changes; None = off (TB_LIVE=off, and in tests).
     live: Option<watch::Watch>,
+    /// Live changes climbing the tree, by node.
+    pub ripples: std::collections::HashMap<usize, Ripple>,
 }
 
 pub struct Search {
@@ -143,6 +158,7 @@ impl App {
             hist_at: 0,
             pending: None,
             live: None,
+            ripples: std::collections::HashMap::new(),
             cd_on_quit: false,
             can_cd: false,
         };
@@ -284,7 +300,15 @@ impl App {
         for c in changes {
             let Some(&id) = open.get(&c.dir) else { continue };
             any = true;
-            if self.tree.refresh(id) || c.listing {
+            let r = self.tree.refresh(id);
+            // Light what changed, or the folder itself when what changed is gone.
+            let shown = |k: &usize| self.tree.show_hidden || !self.tree.is_hidden(*k);
+            let mut origins: Vec<usize> = r.touched.iter().copied().filter(shown).collect();
+            if r.gone.iter().any(shown) {
+                origins.push(id);
+            }
+            self.ripple(&origins);
+            if r.changed || c.listing {
                 // Entries came or went: re-walk this folder for an exact heat.
                 self.mt.forget(&c.dir);
                 self.mt.request(&c.dir);
@@ -307,6 +331,24 @@ impl App {
         self.absorb();
         self.epoch += 1;
         true
+    }
+
+    /// Start ripples at `origins` that climb to the root, a level per RIPPLE_STEP.
+    fn ripple(&mut self, origins: &[usize]) {
+        let now = Instant::now();
+        for &o in origins {
+            for (k, id) in self.tree.path_to(o).into_iter().rev().enumerate() {
+                let fresh = Ripple { start: now + RIPPLE_STEP * k as u32, strength: 0.8f32.powi(k as i32).max(0.35) };
+                let r = self.ripples.entry(id).or_insert(fresh);
+                if fresh.start < r.start {
+                    // A closer change gets here first.
+                    *r = Ripple { strength: r.strength.max(fresh.strength), ..fresh };
+                } else if now.saturating_duration_since(r.start) > RIPPLE_STEP * 4 {
+                    // Mostly faded: flash again.
+                    *r = fresh;
+                }
+            }
+        }
     }
 
     /// If the cursor's entry (or a folder above it) was deleted, land on the
@@ -1084,6 +1126,32 @@ mod tests {
         assert_eq!(Sort::parse("-modified"), Some(Sort { key: SortKey::Modified, rev: true }));
         assert_eq!(Sort::parse("type"), Some(Sort { key: SortKey::Type, rev: false }));
         assert_eq!(Sort::parse("bogus"), None);
+    }
+
+    #[test]
+    fn live_change_ripples_up_from_what_changed() {
+        let mut app = app_in("ripple", &["alpha", "beta", ".hidden"]);
+        let d = app.tree.nodes[app.cursor].parent.unwrap();
+        let (root, alpha, beta) = (app.tree.root, app.cursor, app.tree.kids(d)[1]);
+        let bump = |app: &App, name: &str| {
+            let p = app.tree.nodes[d].path.join(name);
+            fs::File::open(p).unwrap().set_modified(SystemTime::now() + Duration::from_secs(5)).unwrap();
+        };
+        bump(&app, ".hidden");
+        app.apply_changes(vec![change(&app, d, false)]);
+        assert!(app.ripples.is_empty(), "a hidden file changing lights nothing while dotfiles are hidden");
+
+        bump(&app, "beta");
+        app.apply_changes(vec![change(&app, d, false)]);
+        assert!(!app.ripples.contains_key(&alpha), "untouched siblings stay dark");
+        let (b, dr, rr) = (app.ripples[&beta], app.ripples[&d], app.ripples[&root]);
+        assert!(b.start < dr.start && dr.start < rr.start, "climbs a level at a time");
+        assert!(b.strength > dr.strength && dr.strength > rr.strength, "dimmer as it climbs");
+
+        fs::remove_file(app.tree.nodes[alpha].path.clone()).unwrap();
+        app.ripples.clear();
+        app.apply_changes(vec![change(&app, d, true)]);
+        assert_eq!(app.ripples[&d].strength, 1.0, "a deletion lights the folder it left");
     }
 
     #[test]

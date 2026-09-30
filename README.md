@@ -24,7 +24,9 @@ and color tells you where work happened recently.
 - **Heat colors from recursive mtime.** A folder is colored by the newest change *anywhere* inside it,
   so you can spot where the action is from the top of the tree.
 - **Live.** Open folders update as files come, go and change (about once a second), and the heat
-  climbs the tree as you work. Set `TB_LIVE=off` to turn it off.
+  climbs the tree as you work. Each change flashes where it happened and ripples up the connectors
+  through every folder above it, so a build or an agent working in the tree shows up at a glance.
+  Set `TB_LIVE=off` to turn it off.
 - **A fixed selection line.** Root → cursor is always one straight line through mid-screen.
   Moving up and down scrolls the column through the line; the tree moves, the selector doesn't.
 - **Physics-driven motion.** Every node rides a critically damped spring: folders unfurl and fold back,
@@ -132,6 +134,10 @@ Colors cross-fade when heat data lands instead of popping. White marks the curso
 marks branches off it. The line itself is a double "tube" with proper junctions; every other branch
 is tinted by the heat of the folder it grows from, a light sweeps along the line into the cursor on
 each move, and closed folders carry a small `›` bud.
+
+When an open folder changes on disk, the entry that changed flashes with an ember behind its name.
+The flash then climbs its elbow to the folder, and on up a level every 90 ms, dimming as it goes, before
+everything settles back to its heat color. A deleted entry flashes the folder it left.
 
 ## Sorting
 

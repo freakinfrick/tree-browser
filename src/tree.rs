@@ -93,6 +93,17 @@ impl Sort {
     }
 }
 
+/// What a `refresh` found.
+#[derive(Default)]
+pub struct Refreshed {
+    /// Entries came or went, rather than just their mtimes, sizes or order changing.
+    pub changed: bool,
+    /// New entries and ones whose mtime moved.
+    pub touched: Vec<usize>,
+    /// Entries no longer there (still in the arena).
+    pub gone: Vec<usize>,
+}
+
 pub struct Tree {
     pub nodes: Vec<Node>,
     pub root: usize,
@@ -225,10 +236,10 @@ impl Tree {
 
     /// Re-read a loaded directory in place: entries still there keep their
     /// nodes (fold state, last cursor, animation), new ones are added, gone
-    /// ones dropped (left in the arena, unreachable). Returns true if the
-    /// entries changed rather than just their mtimes, sizes or order.
-    pub fn refresh(&mut self, id: usize) -> bool {
-        let Some(old) = self.nodes[id].children.clone() else { return false };
+    /// ones dropped (left in the arena, unreachable).
+    pub fn refresh(&mut self, id: usize) -> Refreshed {
+        let mut out = Refreshed::default();
+        let Some(old) = self.nodes[id].children.clone() else { return out };
         let by_path: HashMap<PathBuf, usize> = old.iter().map(|&k| (self.nodes[k].path.clone(), k)).collect();
         let mut kids = Vec::new();
         let (mut kept, mut added) = (0, false);
@@ -237,7 +248,10 @@ impl Tree {
             match by_path.get(&fresh.path) {
                 // Same kind: refresh the mtime and size, keep everything else.
                 Some(&k) if self.nodes[k].is_dir == fresh.is_dir => {
-                    self.nodes[k].mtime = fresh.mtime;
+                    if self.nodes[k].mtime != fresh.mtime {
+                        self.nodes[k].mtime = fresh.mtime;
+                        out.touched.push(k);
+                    }
                     self.nodes[k].size = fresh.size;
                     kids.push(k);
                     kept += 1;
@@ -245,17 +259,20 @@ impl Tree {
                 _ => {
                     self.nodes.push(fresh);
                     kids.push(self.nodes.len() - 1);
+                    out.touched.push(self.nodes.len() - 1);
                     added = true;
                 }
             }
         }
-        let changed = added || kept != old.len();
+        out.gone = old.iter().copied().filter(|k| !kids.contains(k)).collect();
+        // Order alone doesn't count: the sort moves entries as mtimes and sizes change.
+        out.changed = added || kept != old.len();
         if self.nodes[id].last.is_some_and(|l| !kids.contains(&l)) {
             self.nodes[id].last = None;
         }
         self.nodes[id].children = Some(kids);
         self.sort_kids(id);
-        changed
+        out
     }
 
     /// Still reachable from the root (not dropped by a reload or refresh).
