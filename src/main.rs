@@ -407,10 +407,11 @@ impl App {
         self.step_in(&list, delta);
     }
 
-    /// The wheel scrolls the column under the pointer, so it never walks the
-    /// tree: a step into a child column would leave the pointer over the
-    /// parent's, and the next tick would take the parent back.
-    fn wheel_step(&mut self, delta: isize) {
+    /// Arrows and the wheel move straight up and down the column, whatever
+    /// Step through says. The wheel must: a step into a child column would
+    /// leave the pointer over the parent's, and the next tick would take the
+    /// parent back.
+    fn column_step(&mut self, delta: isize) {
         let list = if self.settings.step == StepThrough::Folder { self.siblings() } else { self.column() };
         self.step_in(&list, delta);
     }
@@ -969,10 +970,14 @@ impl App {
             }
             KeyCode::Esc => return false,
             KeyCode::Char('c') if mods.contains(KeyModifiers::CONTROL) => return false,
-            KeyCode::Char('j') | KeyCode::Down => self.step(1),
-            KeyCode::Char('k') | KeyCode::Up => self.step(-1),
-            KeyCode::Char('J') | KeyCode::PageDown => self.step(10),
-            KeyCode::Char('K') | KeyCode::PageUp => self.step(-10),
+            KeyCode::Char('j') => self.step(1),
+            KeyCode::Char('k') => self.step(-1),
+            KeyCode::Char('J') => self.step(10),
+            KeyCode::Char('K') => self.step(-10),
+            KeyCode::Down => self.column_step(1),
+            KeyCode::Up => self.column_step(-1),
+            KeyCode::PageDown => self.column_step(10),
+            KeyCode::PageUp => self.column_step(-10),
             KeyCode::Char('g') | KeyCode::Home => self.step_end(false),
             KeyCode::Char('G') | KeyCode::End => self.step_end(true),
             KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => self.enter(),
@@ -1050,7 +1055,7 @@ impl App {
                         self.cam_hold.get_or_insert(self.cam_tx);
                         self.set_cursor(id);
                     }
-                    _ => self.wheel_step(if kind == MouseEventKind::ScrollDown { 1 } else { -1 }),
+                    _ => self.column_step(if kind == MouseEventKind::ScrollDown { 1 } else { -1 }),
                 }
             }
             MouseEventKind::Down(MouseButton::Left) => {
@@ -1682,6 +1687,11 @@ mod tests {
         assert_eq!(at(&app), "b", "the wheel scrolls the column, it doesn't dive into a");
         app.mouse(MouseEventKind::ScrollDown, 0, 0);
         assert_eq!(at(&app), "c");
+        go(&mut app, "a");
+        app.key(KeyCode::Down, KeyModifiers::NONE);
+        assert_eq!(at(&app), "b", "arrows stay in the column too");
+        app.key(KeyCode::Up, KeyModifiers::NONE);
+        assert_eq!(at(&app), "a");
         go(&mut app, "a/2");
 
         // Column: every open list one column over, closed b passed by.

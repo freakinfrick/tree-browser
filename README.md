@@ -81,7 +81,8 @@ tb --cwd-file PATH [DIR]  # on q, write the selected folder to PATH
 
 | Key | Action |
 |---|---|
-| `j` `k` / `↓` `↑` | move down / up through the whole open tree: into an open folder, then on to its next sibling |
+| `j` `k` | move down / up through the whole open tree: into an open folder, then on to its next sibling |
+| `↓` `↑` | move straight down / up the column |
 | `J` `K` / `PgDn` `PgUp` | jump 10 |
 | `g` `G` / `Home` `End` | first / last |
 | `l` `→` `Enter` | open: expand a folder, preview a file |
@@ -224,7 +225,7 @@ closes the panel.
 | Legend | the color key in the status bar | on |
 | Motion | slow, normal, fast, instant (no animation) | normal |
 | Live updates, Ripples, Git status, Dim ignored | on / off | on |
-| Step through | what `j` `k` `J` `K` and the wheel walk: folder (its own list), column (every open list in the column), tree (the whole open tree in reading order); `g` `G` always stay in the folder, and the wheel always scrolls the column under the pointer | tree |
+| Step through | what `j` `k` `J` `K` walk: folder (its own list), column (every open list in the column), tree (the whole open tree in reading order); `g` `G` always stay in the folder; arrows and `PgUp` `PgDn` move straight up and down the column, and the wheel scrolls the column under the pointer | tree |
 | Mouse | off gives the mouse back to the terminal for selecting text | on |
 | Image previews | auto, pixels, blocks (half-blocks), off (captions only) | auto |
 | Text preview | styled (glow for markdown, bat for the rest), bat, plain | styled |

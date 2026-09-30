@@ -229,7 +229,7 @@ pub const ITEMS: [Item; 27] = [
     Item { key: "ripples", label: "Ripples", section: "Behavior", help: "Flash a live change and let it climb the tree." },
     Item { key: "git", label: "Git status", section: "Behavior", help: "Markers, branch and diffs inside git repos." },
     Item { key: "dim_ignored", label: "Dim ignored", section: "Behavior", help: "Fade files git ignores, like target/ and node_modules/." },
-    Item { key: "step", label: "Step through", section: "Behavior", help: "What j, k and the wheel walk: the folder, the column, or the whole open tree in reading order." },
+    Item { key: "step", label: "Step through", section: "Behavior", help: "What j and k walk: the folder, the column, or the whole open tree in reading order. Arrows and the wheel stay in the column." },
     Item { key: "mouse", label: "Mouse", section: "Behavior", help: "Off hands the mouse back to the terminal, so you can select text." },
     Item { key: "graphics", label: "Image previews", section: "Behavior", help: "Pixels if the terminal can, half-blocks anywhere, or off. i in a preview flips it for this run." },
     Item { key: "preview", label: "Text preview", section: "Behavior", help: "Styled: glow for markdown, bat for code. Or bat for all, or plain text." },
