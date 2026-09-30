@@ -8,6 +8,7 @@ mod git;
 mod layout;
 mod media;
 mod mtime;
+mod settings;
 mod shell;
 mod tree;
 mod ui;
@@ -26,6 +27,7 @@ use ratatui::crossterm::execute;
 
 use anim::{Damped, Scene};
 use mtime::Mtime;
+use settings::{Settings, ITEMS};
 use shell::Run;
 use tree::{Sort, SortKey, Tree};
 use ui::Preview;
@@ -103,6 +105,19 @@ pub struct App {
     pub ripples: std::collections::HashMap<usize, Ripple>,
     /// Git status of the repos the open folders are in; None = off (TB_GIT=off, and in tests).
     pub git: Option<git::Git>,
+    /// Live updates and git may run (off in tests, which drive changes by hand).
+    services: bool,
+    /// What `,` edits and the config file stores.
+    pub settings: Settings,
+    /// Settings menu: the selected row; None = closed.
+    pub menu: Option<usize>,
+    pub menu_anim: f32,
+    /// Where settings are saved; None = no home to save in.
+    pub config: Option<PathBuf>,
+    /// Config file lines that couldn't be used, shown in the menu.
+    pub config_errs: Vec<String>,
+    /// Why the last save failed, shown in the menu.
+    pub save_err: Option<String>,
 }
 
 pub struct Search {
@@ -160,6 +175,13 @@ impl App {
             live: None,
             ripples: std::collections::HashMap::new(),
             git: None,
+            services: false,
+            settings: Settings::default(),
+            menu: None,
+            menu_anim: 0.0,
+            config: None,
+            config_errs: Vec::new(),
+            save_err: None,
             cd_on_quit: false,
             can_cd: false,
         };
@@ -190,8 +212,78 @@ impl App {
     }
 
     fn set_sort(&mut self, sort: Sort) {
-        self.tree.sort = sort;
-        self.tree.resort();
+        self.settings.sort = sort;
+        self.apply_settings();
+    }
+
+    /// Room in the layout, from the settings.
+    pub fn spacing(&self) -> layout::Spacing {
+        let s = &self.settings;
+        layout::Spacing { rows: s.row_spacing as i32, gap: s.column_gap as i32, maxw: s.max_name as usize }
+    }
+
+    /// Push the settings into the tree, the colors and the background workers.
+    fn apply_settings(&mut self) {
+        let s = self.settings;
+        anim::set_palette(s.palette);
+        ui::set_accent(s.accent);
+        let heat_changed = self.tree.show_hidden != s.show_hidden;
+        self.tree.show_hidden = s.show_hidden;
+        if self.tree.sort != s.sort || (heat_changed && s.sort.key == SortKey::Modified) {
+            self.tree.sort = s.sort;
+            self.tree.resort();
+        }
+        if !s.live {
+            self.live = None;
+            self.ripples.clear();
+        } else if self.services && self.live.is_none() {
+            self.live = Some(watch::Watch::spawn(watch::EVERY));
+        }
+        if !s.git {
+            self.git = None;
+        } else if self.services && self.git.is_none() {
+            self.git = Some(git::Git::spawn(git::EVERY));
+        }
+        if !s.ripples {
+            self.ripples.clear();
+        }
+        self.epoch += 1;
+    }
+
+    /// One setting changed in the menu: apply it and save it.
+    fn setting_changed(&mut self, key: &str) {
+        self.apply_settings();
+        let Some(p) = &self.config else { return };
+        // A new sort key starts unreversed, so the file's reverse must follow.
+        let keys: &[&str] = if key == "sort" { &["sort", "sort_reverse"] } else { &[key] };
+        self.save_err = keys.iter().find_map(|k| self.settings.save(p, k).err()).map(|e| format!("can't save: {e}"));
+    }
+
+    fn menu_key(&mut self, code: KeyCode, mods: KeyModifiers) {
+        let Some(i) = self.menu else { return };
+        let n = ITEMS.len();
+        let key = ITEMS[i].key;
+        match code {
+            KeyCode::Esc | KeyCode::Char(',' | 'q') => self.menu = None,
+            KeyCode::Char('c') if mods.contains(KeyModifiers::CONTROL) => self.menu = None,
+            KeyCode::Char('j') | KeyCode::Down | KeyCode::Tab => self.menu = Some((i + 1) % n),
+            KeyCode::Char('k') | KeyCode::Up | KeyCode::BackTab => self.menu = Some((i + n - 1) % n),
+            KeyCode::Char('g') | KeyCode::Home => self.menu = Some(0),
+            KeyCode::Char('G') | KeyCode::End => self.menu = Some(n - 1),
+            KeyCode::Char('l' | ' ') | KeyCode::Right | KeyCode::Enter => {
+                self.settings.adjust(key, 1);
+                self.setting_changed(key);
+            }
+            KeyCode::Char('h') | KeyCode::Left => {
+                self.settings.adjust(key, -1);
+                self.setting_changed(key);
+            }
+            KeyCode::Char('r') => {
+                self.settings.reset(key);
+                self.setting_changed(key);
+            }
+            _ => {}
+        }
     }
 
     fn siblings(&self) -> Vec<usize> {
@@ -328,13 +420,16 @@ impl App {
             let Some(&id) = open.get(&c.dir) else { continue };
             any = true;
             let r = self.tree.refresh(id);
+            let ripples = self.settings.ripples;
             // Light what changed, or the folder itself when what changed is gone.
             let shown = |k: &usize| self.tree.show_hidden || !self.tree.is_hidden(*k);
             let mut origins: Vec<usize> = r.touched.iter().copied().filter(shown).collect();
             if r.gone.iter().any(shown) {
                 origins.push(id);
             }
-            self.ripple(&origins);
+            if ripples {
+                self.ripple(&origins);
+            }
             if r.changed || c.listing {
                 // Entries came or went: re-walk this folder for an exact heat.
                 self.mt.forget(&c.dir);
@@ -558,6 +653,10 @@ impl App {
             self.search_key(code, mods);
             return true;
         }
+        if self.menu.is_some() {
+            self.menu_key(code, mods);
+            return true;
+        }
         if code == KeyCode::Char('i')
             && let (Some(p), Some(m)) = (&mut self.picker, self.preview.as_mut().and_then(|pv| pv.media.as_mut()))
         {
@@ -644,14 +743,15 @@ impl App {
                 self.tree.reveal = self.tree.path_to(self.cursor).into_iter().collect();
             }
             KeyCode::Char('.') => {
-                self.tree.show_hidden ^= true;
-                // Heat differs with dotfiles in or out.
-                if self.tree.sort.key == SortKey::Modified {
-                    self.tree.resort();
-                }
+                self.settings.show_hidden ^= true;
+                self.apply_settings();
             }
-            KeyCode::Char('o') => self.set_sort(self.tree.sort.next()),
-            KeyCode::Char('O') => self.set_sort(Sort { rev: !self.tree.sort.rev, ..self.tree.sort }),
+            KeyCode::Char('o') => self.set_sort(self.settings.sort.next()),
+            KeyCode::Char('O') => self.set_sort(Sort { rev: !self.settings.sort.rev, ..self.settings.sort }),
+            KeyCode::Char(',') => {
+                self.menu = Some(0);
+                self.help = false;
+            }
             KeyCode::Char('c') => self.collapse_others(),
             KeyCode::Char('r') => self.reload(),
             KeyCode::Char('?') => self.help ^= true,
@@ -670,7 +770,7 @@ impl App {
 
     fn mouse(&mut self, kind: MouseEventKind, col: u16, row: u16) {
         // Clicks would silently change the folder the typed command runs in.
-        if self.prompt.is_some() || self.search.is_some() {
+        if self.prompt.is_some() || self.search.is_some() || self.menu.is_some() {
             return;
         }
         if let Some(pv) = self.open_preview() {
@@ -802,6 +902,7 @@ fn main() -> std::io::Result<()> {
              --cwd-file: on q, write the selected folder there (tb.bash turns that into cd)\n\
              image/pdf preview: j/k page · i pixels <-> half-blocks · TB_GRAPHICS=halfblocks|kitty|sixel|iterm2|off\n\
              audio preview: plays at once · space pause · left/right 5 s · shift 30 s · 0-9 jump · up/down volume · m mute\n\
+             , opens the settings (saved to ~/.config/tb/config.toml, or $TB_CONFIG)\n\
              o cycles the sort (name · modified · size · type) · O reverses it · TB_SORT=size (or -size, modified, type) sets the start\n\
              open folders update live (about once a second) · TB_LIVE=off turns that off\n\
              git: M modified · + staged · ? untracked · ! conflict · ignored names dim · d in a preview shows the diff · TB_GIT=off\n\
@@ -811,22 +912,27 @@ fn main() -> std::io::Result<()> {
     }
     let start = std::fs::canonicalize(&arg)?;
     let mut app = App::new(start);
+    app.config = settings::path();
+    (app.settings, app.config_errs) = Settings::load(app.config.as_deref());
+    // Environment variables win for this run.
     if let Ok(s) = std::env::var("TB_SORT") {
         match Sort::parse(&s) {
-            Some(sort) => app.set_sort(sort),
+            Some(sort) => app.settings.sort = sort,
             None => {
                 eprintln!("tb: TB_SORT={s:?}: expected name, modified, size or type, with - in front to reverse");
                 std::process::exit(2);
             }
         }
     }
+    if std::env::var("TB_LIVE").is_ok_and(|v| v == "off") {
+        app.settings.live = false;
+    }
+    if std::env::var("TB_GIT").is_ok_and(|v| v == "off") {
+        app.settings.git = false;
+    }
     app.can_cd = cwd_file.is_some();
-    if std::env::var("TB_LIVE").map_or(true, |v| v != "off") {
-        app.live = Some(watch::Watch::spawn(watch::EVERY));
-    }
-    if std::env::var("TB_GIT").map_or(true, |v| v != "off") {
-        app.git = Some(git::Git::spawn(git::EVERY));
-    }
+    app.services = true;
+    app.apply_settings();
     let mut term = ratatui::init();
     let hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -856,6 +962,7 @@ fn main() -> std::io::Result<()> {
                 let _ = term.clear();
             }
             let mut moving = false;
+            let dt = dt * app.settings.speed.factor();
             if let Err(e) = term.draw(|f| moving = ui::frame(f, &mut app, dt)) {
                 break Err(e);
             }
@@ -1188,6 +1295,48 @@ mod tests {
         app.ripples.clear();
         app.apply_changes(vec![change(&app, d, true)]);
         assert_eq!(app.ripples[&d].strength, 1.0, "a deletion lights the folder it left");
+    }
+
+    #[test]
+    fn settings_menu_changes_applies_and_saves() {
+        let mut app = app_in("menu", &["alpha", "beta"]);
+        let cfg = std::env::temp_dir().join(format!("tb-menu-{}/config.toml", std::process::id()));
+        let _ = fs::remove_file(&cfg);
+        app.config = Some(cfg.clone());
+        typed(&mut app, ",");
+        assert_eq!(app.menu, Some(0));
+        typed(&mut app, "ll");
+        assert_eq!(app.spacing().rows, 2, "row spacing is the first row");
+        typed(&mut app, "h");
+        assert_eq!(app.settings.row_spacing, 1);
+        let at = |k: &str| ITEMS.iter().position(|i| i.key == k).unwrap();
+        app.menu = Some(at("sort"));
+        typed(&mut app, "l");
+        assert_eq!(app.tree.sort.key, SortKey::Modified, "the tree follows at once");
+        app.menu = Some(at("show_hidden"));
+        typed(&mut app, " ");
+        assert!(app.tree.show_hidden);
+        typed(&mut app, "r");
+        assert!(!app.tree.show_hidden, "r resets to the default");
+        typed(&mut app, "j");
+        assert_eq!(app.menu, Some(at("show_hidden") + 1));
+        app.key(KeyCode::Esc, KeyModifiers::NONE);
+        assert!(app.menu.is_none());
+        assert!(!app.key(KeyCode::Esc, KeyModifiers::NONE), "esc after closing quits as usual");
+
+        let (saved, errs) = Settings::load(Some(&cfg));
+        assert!(errs.is_empty(), "{errs:?}");
+        assert_eq!((saved.row_spacing, saved.sort.key, saved.show_hidden), (1, SortKey::Modified, false));
+        let text = fs::read_to_string(&cfg).unwrap();
+        assert!(text.contains("sort_reverse = false"), "a new sort key saves its direction too: {text}");
+    }
+
+    #[test]
+    fn keys_keep_the_settings_in_step() {
+        let mut app = app_in("keys-settings", &["alpha"]);
+        typed(&mut app, "oO.");
+        assert_eq!(app.settings.sort, Sort { key: SortKey::Modified, rev: true });
+        assert!(app.settings.show_hidden && app.tree.show_hidden);
     }
 
     #[test]

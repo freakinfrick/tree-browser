@@ -37,6 +37,8 @@ and color tells you where work happened recently.
   click or drag, and simple keys for pause, seek and volume.
 - **Git aware.** Changed files carry a marker, closed folders show what's changed inside, ignored
   build output fades back, the status bar names the branch, and `d` in a preview shows the diff.
+- **Yours to tune.** `,` opens settings for row spacing, column gap, name width, accent and heat
+  colors, motion speed and every feature switch, saved to a small config file.
 - **Shell without leaving.** `!` runs a command in the selected folder, `s` opens a shell there, and
   `q` can leave your shell `cd`'d to wherever you ended up.
 
@@ -95,6 +97,7 @@ tb --cwd-file PATH [DIR]  # on q, write the selected folder to PATH
 | `r` | reload, re-walking heat deep inside closed folders (open ones update live) |
 | `!` | run a shell command in the selected folder |
 | `s` | open a shell in the selected folder |
+| `,` | settings |
 | `?` | help overlay |
 | `q` | quit (and `cd` there, with the shell integration below) |
 | `Esc` `Ctrl-C` | quit and stay where you were |
@@ -183,6 +186,42 @@ Status comes from `git status` on a background thread, for the repos that the op
 re-runs when files change, on `r`, and every 3 s to catch commits and `git add`. It runs with
 `--no-optional-locks`, so it never takes the index lock from your own git commands. Set `TB_GIT=off`
 to turn it off.
+
+## Settings
+
+`,` opens the settings on the right, over the tree, so each change shows as you make it. `j` `k` move,
+`h` `l` (or `←` `→`, `Enter`, `Space`) change the value, `r` puts it back to the default, and `Esc` or `,`
+closes the panel.
+
+| Setting | Values | Default |
+|---|---|---|
+| Row spacing | blank rows between entries, 0–3 | 0 |
+| Column gap | space before the next column, 3–12 | 3 |
+| Name width | longer names are cut with `…`, 12–60 | 28 |
+| Sort by, Reverse | same as `o` and `O` | name, off |
+| Dotfiles | same as `.` | hidden |
+| Accent | indigo, teal, violet, amber, mono (lines, selector, highlights) | indigo |
+| Heat colors | ember (red → blue), aurora (yellow → purple, avoids red-green), mono | ember |
+| Legend | the color key in the status bar | on |
+| Motion | slow, normal, fast, instant (no animation) | normal |
+| Live updates, Ripples, Git status, Dim ignored | on / off | on |
+
+Every change is saved immediately to `~/.config/tb/config.toml` (under `$XDG_CONFIG_HOME` if that's
+set, or wherever `TB_CONFIG` points). It's plain `key = value` TOML that you can also edit by hand. tb
+rewrites only the line for the setting you changed, so your comments stay. If a line can't be read,
+tb uses the default for that setting and lists the problem at the bottom of the settings panel.
+
+```toml
+row_spacing = 1
+accent = "teal"
+palette = "aurora"
+sort = "modified"
+```
+
+`TB_SORT`, `TB_LIVE=off` and `TB_GIT=off` override the file for that run.
+
+Text size isn't a setting: a terminal program can't change its font. Use your terminal's zoom
+(usually `Ctrl`/`Cmd` and `+` / `-`) and tb re-lays itself out to fit.
 
 ## Shell integration
 
