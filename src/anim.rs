@@ -7,6 +7,7 @@
 //! Connectors are drawn from the animated positions, so they follow along.
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, AtomicU8, Ordering};
+use std::time::Instant;
 
 use crate::layout::Layout;
 use crate::settings::Palette;
@@ -55,6 +56,75 @@ pub fn approach(cur: &mut f32, target: f32, tau: f32, dt: f32) -> bool {
         return false;
     }
     true
+}
+
+/// Wheel momentum. Each notch moves its rows at once, so slow notches stay
+/// exact; notches in quick succession set a speed that coasts on after the
+/// last one, decaying with time constant `tau`, so a flick carries further.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Glide {
+    /// Rows per second, signed.
+    vel: f32,
+    /// Rows travelled but not yet taken as whole steps.
+    owed: f32,
+    /// When and which way the last notch went.
+    last: Option<(Instant, bool)>,
+}
+
+impl Glide {
+    /// Notches further apart than this don't build speed.
+    const QUICK: f32 = 0.2;
+    /// Speed cap, rows per second: terminals deliver bursts of notches at once.
+    const MAX: f32 = 150.0;
+    /// Below this, rows per second, the glide stops.
+    const MIN: f32 = 3.0;
+
+    /// A notch of `rows` (negative = up) at `now`. Returns the rows to move at once.
+    pub fn notch(&mut self, rows: i32, tau: f32, now: Instant) -> i32 {
+        let down = rows > 0;
+        let gap = self.last.filter(|l| l.1 == down).map(|l| (now - l.0).as_secs_f32());
+        self.last = Some((now, down));
+        self.vel = match gap {
+            Some(g) if tau > 0.0 && g < Self::QUICK => {
+                let v = (rows as f32 / g.max(0.01)).clamp(-Self::MAX, Self::MAX);
+                // Smooth over the last two gaps; a first quick pair counts in full.
+                if self.vel == 0.0 { v } else { (self.vel + v) / 2.0 }
+            }
+            _ => 0.0,
+        };
+        if self.vel == 0.0 {
+            self.owed = 0.0;
+        }
+        rows
+    }
+
+    /// Advance `dt` seconds. Returns whole rows to move now.
+    pub fn tick(&mut self, tau: f32, dt: f32) -> i32 {
+        if self.vel == 0.0 || tau <= 0.0 {
+            // Keep `last`: frames run between the notches of a flick.
+            (self.vel, self.owed) = (0.0, 0.0);
+            return 0;
+        }
+        // Exact integral of the decay over dt: frame-rate independent.
+        let k = (-dt / tau).exp();
+        self.owed += self.vel * tau * (1.0 - k);
+        self.vel *= k;
+        if self.vel.abs() < Self::MIN {
+            self.vel = 0.0;
+        }
+        let n = self.owed.trunc();
+        self.owed -= n;
+        n as i32
+    }
+
+    /// Drop any glide: a key, a click, the end of the list.
+    pub fn stop(&mut self) {
+        *self = Glide::default();
+    }
+
+    pub fn moving(&self) -> bool {
+        self.vel != 0.0
+    }
 }
 
 pub type Rgb = [f32; 3];
@@ -278,6 +348,65 @@ impl Scene {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
+
+    /// Rows a glide covers once left to run out, at 60 fps.
+    fn coast(g: &mut Glide, tau: f32) -> i32 {
+        let mut n = 0;
+        for _ in 0..600 {
+            n += g.tick(tau, 1.0 / 60.0);
+        }
+        assert!(!g.moving(), "comes to rest");
+        n
+    }
+
+    #[test]
+    fn slow_notches_step_exactly_and_flicks_glide_on() {
+        let t0 = Instant::now();
+        let ms = |m: u64| t0 + Duration::from_millis(m);
+        let mut g = Glide::default();
+        assert_eq!(g.notch(1, 0.12, ms(0)), 1, "a notch moves at once");
+        assert_eq!(g.notch(1, 0.12, ms(400)), 1);
+        assert_eq!(coast(&mut g, 0.12), 0, "slow notches don't glide");
+
+        // Five notches 20 ms apart, frames between: 50 rows/s, then short momentum coasts ~6 rows.
+        let mut moved = 0;
+        for i in 0..5 {
+            moved += g.notch(1, 0.12, ms(1000 + 20 * i));
+            if i < 4 {
+                moved += g.tick(0.12, 0.02);
+            }
+        }
+        assert!(moved > 5, "frames between the notches carry it along: {moved}");
+        let short = coast(&mut g, 0.12);
+        assert!((4..=7).contains(&short), "{short}");
+        for i in 0..5 {
+            g.notch(-1, 0.5, ms(2000 + 20 * i));
+        }
+        let long = coast(&mut g, 0.5);
+        assert!(long < -short * 3, "long glides further, and upward: {long}");
+
+        for i in 0..5 {
+            g.notch(1, 0.0, ms(3000 + 20 * i));
+        }
+        assert!(!g.moving(), "momentum off");
+    }
+
+    #[test]
+    fn a_reversed_notch_or_a_stop_kills_the_glide() {
+        let t0 = Instant::now();
+        let mut g = Glide::default();
+        g.notch(1, 0.25, t0);
+        g.notch(1, 0.25, t0 + Duration::from_millis(20));
+        assert!(g.moving());
+        g.notch(-1, 0.25, t0 + Duration::from_millis(40));
+        assert!(!g.moving(), "turning the wheel back halts it");
+        g.notch(1, 0.25, t0 + Duration::from_millis(60));
+        g.notch(1, 0.25, t0 + Duration::from_millis(61));
+        assert!(g.tick(0.25, 1.0 / 60.0) <= 3, "a burst in one read is capped, not a jump");
+        g.stop();
+        assert_eq!(coast(&mut g, 0.25), 0);
+    }
 
     #[test]
     fn pulse_flashes_then_fades_out() {
