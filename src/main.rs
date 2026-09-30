@@ -366,11 +366,38 @@ impl App {
         }
     }
 
+    /// Everything in the cursor's column, top to bottom: the lists of every
+    /// open folder one column left, in the order the layout stacks them.
+    fn column(&self) -> Vec<usize> {
+        let depth = self.tree.path_to(self.cursor).len();
+        let mut out = Vec::new();
+        let mut stack = vec![(self.tree.root, 1)];
+        while let Some((id, d)) = stack.pop() {
+            if d == depth {
+                out.push(id);
+            } else if self.tree.nodes[id].expanded {
+                stack.extend(self.tree.kids(id).into_iter().rev().map(|k| (k, d + 1)));
+            }
+        }
+        out
+    }
+
+    /// j / k / J / K and the wheel: through the folder's list, and on into
+    /// the next open folder's with Cross folders on.
     fn step(&mut self, delta: isize) {
+        let list = if self.settings.cross_folders { self.column() } else { self.siblings() };
+        let i = list.iter().position(|&s| s == self.cursor).unwrap_or(0) as isize;
+        let j = (i + delta).clamp(0, list.len() as isize - 1) as usize;
+        self.set_cursor(list[j]);
+    }
+
+    /// g / G: first or last in the folder, never past it.
+    fn step_end(&mut self, last: bool) {
         let sib = self.siblings();
-        let i = sib.iter().position(|&s| s == self.cursor).unwrap_or(0) as isize;
-        let j = (i + delta).clamp(0, sib.len() as isize - 1) as usize;
-        self.set_cursor(sib[j]);
+        let end = if last { sib.last() } else { sib.first() };
+        if let Some(&id) = end {
+            self.set_cursor(id);
+        }
     }
 
     /// Expand the cursor dir and move into it; open files in the preview.
@@ -916,8 +943,8 @@ impl App {
             KeyCode::Char('k') | KeyCode::Up => self.step(-1),
             KeyCode::Char('J') | KeyCode::PageDown => self.step(10),
             KeyCode::Char('K') | KeyCode::PageUp => self.step(-10),
-            KeyCode::Char('g') | KeyCode::Home => self.step(isize::MIN / 2),
-            KeyCode::Char('G') | KeyCode::End => self.step(isize::MAX / 2),
+            KeyCode::Char('g') | KeyCode::Home => self.step_end(false),
+            KeyCode::Char('G') | KeyCode::End => self.step_end(true),
             KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => self.enter(),
             KeyCode::Char('h') | KeyCode::Left => self.leave(),
             KeyCode::Char(' ') | KeyCode::Tab => self.toggle(),
@@ -1499,7 +1526,7 @@ mod tests {
         fs::write(app.tree.nodes[d].path.join("new.md"), "").unwrap();
         app.apply_changes(vec![change(&app, d, true)]);
         assert_eq!(names(&app, d)[0], "new.md", "a fresh file lands at the top");
-        app.step(isize::MAX / 2);
+        app.step_end(true);
         assert_eq!(at(&app), "big.log");
         fs::remove_file(app.tree.nodes[app.cursor].path.clone()).unwrap();
         app.apply_changes(vec![change(&app, d, true)]);
@@ -1572,6 +1599,38 @@ mod tests {
         assert_eq!((saved.row_spacing, saved.sort.key, saved.show_hidden), (1, SortKey::Modified, false));
         let text = fs::read_to_string(&cfg).unwrap();
         assert!(text.contains("sort_reverse = false"), "a new sort key saves its direction too: {text}");
+    }
+
+    #[test]
+    fn j_and_k_cross_into_the_next_open_folder() {
+        let mut app = app_in("cross", &["x"]);
+        let d = app.tree.nodes[app.cursor].path.parent().unwrap().to_path_buf();
+        for f in ["a/1", "a/2", "b/3", "c/4"] {
+            fs::create_dir_all(d.join(f)).unwrap();
+        }
+        app.reload();
+        for dir in ["a", "c"] {
+            let id = app.node_at(&d.join(dir)).unwrap();
+            app.tree.load(id);
+            app.tree.nodes[id].expanded = true;
+        }
+        let two = app.node_at(&d.join("a/2")).unwrap();
+        app.set_cursor(two);
+        app.key(KeyCode::Char('j'), KeyModifiers::NONE);
+        assert_eq!(at(&app), "4", "past a's end, over closed b, into c");
+        app.key(KeyCode::Char('j'), KeyModifiers::NONE);
+        assert_eq!(at(&app), "4", "the column's end");
+        app.key(KeyCode::Char('k'), KeyModifiers::NONE);
+        assert_eq!(at(&app), "2");
+        app.key(KeyCode::Char('g'), KeyModifiers::NONE);
+        assert_eq!(at(&app), "1", "g stays in the folder");
+        app.key(KeyCode::Char('J'), KeyModifiers::NONE);
+        assert_eq!(at(&app), "4");
+        app.key(KeyCode::Char('G'), KeyModifiers::NONE);
+        assert_eq!(at(&app), "4");
+        app.settings.cross_folders = false;
+        app.key(KeyCode::Char('k'), KeyModifiers::NONE);
+        assert_eq!(at(&app), "4", "off: the folder's list is the limit");
     }
 
     #[test]

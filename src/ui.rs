@@ -739,7 +739,7 @@ fn search_bar(f: &mut Frame, app: &App, area: Rect, q: &str) {
 }
 
 const KEYS: [(&str, &str); 24] = [
-    ("h j k l / arrows", "move"),
+    ("h j k l / arrows", "move · j k run on into the next open folder"),
     ("l / enter", "open folder · preview file"),
     ("space / tab", "fold / unfold"),
     ("J K / pgup pgdn", "jump 10"),
