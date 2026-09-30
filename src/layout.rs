@@ -431,7 +431,9 @@ pub fn lines(
             }
         }
         c.vseg(bar_x, y0, y1, base);
-        let ty = py.clamp(y0, y1);
+        // Join the block at its top entry, from above or below; a parent level
+        // with its block joins it straight across.
+        let ty = if py > y1 { y0 } else { py.clamp(y0, y1) };
         if ty == py {
             c.hseg(start, bar_x, py, top);
         } else {
@@ -569,6 +571,16 @@ mod tests {
                 let l = layout(&t, cursor, &name_of(&t), sp);
                 let route: HashSet<usize> = t.path_to(cursor).into_iter().collect();
                 let c = clashes(&l, &route);
+                let m: HashMap<usize, (i32, i32)> = l.placed.iter().map(|p| (p.id, (p.x, p.y))).collect();
+                let cells = target_lines(&l, &route);
+                for b in &l.blocks {
+                    let py = m[&b.parent].1;
+                    let (bx, top) = (m[&b.kids[0]].0 - 1 - b.off, m[&b.kids[0]].1);
+                    let bottom = m[b.kids.last().unwrap()].1;
+                    if py < top || py > bottom {
+                        assert!(cells[&(bx, top)].mask & LEFT != 0, "{sp:?}: {} joins its block at the top", t.nodes[b.parent].name);
+                    }
+                }
                 if !c.is_empty() {
                     bad.push((t.nodes[cursor].name.clone(), c.len()));
                 }
