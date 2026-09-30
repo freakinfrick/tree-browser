@@ -52,8 +52,6 @@ pub struct App {
     pub mt: Mtime,
     pub scene: Scene,
     pub cam: Option<(Damped, Damped)>,
-    /// Route flash on navigation, decays 1 -> 0.
-    pub flash: f32,
     /// Signal bead running along the line toward the cursor (world x).
     pub bead: Option<Damped>,
     /// Cursor (id, world x) last frame, to launch the bead from.
@@ -136,7 +134,6 @@ impl App {
             mt: Mtime::spawn(),
             scene: Scene::default(),
             cam: None,
-            flash: 0.0,
             bead: None,
             last_cursor: None,
             help: false,
@@ -205,9 +202,6 @@ impl App {
     }
 
     fn set_cursor(&mut self, id: usize) {
-        if id != self.cursor {
-            self.flash = 1.0;
-        }
         self.cursor = id;
         self.tree.reveal = self.tree.path_to(id).into_iter().collect();
         if let Some(p) = self.tree.nodes[id].parent {
@@ -648,7 +642,6 @@ impl App {
             KeyCode::Char('-') | KeyCode::Backspace => {
                 self.tree.reroot_up();
                 self.tree.reveal = self.tree.path_to(self.cursor).into_iter().collect();
-                self.flash = 1.0;
             }
             KeyCode::Char('.') => {
                 self.tree.show_hidden ^= true;

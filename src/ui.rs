@@ -178,7 +178,6 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             moving |= approach(c, t, RECOLOR, dt);
         }
     }
-    moving |= approach(&mut app.flash, 0.0, 0.22, dt);
 
     // Live-change ripples: brightness per node this frame.
     let tick = std::time::Instant::now();
@@ -290,12 +289,6 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         buf[(canvas.x + sx as u16, canvas.y + sy as u16)].set_char(cell_glyph(&cell)).set_fg(to_color(c));
     }
 
-    // Dot under the labels: names sliding into the slot pass over it.
-    let (dsx, dsy) = (pill_x - 1 - ox, pill_y - oy);
-    if dsx >= 0 && dsy >= 0 && dsx < canvas.width as i32 && dsy < canvas.height as i32 {
-        let dot = mix(DOT, [255.0, 190.0, 190.0], app.flash);
-        buf[(canvas.x + dsx as u16, canvas.y + dsy as u16)].set_char('●').set_fg(to_color(dot));
-    }
     // Ghosts under live nodes.
     let mut order: Vec<(&usize, &crate::anim::NodeAnim)> = scene.nodes.iter().collect();
     order.sort_by_key(|(_, a)| !a.ghost);
