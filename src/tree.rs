@@ -121,7 +121,7 @@ fn display_name(path: &Path) -> String {
     }
 }
 
-fn make(path: PathBuf, parent: Option<usize>) -> Node {
+pub fn make(path: PathBuf, parent: Option<usize>) -> Node {
     let meta = fs::symlink_metadata(&path).ok();
     let is_dir = meta.as_ref().is_some_and(|m| m.is_dir());
     Node {
@@ -219,6 +219,23 @@ impl Tree {
             .into_iter()
             .map(|p| {
                 self.nodes.push(make(p, Some(id)));
+                self.nodes.len() - 1
+            })
+            .collect();
+        self.nodes[id].children = Some(kids);
+        self.sort_kids(id);
+    }
+
+    /// Take entries already read elsewhere (the `e` walk) as a folder's listing.
+    pub fn load_nodes(&mut self, id: usize, nodes: Vec<Node>) {
+        if self.nodes[id].children.is_some() || !self.nodes[id].is_dir {
+            return;
+        }
+        let kids = nodes
+            .into_iter()
+            .map(|mut n| {
+                n.parent = Some(id);
+                self.nodes.push(n);
                 self.nodes.len() - 1
             })
             .collect();

@@ -123,6 +123,12 @@ impl Git {
         path.ancestors().find_map(|a| self.repos.get_key_value(a)).map(|(t, r)| (t.as_path(), r))
     }
 
+    /// Every path git ignores, across the known repos.
+    pub fn ignored(&self) -> HashSet<PathBuf> {
+        let ign = |m: &HashMap<PathBuf, St>| m.iter().filter(|e| *e.1 == St::Ignored).map(|e| e.0.clone()).collect::<Vec<_>>();
+        self.repos.values().flat_map(|r| ign(&r.paths).into_iter().chain(ign(&r.whole))).collect()
+    }
+
     /// State of `path`, None if clean or not in a repo.
     pub fn state(&self, path: &Path) -> Option<St> {
         self.repo_of(path).and_then(|(top, r)| r.get(top, path))
