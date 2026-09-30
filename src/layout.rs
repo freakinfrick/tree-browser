@@ -313,13 +313,19 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
         }
 
         let mut next = Vec::new();
-        for (k, (pid, ..)) in parents.iter().enumerate() {
+        for (k, (pid, py, ..)) in parents.iter().enumerate() {
             let kids = tree.kids(*pid).to_vec();
+            // Trunk slots, counted leftward from the bar. A block hanging below
+            // its parent must sit right of every lower parent's trunk, so lower
+            // parents go further left; a block raised above its parent is the
+            // mirror image. Blocks going opposite ways never share rows.
+            let raised = y0s[k] + kids.len() as i32 - 1 < *py;
+            let slot = if raised { n - 1 - k as i32 } else { k as i32 };
             let active = on_spine.contains(pid);
             for (i, &kid) in kids.iter().enumerate() {
                 next.push((kid, y0s[k] + i as i32, cut(label_of(kid)), active));
             }
-            out.blocks.push(Block { parent: *pid, kids, k: k as i32, off: sp.branch.max(0) });
+            out.blocks.push(Block { parent: *pid, kids, k: slot, off: sp.branch.max(0) });
         }
         next.sort_by_key(|n| n.1);
         x = next_x;
@@ -498,6 +504,63 @@ mod tests {
         let at = |dx: i32| cells[&(x - dx, y)].mask;
         assert_eq!((at(1), at(2)), (LEFT | RIGHT, LEFT | RIGHT), "the reach is a straight line");
         assert_eq!(at(3), UP | DOWN | RIGHT, "the join sits back on the trunk");
+    }
+
+    /// Cells two blocks both draw: a crossing or an overlap. Blocks never
+    /// share a cell when the wiring is right.
+    fn clashes(l: &Layout, route: &HashSet<usize>) -> Vec<(i32, i32)> {
+        let m: HashMap<usize, (i32, i32, i32)> =
+            l.placed.iter().map(|p| (p.id, (p.x, p.y, p.label.width() as i32))).collect();
+        let mut seen: HashMap<(i32, i32), usize> = HashMap::new();
+        let mut out = Vec::new();
+        for b in &l.blocks {
+            for cell in lines(std::slice::from_ref(b), &|id| m.get(&id).copied(), route, route).into_keys() {
+                if seen.insert(cell, b.parent).is_some() {
+                    out.push(cell);
+                }
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn wires_never_cross_in_a_fully_open_tree() {
+        // Uneven fan-outs so blocks get pushed both above and below their parents.
+        let mut dirs = Vec::new();
+        for (i, n) in [1, 7, 2, 9, 1, 4, 12, 3, 1, 6].iter().enumerate() {
+            for j in 0..*n {
+                for k in 0..(i * j) % 4 {
+                    dirs.push(format!("p{i:02}/c{j:02}/g{k}"));
+                }
+                dirs.push(format!("p{i:02}/c{j:02}"));
+            }
+        }
+        let root = fixture("cross", &dirs.iter().map(String::as_str).collect::<Vec<_>>());
+        let mut t = Tree::new(&root);
+        let mut stack = vec![0];
+        while let Some(id) = stack.pop() {
+            t.load(id);
+            t.nodes[id].expanded = true;
+            stack.extend(t.kids(id));
+        }
+        let spacings = [
+            Spacing::default(),
+            Spacing { rows: 2, gap: 9, ..Spacing::default() },
+            Spacing { branch: 3, ..Spacing::default() },
+            Spacing { columns: Columns::Equal, details: Details::Age, maxw: 12, ..Spacing::default() },
+        ];
+        for sp in spacings {
+            let mut bad = Vec::new();
+            for cursor in 0..t.nodes.len() {
+                let l = layout(&t, cursor, &name_of(&t), sp);
+                let route: HashSet<usize> = t.path_to(cursor).into_iter().collect();
+                let c = clashes(&l, &route);
+                if !c.is_empty() {
+                    bad.push((t.nodes[cursor].name.clone(), c.len()));
+                }
+            }
+            assert!(bad.is_empty(), "{sp:?}: {} of {} cursors cross wires: {:?}", bad.len(), t.nodes.len(), &bad[..bad.len().min(8)]);
+        }
     }
 
     #[test]
