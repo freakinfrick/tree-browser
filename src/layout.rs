@@ -312,15 +312,29 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
             prev_end = y0s[j] + len - 1;
         }
 
+        // Trunk slots, counted leftward from the bar. A block hanging below its
+        // parent must sit right of every lower parent's trunk, so lower parents
+        // go further left; a block raised above its parent is the mirror image.
+        // Blocks going opposite ways never share rows, so each direction counts
+        // from the bar on its own and every trunk hugs its block.
+        let raised: Vec<bool> =
+            parents.iter().zip(&y0s).map(|((pid, py, ..), y0)| y0 + tree.kids(*pid).len() as i32 - 1 < *py).collect();
+        let ups = raised.iter().filter(|&&r| r).count() as i32;
+        let (mut up, mut down) = (0, 0);
+        let mut slots = Vec::with_capacity(raised.len());
+        for &r in &raised {
+            if r {
+                slots.push(ups - 1 - up);
+                up += 1;
+            } else {
+                slots.push(down);
+                down += 1;
+            }
+        }
         let mut next = Vec::new();
-        for (k, (pid, py, ..)) in parents.iter().enumerate() {
+        for (k, (pid, ..)) in parents.iter().enumerate() {
             let kids = tree.kids(*pid).to_vec();
-            // Trunk slots, counted leftward from the bar. A block hanging below
-            // its parent must sit right of every lower parent's trunk, so lower
-            // parents go further left; a block raised above its parent is the
-            // mirror image. Blocks going opposite ways never share rows.
-            let raised = y0s[k] + kids.len() as i32 - 1 < *py;
-            let slot = if raised { n - 1 - k as i32 } else { k as i32 };
+            let slot = slots[k];
             let active = on_spine.contains(pid);
             for (i, &kid) in kids.iter().enumerate() {
                 next.push((kid, y0s[k] + i as i32, cut(label_of(kid)), active));
@@ -417,7 +431,9 @@ pub fn lines(
             }
         }
         c.vseg(bar_x, y0, y1, base);
-        let ty = py.clamp(y0, y1);
+        // Join the block at its top entry, from above or below; a parent level
+        // with its block joins it straight across.
+        let ty = if py > y1 { y0 } else { py.clamp(y0, y1) };
         if ty == py {
             c.hseg(start, bar_x, py, top);
         } else {
@@ -555,6 +571,16 @@ mod tests {
                 let l = layout(&t, cursor, &name_of(&t), sp);
                 let route: HashSet<usize> = t.path_to(cursor).into_iter().collect();
                 let c = clashes(&l, &route);
+                let m: HashMap<usize, (i32, i32)> = l.placed.iter().map(|p| (p.id, (p.x, p.y))).collect();
+                let cells = target_lines(&l, &route);
+                for b in &l.blocks {
+                    let py = m[&b.parent].1;
+                    let (bx, top) = (m[&b.kids[0]].0 - 1 - b.off, m[&b.kids[0]].1);
+                    let bottom = m[b.kids.last().unwrap()].1;
+                    if py < top || py > bottom {
+                        assert!(cells[&(bx, top)].mask & LEFT != 0, "{sp:?}: {} joins its block at the top", t.nodes[b.parent].name);
+                    }
+                }
                 if !c.is_empty() {
                     bad.push((t.nodes[cursor].name.clone(), c.len()));
                 }
