@@ -43,10 +43,10 @@ pub fn run(term: &mut DefaultTerminal, dir: &Path, sel: &Path, what: &Run) -> io
     let dim = |s: String| println!("\x1b[2m{s}\x1b[0m");
     match what {
         Run::Cmd(line) => {
-            dim(format!("{} $ {line}", dir.display()));
+            dim(format!("{} $ {line}", crate::ui::tilde(dir)));
             cmd.arg("-ic").arg(line);
         }
-        Run::Shell => dim(format!("{} · exit or ctrl-d returns to tb", dir.display())),
+        Run::Shell => dim(format!("{} · exit or ctrl-d returns to tb", crate::ui::tilde(dir))),
     }
 
     let (int, quit) = unsafe {
@@ -91,6 +91,8 @@ pub fn run(term: &mut DefaultTerminal, dir: &Path, sel: &Path, what: &Run) -> io
                 break;
             }
         }
+        // End the line, so the next command's output starts on its own.
+        print!("\r\n");
     }
     unsafe {
         libc::signal(libc::SIGINT, int);

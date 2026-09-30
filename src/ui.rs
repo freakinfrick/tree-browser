@@ -623,7 +623,8 @@ fn status_bar(f: &mut Frame, app: &App, area: Rect) {
     } else if w >= base + hw {
         (false, &hints[..])
     } else {
-        (true, &hints[3..])
+        // Still tight: the legend goes too rather than squeezing the name.
+        (w >= base + legend_w + hints[3].0.width() + hints[3].1.width(), &hints[3..])
     };
     if legend && app.settings.legend {
         right.push(Span::styled("now ", muted));
@@ -815,15 +816,8 @@ fn settings_panel(f: &mut Frame, app: &App, canvas: Rect, t: f32) {
     for e in trouble {
         foot.push(Line::from(Span::styled(format!("  {}", crate::layout::truncate_to(e, inner)), Style::new().fg(fade(DOT)))));
     }
-    let home = std::env::var("HOME").unwrap_or_default();
     let place = match &app.config {
-        Some(p) => {
-            let p = p.to_string_lossy();
-            match p.strip_prefix(home.as_str()).filter(|_| !home.is_empty()) {
-                Some(rest) => format!("~{rest}"),
-                None => p.into_owned(),
-            }
-        }
+        Some(p) => tilde(p),
         None => "not saved: no home directory".into(),
     };
     foot.push(Line::from(Span::styled(format!("  {}", crate::layout::truncate_to(&place, inner)), Style::new().fg(fade(MUTED)))));
@@ -1031,6 +1025,16 @@ fn audio_panel(buf: &mut Buffer, a: &mut Audio, r: Rect) {
     }
     let spans = hints[..n].iter().flat_map(|(k, d)| [Span::styled(*k, key), Span::styled(*d, muted)]).collect();
     put_line(buf, y, spans);
+}
+
+/// `path` with the home directory shown as `~`.
+pub fn tilde(path: &std::path::Path) -> String {
+    let home = std::env::var_os("HOME").filter(|h| !h.is_empty()).map(std::path::PathBuf::from);
+    match home.as_deref().and_then(|h| path.strip_prefix(h).ok()) {
+        Some(rest) if rest.as_os_str().is_empty() => "~".into(),
+        Some(rest) => format!("~/{}", rest.display()),
+        None => path.display().to_string(),
+    }
 }
 
 /// Braille spinner (ratatui's throbber set).
