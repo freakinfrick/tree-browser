@@ -560,7 +560,10 @@ impl App {
         }
         let n = &self.tree.nodes[self.cursor];
         let target = if n.is_dir { self.cursor } else { n.parent.unwrap_or(self.cursor) };
-        let skip = self.git.as_ref().map(|g| g.ignored()).unwrap_or_default();
+        let skip = match &self.git {
+            Some(g) if !self.settings.explode_ignored => g.ignored(),
+            _ => Default::default(),
+        };
         let rx = explode::spawn(self.tree.nodes[target].path.clone(), self.tree.show_hidden, skip);
         self.exploding = Some(Exploding { target, rx, folders: 0, born: Instant::now() });
     }

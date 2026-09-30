@@ -37,7 +37,7 @@ and color tells you where work happened recently.
   click or drag, and simple keys for pause, seek and volume.
 - **Git aware.** Changed files carry a marker, closed folders show what's changed inside, ignored
   build output fades back, the status bar names the branch, and `d` in a preview shows the diff.
-- **Yours to tune.** `,` opens 27 settings: spacing, column width, age and size after names, sort
+- **Yours to tune.** `,` opens 28 settings: spacing, column width, age and size after names, sort
   order, accent and heat colors, heat range, line style and branch length, motion, previews, the mouse, reopening
   where you left off, and every feature switch, saved to a small config file.
 - **Shell without leaving.** `!` runs a command in the selected folder, `s` opens a shell there, and
@@ -225,6 +225,7 @@ closes the panel.
 | Legend | the color key in the status bar | on |
 | Motion | slow, normal, fast, instant (no animation) | normal |
 | Live updates, Ripples, Git status, Dim ignored | on / off | on |
+| Explode ignored | let `e` open git-ignored folders too (a folder you explode directly always opens) | off |
 | Step through | what `j` `k` `J` `K` walk: folder (its own list), column (every open list in the column), tree (the whole open tree in reading order); `g` `G` always stay in the folder; arrows and `PgUp` `PgDn` move straight up and down the column, and the wheel scrolls the column under the pointer | tree |
 | Mouse | off gives the mouse back to the terminal for selecting text | on |
 | Image previews | auto, pixels, blocks (half-blocks), off (captions only) | auto |
