@@ -17,7 +17,7 @@ use ratatui::widgets::{Block, BorderType, Clear, Paragraph, Scrollbar, Scrollbar
 use ratatui::Frame;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-use crate::anim::{approach, heat, mix, pulse, to_color, Damped, Rgb, HEAT, RECOLOR};
+use crate::anim::{approach, heat, heat_stops, mix, pulse, to_color, Damped, Rgb, RECOLOR};
 use crate::layout::{cell_glyph, layout, lines, ACTIVE, DOWN, ROUTE, UP};
 use crate::audio::{self, Audio, State};
 use crate::git::St;
@@ -28,12 +28,43 @@ use crate::App;
 pub const BG: Rgb = [9.0, 10.0, 15.0];
 const BAR_BG: Rgb = [17.0, 19.0, 29.0];
 const POP_BG: Rgb = [13.0, 15.0, 23.0];
-const LINE_DIM: Rgb = [33.0, 39.0, 68.0];
-const LINE_ACTIVE: Rgb = [68.0, 86.0, 168.0];
-const LINE_ROUTE: Rgb = [140.0, 168.0, 255.0];
+/// Line and selector colors for one accent.
+pub struct AccentColors {
+    /// Branches off the cursor path.
+    dim: Rgb,
+    /// Branches hanging off the line.
+    active: Rgb,
+    /// The line itself, keys, highlights.
+    route: Rgb,
+    /// Selector background.
+    pill: Rgb,
+}
+
+const ACCENTS: [AccentColors; 5] = [
+    // Indigo
+    AccentColors { dim: [33.0, 39.0, 68.0], active: [68.0, 86.0, 168.0], route: [140.0, 168.0, 255.0], pill: [34.0, 39.0, 72.0] },
+    // Teal
+    AccentColors { dim: [24.0, 50.0, 54.0], active: [44.0, 124.0, 126.0], route: [110.0, 222.0, 212.0], pill: [22.0, 52.0, 56.0] },
+    // Violet
+    AccentColors { dim: [45.0, 33.0, 68.0], active: [108.0, 70.0, 170.0], route: [198.0, 152.0, 255.0], pill: [48.0, 32.0, 74.0] },
+    // Amber
+    AccentColors { dim: [58.0, 44.0, 24.0], active: [150.0, 108.0, 40.0], route: [255.0, 198.0, 110.0], pill: [62.0, 46.0, 22.0] },
+    // Mono
+    AccentColors { dim: [44.0, 44.0, 50.0], active: [100.0, 100.0, 110.0], route: [212.0, 212.0, 222.0], pill: [46.0, 46.0, 54.0] },
+];
+
+static ACCENT: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+pub fn set_accent(a: crate::settings::Accent) {
+    ACCENT.store(a as u8, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn acc() -> &'static AccentColors {
+    &ACCENTS[ACCENT.load(std::sync::atomic::Ordering::Relaxed) as usize % ACCENTS.len()]
+}
+
 const FLASH: Rgb = [235.0, 242.0, 255.0];
 const ROUTE_TEXT: Rgb = [238.0, 240.0, 250.0];
-const PILL: Rgb = [34.0, 39.0, 72.0];
 const DOT: Rgb = [255.0, 58.0, 58.0];
 const MUTED: Rgb = [110.0, 118.0, 150.0];
 const MATCH_BG: Rgb = [92.0, 70.0, 22.0];
@@ -148,7 +179,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
     let fresh = app.lay.as_ref().is_none_or(|(g, _)| *g != app.epoch);
     let (epoch, lay) = match app.lay.take() {
         Some(l) if !fresh => l,
-        _ => (app.epoch, layout(&app.tree, app.cursor, &|i| app.label(i))),
+        _ => (app.epoch, layout(&app.tree, app.cursor, &|i| app.label(i), app.spacing())),
     };
     let tree = &app.tree;
     let mut moving = app.scene.sync(&lay, &|id| tree.nodes[id].parent, dt);
@@ -223,7 +254,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         for x in (p.x - 2)..=(p.x + w) {
             let sx = x - ox;
             if sx >= 0 && sy >= 0 && sx < canvas.width as i32 && sy < canvas.height as i32 {
-                buf[(canvas.x + sx as u16, canvas.y + sy as u16)].set_bg(to_color(mix(PILL, BG, 0.55)));
+                buf[(canvas.x + sx as u16, canvas.y + sy as u16)].set_bg(to_color(mix(acc().pill, BG, 0.55)));
             }
         }
     }
@@ -232,7 +263,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
     for x in (pill_x - 2)..=(pill_x + pill_w) {
         let (sx, sy) = (x - ox, pill_y - oy);
         if sx >= 0 && sy >= 0 && sx < canvas.width as i32 && sy < canvas.height as i32 {
-            buf[(canvas.x + sx as u16, canvas.y + sy as u16)].set_bg(to_color(PILL));
+            buf[(canvas.x + sx as u16, canvas.y + sy as u16)].set_bg(to_color(acc().pill));
         }
     }
 
@@ -271,9 +302,9 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         }
         let h = sap_of(cell.owner);
         let c = match cell.emph {
-            ROUTE => mix(LINE_ROUTE, h, 0.18),
-            ACTIVE => mix(LINE_ACTIVE, h, 0.42),
-            _ => mix(LINE_DIM, mix(h, BG, 0.55), 0.35),
+            ROUTE => mix(acc().route, h, 0.18),
+            ACTIVE => mix(acc().active, h, 0.42),
+            _ => mix(acc().dim, mix(h, BG, 0.55), 0.35),
         };
         // Only this branch's elbow: its two rows, and the trunk between them.
         let lit = wires.iter().filter(|w| {
@@ -307,7 +338,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         let g = if a.ghost { 0.0 } else { glow.get(&id).copied().unwrap_or(0.0) };
         let git = if a.ghost { None } else { app.git_state(id) };
         // Ignored by git: dimmed, unless it's on the cursor path.
-        let dim = if git == Some(St::Ignored) && !route.contains(&id) { 0.45 } else { 1.0 };
+        let dim = if git == Some(St::Ignored) && app.settings.dim_ignored && !route.contains(&id) { 0.45 } else { 1.0 };
         let mut style = Style::new().fg(to_color(mix(BG, mix(a.rgb, RIPPLE, g), a.alpha * dim)));
         if node.is_dir || route.contains(&id) {
             style = style.add_modifier(Modifier::BOLD);
@@ -370,9 +401,9 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             if cellref.symbol() == " " {
                 continue; // gaps stay dark; the light rides wire and names
             }
-            cellref.set_fg(to_color(mix(LINE_ROUTE, FLASH, fade)));
+            cellref.set_fg(to_color(mix(acc().route, FLASH, fade)));
             if i == 0 {
-                cellref.set_bg(to_color(mix(BG, LINE_ROUTE, 0.35)));
+                cellref.set_bg(to_color(mix(BG, acc().route, 0.35)));
             }
         }
         if !running {
@@ -390,6 +421,10 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
     moving |= approach(&mut app.help_anim, if app.help { 1.0 } else { 0.0 }, 0.06, dt);
     if app.help_anim > 0.01 {
         help(f, app.help_anim);
+    }
+    moving |= approach(&mut app.menu_anim, if app.menu.is_some() { 1.0 } else { 0.0 }, 0.05, dt);
+    if app.menu_anim > 0.01 {
+        settings_panel(f, app, canvas, app.menu_anim);
     }
 
     // Preview popup: grows out of the cursor row, backdrop dims behind it.
@@ -449,7 +484,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             let title = if pv.showing_diff { format!(" {} · diff ", pv.title) } else { format!(" {} ", pv.title) };
             let block = Block::bordered()
                 .border_type(BorderType::Rounded)
-                .border_style(Style::new().fg(to_color(mix(POP_BG, LINE_ROUTE, p))))
+                .border_style(Style::new().fg(to_color(mix(POP_BG, acc().route, p))))
                 .style(Style::new().bg(to_color(POP_BG)))
                 .title(Span::styled(title, Style::new().fg(to_color(ROUTE_TEXT)).add_modifier(Modifier::BOLD)))
                 .title_bottom(Line::from(Span::styled(pos_label, Style::new().fg(to_color(MUTED)))).right_aligned());
@@ -475,7 +510,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
                 if pv.pending.is_some() {
                     let spin = SPINNER[(pv.born.elapsed().as_millis() / 80) as usize % SPINNER.len()];
                     let row = Line::from(vec![
-                        Span::styled(format!("{spin} "), Style::new().fg(to_color(LINE_ROUTE))),
+                        Span::styled(format!("{spin} "), Style::new().fg(to_color(acc().route))),
                         Span::styled(pv.loading, Style::new().fg(to_color(MUTED))),
                     ])
                     .centered();
@@ -495,9 +530,9 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
                             .begin_symbol(None)
                             .end_symbol(None)
                             .track_symbol(Some("│"))
-                            .track_style(Style::new().fg(to_color(LINE_DIM)))
+                            .track_style(Style::new().fg(to_color(acc().dim)))
                             .thumb_symbol("┃")
-                            .thumb_style(Style::new().fg(to_color(LINE_ROUTE))),
+                            .thumb_style(Style::new().fg(to_color(acc().route))),
                         area.inner(Margin { vertical: 1, horizontal: 0 }),
                         &mut st,
                     );
@@ -543,14 +578,14 @@ fn status_bar(f: &mut Frame, app: &App, area: Rect) {
     let muted = Style::new().fg(to_color(MUTED));
     let mut right = Vec::new();
     if let Some((top, repo)) = app.git.as_ref().and_then(|g| g.repo_of(&cur.path)) {
-        right.push(Span::styled("⎇ ", Style::new().fg(to_color(LINE_ROUTE))));
+        right.push(Span::styled("⎇ ", Style::new().fg(to_color(acc().route))));
         right.push(Span::styled(format!("{} · ", repo.branch), Style::new().fg(to_color(ROUTE_TEXT))));
         if let Some(st) = repo.get(top, &cur.path) {
             right.push(Span::styled(format!("{} · ", st.describe()), Style::new().fg(to_color(git_color(st)))));
         }
     }
     if app.tree.sort != Sort::default() {
-        right.push(Span::styled("⇅ ", Style::new().fg(to_color(LINE_ROUTE))));
+        right.push(Span::styled("⇅ ", Style::new().fg(to_color(acc().route))));
         right.push(Span::styled(format!("{} · ", app.tree.sort.describe()), Style::new().fg(to_color(ROUTE_TEXT))));
     }
     right.extend([
@@ -561,11 +596,11 @@ fn status_bar(f: &mut Frame, app: &App, area: Rect) {
     ]);
     // Tight bar: the color legend goes first (it's in `?` too), then the shell keys,
     // so the breadcrumb keeps room.
-    let key = Style::new().fg(to_color(LINE_ROUTE)).add_modifier(Modifier::BOLD);
+    let key = Style::new().fg(to_color(acc().route)).add_modifier(Modifier::BOLD);
     let q = if app.can_cd { " cd  " } else { " quit  " };
     let hints = [("!", " cmd  "), ("s", " shell  "), ("q", q), ("?", " keys ")];
     let hw: usize = hints.iter().map(|(k, d)| k.width() + d.width()).sum();
-    let legend_w = "now ".len() + HEAT.len() + " old   ".len();
+    let legend_w = "now ".len() + heat_stops().len() + " old   ".len();
     let base: usize = right.iter().map(|s| s.width()).sum::<usize>() + 24;
     let w = area.width as usize;
     let (legend, shown) = if w >= base + legend_w + hw {
@@ -575,9 +610,9 @@ fn status_bar(f: &mut Frame, app: &App, area: Rect) {
     } else {
         (true, &hints[3..])
     };
-    if legend {
+    if legend && app.settings.legend {
         right.push(Span::styled("now ", muted));
-        for (_, c) in HEAT {
+        for &(_, c) in heat_stops() {
             right.push(Span::styled("▮", Style::new().fg(to_color(c))));
         }
         right.push(Span::styled(" old   ", muted));
@@ -603,7 +638,7 @@ fn status_bar(f: &mut Frame, app: &App, area: Rect) {
     for (i, n) in names[start..].iter().enumerate() {
         let leaf = start + i == names.len() - 1;
         if i > 0 {
-            left.push(Span::styled(" › ", Style::new().fg(to_color(LINE_ACTIVE))));
+            left.push(Span::styled(" › ", Style::new().fg(to_color(acc().active))));
         }
         left.push(if leaf {
             Span::styled(n.clone(), Style::new().fg(to_color(ROUTE_TEXT)).add_modifier(Modifier::BOLD))
@@ -632,7 +667,7 @@ fn prompt_bar(f: &mut Frame, app: &App, area: Rect, line: &str) {
         shown = c.as_str();
     }
     let mut spans = vec![
-        Span::styled(head, Style::new().fg(to_color(LINE_ROUTE)).add_modifier(Modifier::BOLD)),
+        Span::styled(head, Style::new().fg(to_color(acc().route)).add_modifier(Modifier::BOLD)),
         Span::styled(shown, Style::new().fg(to_color(ROUTE_TEXT))),
         Span::styled(" ", Style::new().add_modifier(Modifier::REVERSED)),
     ];
@@ -652,16 +687,16 @@ fn search_bar(f: &mut Frame, app: &App, area: Rect, q: &str) {
     };
     let hint = if q.is_empty() || n > 0 { "  tab ↑↓ cycle · enter open · esc back " } else { "  esc back " };
     let spans = vec![
-        Span::styled(" / ", Style::new().fg(to_color(LINE_ROUTE)).add_modifier(Modifier::BOLD)),
+        Span::styled(" / ", Style::new().fg(to_color(acc().route)).add_modifier(Modifier::BOLD)),
         Span::styled(q, Style::new().fg(to_color(ROUTE_TEXT))),
         Span::styled(" ", Style::new().add_modifier(Modifier::REVERSED)),
-        Span::styled(count, Style::new().fg(to_color(if n > 0 { LINE_ROUTE } else { DOT }))),
+        Span::styled(count, Style::new().fg(to_color(if n > 0 { acc().route } else { DOT }))),
         Span::styled(hint, Style::new().fg(to_color(MUTED))),
     ];
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-const KEYS: [(&str, &str); 22] = [
+const KEYS: [(&str, &str); 23] = [
     ("h j k l / arrows", "move"),
     ("l / enter", "open folder · preview file"),
     ("space / tab", "fold / unfold"),
@@ -682,9 +717,135 @@ const KEYS: [(&str, &str); 22] = [
     ("audio", "space pause · ← → seek · ↑ ↓ volume · 0-9"),
     ("!", "run a command here ($f = selection)"),
     ("s", "shell here · exit / ctrl-d returns"),
+    (",", "settings: spacing · colors · motion · …"),
     ("?", "toggle this help"),
     ("q / esc", "quit (q + tb.bash: cd there)"),
 ];
+
+/// Settings menu, docked on the right so the tree stays in view and every
+/// change shows as it's made. Slides in with `t`.
+fn settings_panel(f: &mut Frame, app: &App, canvas: Rect, t: f32) {
+    use crate::settings::ITEMS;
+    let w = 52u16.min(canvas.width);
+    let x = canvas.right() - (w as f32 * t).round() as u16;
+    let r = Rect { x, y: canvas.y, width: canvas.right() - x, height: canvas.height };
+    if r.width < 3 || r.height < 3 {
+        return;
+    }
+    let fade = |c: Rgb| to_color(mix(POP_BG, c, t));
+    let inner = (w as usize).saturating_sub(4);
+    let sel = app.menu.unwrap_or(0);
+
+    let mut body: Vec<Line> = Vec::new();
+    let mut sel_line = 0;
+    let mut section = "";
+    for (i, it) in ITEMS.iter().enumerate() {
+        if it.section != section {
+            section = it.section;
+            if !body.is_empty() {
+                body.push(Line::from(""));
+            }
+            body.push(Line::from(Span::styled(format!(" {}", section.to_uppercase()), Style::new().fg(fade(MUTED)).add_modifier(Modifier::BOLD))));
+        }
+        let on = i == sel;
+        if on {
+            sel_line = body.len();
+        }
+        let value = app.settings.show(it.key);
+        // A swatch next to the choices that are colors.
+        let swatch: Vec<Span> = match it.key {
+            "accent" => vec![Span::styled(" ━━", Style::new().fg(fade(acc().route)))],
+            "palette" => {
+                let mut v = vec![Span::raw(" ")];
+                v.extend(heat_stops().iter().map(|&(_, c)| Span::styled("▮", Style::new().fg(fade(c)))));
+                v
+            }
+            _ => Vec::new(),
+        };
+        let sw: usize = swatch.iter().map(|s| s.width()).sum();
+        let (l, rr) = if on { ("‹ ", " ›") } else { ("  ", "  ") };
+        let vw = value.width() + 4 + sw;
+        let pad = inner.saturating_sub(it.label.width() + 2 + vw);
+        let bg = if on { mix(POP_BG, acc().pill, t) } else { POP_BG };
+        let base = Style::new().bg(to_color(bg));
+        let label = if on { base.fg(fade(ROUTE_TEXT)).add_modifier(Modifier::BOLD) } else { base.fg(fade(mix(MUTED, ROUTE_TEXT, 0.5))) };
+        let mut spans = vec![
+            Span::styled(format!("  {}", it.label), label),
+            Span::styled(" ".repeat(pad), base),
+            Span::styled(l, base.fg(fade(acc().route))),
+            Span::styled(value, base.fg(fade(ROUTE_TEXT))),
+        ];
+        spans.extend(swatch.into_iter().map(|s| s.patch_style(base)));
+        spans.push(Span::styled(rr, base.fg(fade(acc().route))));
+        body.push(Line::from(spans));
+    }
+
+    // Footer: what the selected setting does, any trouble with the file, where it lives, keys.
+    let mut foot: Vec<Line> = vec![Line::from("")];
+    let mut words = String::new();
+    for word in ITEMS[sel].help.split(' ') {
+        if !words.is_empty() && words.width() + 1 + word.width() > inner {
+            foot.push(Line::from(Span::styled(format!("  {words}"), Style::new().fg(fade(ROUTE_TEXT)))));
+            words.clear();
+        }
+        if !words.is_empty() {
+            words.push(' ');
+        }
+        words.push_str(word);
+    }
+    foot.push(Line::from(Span::styled(format!("  {words}"), Style::new().fg(fade(ROUTE_TEXT)))));
+    foot.push(Line::from(""));
+    let trouble = app.save_err.iter().chain(app.config_errs.iter().take(2));
+    for e in trouble {
+        foot.push(Line::from(Span::styled(format!("  {}", crate::layout::truncate_to(e, inner)), Style::new().fg(fade(DOT)))));
+    }
+    let home = std::env::var("HOME").unwrap_or_default();
+    let place = match &app.config {
+        Some(p) => {
+            let p = p.to_string_lossy();
+            match p.strip_prefix(home.as_str()).filter(|_| !home.is_empty()) {
+                Some(rest) => format!("~{rest}"),
+                None => p.into_owned(),
+            }
+        }
+        None => "not saved: no home directory".into(),
+    };
+    foot.push(Line::from(Span::styled(format!("  {}", crate::layout::truncate_to(&place, inner)), Style::new().fg(fade(MUTED)))));
+    let key = Style::new().fg(fade(acc().route)).add_modifier(Modifier::BOLD);
+    let m = Style::new().fg(fade(MUTED));
+    foot.push(Line::from(vec![
+        Span::styled("  j k", key),
+        Span::styled(" move  ", m),
+        Span::styled("h l", key),
+        Span::styled(" change  ", m),
+        Span::styled("r", key),
+        Span::styled(" reset  ", m),
+        Span::styled("esc", key),
+        Span::styled(" close", m),
+    ]));
+
+    // Scroll the list so the selection stays in view above the footer.
+    let rows = (r.height as usize).saturating_sub(2);
+    let room = rows.saturating_sub(foot.len()).max(1);
+    let skip = (sel_line + 1).saturating_sub(room).min(body.len().saturating_sub(room));
+    let mut lines: Vec<Line> = body.into_iter().skip(skip).take(room).collect();
+    while lines.len() + foot.len() < rows {
+        lines.push(Line::from(""));
+    }
+    lines.extend(foot);
+
+    f.render_widget(Clear, r);
+    f.render_widget(
+        Paragraph::new(lines).block(
+            Block::bordered()
+                .border_type(BorderType::Rounded)
+                .border_style(Style::new().fg(fade(acc().route)))
+                .style(Style::new().bg(to_color(POP_BG)))
+                .title(Span::styled(" settings ", Style::new().fg(fade(ROUTE_TEXT)).add_modifier(Modifier::BOLD))),
+        ),
+        r,
+    );
+}
 
 fn help(f: &mut Frame, t: f32) {
     let w = 64u16.min(f.area().width);
@@ -696,13 +857,13 @@ fn help(f: &mut Frame, t: f32) {
     let mut lines = vec![Line::from("")];
     for (k, d) in KEYS {
         lines.push(Line::from(vec![
-            Span::styled(format!("  {k:>17}  "), Style::new().fg(fade(LINE_ROUTE)).add_modifier(Modifier::BOLD)),
+            Span::styled(format!("  {k:>17}  "), Style::new().fg(fade(acc().route)).add_modifier(Modifier::BOLD)),
             Span::styled(d, Style::new().fg(fade(ROUTE_TEXT))),
         ]));
     }
     lines.push(Line::from(""));
     let mut legend = vec![Span::styled("  color = last change inside  now ", Style::new().fg(fade(MUTED)))];
-    for (_, c) in HEAT {
+    for &(_, c) in heat_stops() {
         legend.push(Span::styled("▮", Style::new().fg(fade(c))));
     }
     legend.push(Span::styled(" 5y", Style::new().fg(fade(MUTED))));
@@ -712,7 +873,7 @@ fn help(f: &mut Frame, t: f32) {
         Paragraph::new(lines).block(
             Block::bordered()
                 .border_type(BorderType::Rounded)
-                .border_style(Style::new().fg(fade(LINE_ROUTE)))
+                .border_style(Style::new().fg(fade(acc().route)))
                 .style(Style::new().bg(to_color(POP_BG)))
                 .title(Span::styled(" tb ", Style::new().fg(fade(ROUTE_TEXT)).add_modifier(Modifier::BOLD))),
         ),
@@ -749,7 +910,7 @@ fn audio_panel(buf: &mut Buffer, a: &mut Audio, r: Rect) {
 
     let state = a.state();
     let (glyph, word, color) = match state {
-        State::Playing => ("▶", "playing", LINE_ROUTE),
+        State::Playing => ("▶", "playing", acc().route),
         State::Paused => ("‖", "paused", ROUTE_TEXT),
         State::Ended => ("■", "ended · space plays again", MUTED),
         State::Silent => ("·", "silent", DOT),
@@ -774,8 +935,8 @@ fn audio_panel(buf: &mut Buffer, a: &mut Audio, r: Rect) {
         Some(n) if !a.wave.is_empty() || a.wave_done => {
             let cols = audio::columns(&a.wave, n, w);
             let read = if a.wave_done { w } else { (a.wave.len() * w / n.max(1)).min(w) };
-            let played = to_color(mix(LINE_ROUTE, FLASH, 0.25));
-            let ahead = to_color(mix(LINE_ACTIVE, POP_BG, 0.2));
+            let played = to_color(mix(acc().route, FLASH, 0.25));
+            let ahead = to_color(mix(acc().active, POP_BG, 0.2));
             for (x, v) in cols.iter().enumerate() {
                 let level = if x < read { ((v * (wave_h * 8) as f32).round() as usize).max(1) } else { 0 };
                 let fg = if x == head && state != State::Silent {
@@ -792,7 +953,7 @@ fn audio_panel(buf: &mut Buffer, a: &mut Audio, r: Rect) {
                         continue;
                     }
                     let ch = if fill == 0 && row == 0 && x >= read { '·' } else { EIGHTHS[fill] };
-                    let fg = if x >= read { to_color(LINE_DIM) } else { fg };
+                    let fg = if x >= read { to_color(acc().dim) } else { fg };
                     buf[(r.x + x as u16, cy)].set_char(ch).set_fg(fg);
                 }
             }
@@ -810,9 +971,9 @@ fn audio_panel(buf: &mut Buffer, a: &mut Audio, r: Rect) {
     // Scrubber.
     for x in (0..w).filter(|_| y < r.bottom()) {
         let (ch, c) = match a.total() {
-            Some(_) if x < head => ('━', LINE_ROUTE),
+            Some(_) if x < head => ('━', acc().route),
             Some(_) if x == head => ('●', FLASH),
-            _ => ('─', LINE_DIM),
+            _ => ('─', acc().dim),
         };
         buf[(r.x + x as u16, y)].set_char(ch).set_fg(to_color(c));
     }
@@ -830,15 +991,15 @@ fn audio_panel(buf: &mut Buffer, a: &mut Audio, r: Rect) {
         vol.push(Span::styled("muted", Style::new().fg(to_color(DOT))));
     } else {
         let on = (a.volume * 10.0).round() as usize;
-        vol.push(Span::styled("▮".repeat(on), Style::new().fg(to_color(LINE_ROUTE))));
-        vol.push(Span::styled("▮".repeat(10 - on), Style::new().fg(to_color(LINE_DIM))));
+        vol.push(Span::styled("▮".repeat(on), Style::new().fg(to_color(acc().route))));
+        vol.push(Span::styled("▮".repeat(10 - on), Style::new().fg(to_color(acc().dim))));
         vol.push(Span::styled(format!(" {}%", on * 10), muted));
     }
     put_line(buf, y, vol);
     y += 2;
 
     // Keys, dropping from the end until they fit.
-    let key = Style::new().fg(to_color(LINE_ROUTE)).add_modifier(Modifier::BOLD);
+    let key = Style::new().fg(to_color(acc().route)).add_modifier(Modifier::BOLD);
     let hints: &[(&str, &str)] = &[
         ("space", " pause  "),
         ("← →", " 5s  "),
