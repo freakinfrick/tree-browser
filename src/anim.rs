@@ -129,8 +129,11 @@ static HEAT_SCALE: AtomicU32 = AtomicU32::new(0x3f80_0000);
 
 /// Stretch the gradient so `range` seconds reaches its coldest color.
 pub fn set_heat_range(range: f32) {
-    let span = heat_stops()[heat_stops().len() - 1].0;
-    HEAT_SCALE.store((span / range).to_bits(), Ordering::Relaxed);
+    HEAT_SCALE.store(range_scale(range).to_bits(), Ordering::Relaxed);
+}
+
+fn range_scale(range: f32) -> f32 {
+    heat_stops()[heat_stops().len() - 1].0 / range
 }
 
 /// The gradient in use.
@@ -143,8 +146,13 @@ pub fn heat_stops() -> &'static Stops {
 }
 
 pub fn heat(age_secs: f32) -> Rgb {
+    heat_scaled(age_secs, f32::from_bits(HEAT_SCALE.load(Ordering::Relaxed)))
+}
+
+/// `heat` with the age stretched by `scale` (see `set_heat_range`).
+fn heat_scaled(age_secs: f32, scale: f32) -> Rgb {
     let stops = heat_stops();
-    let a = (age_secs * f32::from_bits(HEAT_SCALE.load(Ordering::Relaxed))).max(1.0).ln();
+    let a = (age_secs * scale).max(1.0).ln();
     if a <= stops[0].0.ln() {
         return stops[0].1;
     }
@@ -312,11 +320,9 @@ mod tests {
     #[test]
     fn heat_range_stretches_the_gradient() {
         let coldest = heat_stops()[heat_stops().len() - 1].1;
-        set_heat_range(86400.0);
-        let day_old = heat(86400.0);
-        set_heat_range(5.0 * 365.0 * 86400.0);
-        assert_eq!(day_old, coldest, "a day range: a day old is as cold as it gets");
-        assert_ne!(heat(86400.0), coldest);
+        // Pure: the global scale is shared with tests running alongside.
+        assert_eq!(heat_scaled(86400.0, range_scale(86400.0)), coldest, "a day range: a day old is as cold as it gets");
+        assert_ne!(heat_scaled(86400.0, range_scale(5.0 * 365.0 * 86400.0)), coldest);
     }
 
     #[test]

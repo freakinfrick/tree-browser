@@ -32,11 +32,13 @@ pub struct Spacing {
     pub maxw: usize,
     pub columns: Columns,
     pub details: Details,
+    /// Line cells between each join and the name it leads to.
+    pub branch: i32,
 }
 
 impl Default for Spacing {
     fn default() -> Spacing {
-        Spacing { rows: 0, gap: 3, maxw: MAXW, columns: Columns::Fit, details: Details::Off }
+        Spacing { rows: 0, gap: 3, maxw: MAXW, columns: Columns::Fit, details: Details::Off, branch: 0 }
     }
 }
 pub const UP: u8 = 1;
@@ -66,6 +68,8 @@ pub struct Block {
     pub kids: Vec<usize>,
     /// Trunk index within its column gap; trunk sits at `bar_x - 1 - k`.
     pub k: i32,
+    /// Branch offset: line cells between the joins and the kids' names.
+    pub off: i32,
 }
 
 #[derive(Default)]
@@ -280,7 +284,7 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
             break;
         }
         let n = parents.len() as i32;
-        let next_x = x + colw + n + sp.gap.max(3);
+        let next_x = x + colw + n + sp.gap.max(3) + sp.branch.max(0);
         if let Some(&s) = on_line {
             out.cols.push((x - 2, next_x - 2, s));
         }
@@ -318,7 +322,7 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
             for (i, &kid) in kids.iter().enumerate() {
                 next.push((kid, y0s[k] + i as i32, cut(label_of(kid)), active));
             }
-            out.blocks.push(Block { parent: *pid, kids, k: k as i32 });
+            out.blocks.push(Block { parent: *pid, kids, k: k as i32, off: sp.branch.max(0) });
         }
         next.sort_by_key(|n| n.1);
         x = next_x;
@@ -388,7 +392,7 @@ pub fn lines(
             continue;
         }
         let start = px + pw;
-        let bar_x = kids.iter().map(|k| k.1).min().unwrap() - 1;
+        let bar_x = kids.iter().map(|k| k.1).min().unwrap() - 1 - b.off;
         if bar_x < start {
             continue; // still unfurling out of the parent label
         }
@@ -399,8 +403,15 @@ pub fn lines(
         let routed = kids.iter().find(|k| route.contains(&k.0)).map(|k| k.2);
         let top = if on && routed.is_some() { ROUTE } else { base };
 
-        for &(_, _, y) in &kids {
-            c.add(bar_x, y, RIGHT, if Some(y) == routed { top } else { base });
+        for &(_, x, y) in &kids {
+            let emph = if Some(y) == routed { top } else { base };
+            // Offset 0 keeps the join on the name, even while kids slide in.
+            if b.off > 0 && x - 1 > bar_x {
+                c.hseg(bar_x, x - 1, y, emph);
+                c.add(x - 1, y, RIGHT, emph);
+            } else {
+                c.add(bar_x, y, RIGHT, emph);
+            }
         }
         c.vseg(bar_x, y0, y1, base);
         let ty = py.clamp(y0, y1);
@@ -476,6 +487,20 @@ mod tests {
         assert_eq!(row("a").label.width(), row("b").label.width(), "details right-aligned");
         assert_eq!(det.cursor.2, row("3").label.width() as i32, "the pill covers the details");
         let _ = a;
+    }
+
+    #[test]
+    fn branch_offset_reaches_from_join_to_name() {
+        let (t, _, one, three) = deep("branch");
+        let near = layout(&t, three, &name_of(&t), Spacing::default());
+        let far = layout(&t, three, &name_of(&t), Spacing { branch: 2, ..Spacing::default() });
+        assert_eq!(pos(&far, &t, "1").0 - pos(&near, &t, "1").0, 4, "2 more per column, two columns");
+        let route: HashSet<usize> = t.path_to(one).into_iter().collect();
+        let cells = target_lines(&far, &route);
+        let (x, y) = pos(&far, &t, "2");
+        let at = |dx: i32| cells[&(x - dx, y)].mask;
+        assert_eq!((at(1), at(2)), (LEFT | RIGHT, LEFT | RIGHT), "the reach is a straight line");
+        assert_eq!(at(3), UP | DOWN | RIGHT, "the join sits back on the trunk");
     }
 
     #[test]

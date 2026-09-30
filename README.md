@@ -37,8 +37,8 @@ and color tells you where work happened recently.
   click or drag, and simple keys for pause, seek and volume.
 - **Git aware.** Changed files carry a marker, closed folders show what's changed inside, ignored
   build output fades back, the status bar names the branch, and `d` in a preview shows the diff.
-- **Yours to tune.** `,` opens 25 settings: spacing, column width, age and size after names, sort
-  order, accent and heat colors, heat range, line style, motion, previews, the mouse, reopening
+- **Yours to tune.** `,` opens 26 settings: spacing, column width, age and size after names, sort
+  order, accent and heat colors, heat range, line style and branch length, motion, previews, the mouse, reopening
   where you left off, and every feature switch, saved to a small config file.
 - **Shell without leaving.** `!` runs a command in the selected folder, `s` opens a shell there, and
   `q` can leave your shell `cd`'d to wherever you ended up.
@@ -220,6 +220,7 @@ closes the panel.
 | Heat colors | ember (red → blue), aurora (yellow → purple, avoids red-green), mono | ember |
 | Heat range | age that gets the coldest color: day, week, month, year, 5y | 5y |
 | Tree lines | rounded, square, heavy, double, ascii | rounded |
+| Branch offset | line between each join and its name, 0–4 (`├name` → `├──name`) | 0 |
 | Legend | the color key in the status bar | on |
 | Motion | slow, normal, fast, instant (no animation) | normal |
 | Live updates, Ripples, Git status, Dim ignored | on / off | on |

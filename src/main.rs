@@ -254,6 +254,7 @@ impl App {
             maxw: s.max_name as usize,
             columns: s.columns,
             details: s.details,
+            branch: s.branch_offset as i32,
         }
     }
 
