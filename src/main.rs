@@ -29,7 +29,7 @@ use ratatui::crossterm::event::{
 };
 use ratatui::crossterm::execute;
 
-use anim::{Damped, Scene};
+use anim::{Damped, Glide, Scene};
 use mtime::Mtime;
 use settings::{Settings, StepThrough, ITEMS};
 use shell::Run;
@@ -132,6 +132,8 @@ pub struct App {
     pub exploding: Option<Exploding>,
     /// A short message for the status bar, and when it was posted.
     pub note: Option<(String, Instant)>,
+    /// Wheel momentum, carried on each frame into the preview or the column.
+    glide: Glide,
 }
 
 pub struct Exploding {
@@ -212,6 +214,7 @@ impl App {
             save_err: None,
             exploding: None,
             note: None,
+            glide: Glide::default(),
             cd_on_quit: false,
             can_cd: false,
         };
@@ -365,6 +368,8 @@ impl App {
         if let Some(p) = self.tree.nodes[id].parent {
             self.tree.nodes[p].last = Some(id);
         }
+        // The glide moves the cursor mid-frame, outside the loop's bump.
+        self.epoch += 1;
     }
 
     /// Everything in the cursor's column, top to bottom: the lists of every
@@ -884,6 +889,7 @@ impl App {
     /// Returns false to quit.
     fn key(&mut self, code: KeyCode, mods: KeyModifiers) -> bool {
         self.cam_hold = None;
+        self.glide.stop();
         if self.prompt.is_some() {
             self.prompt_key(code, mods);
             return true;
@@ -1022,7 +1028,13 @@ impl App {
         if self.prompt.is_some() || self.search.is_some() || self.menu.is_some() {
             return;
         }
-        if let Some(pv) = self.open_preview() {
+        if !matches!(kind, MouseEventKind::ScrollDown | MouseEventKind::ScrollUp) {
+            self.glide.stop();
+        }
+        let (rows, tau) = (self.settings.wheel_speed as i32, self.settings.momentum.tau());
+        let down = if kind == MouseEventKind::ScrollDown { 1 } else { -1 };
+        // Field, not open_preview(): the glide is borrowed alongside.
+        if let Some(pv) = self.preview.as_mut().filter(|p| !p.closing) {
             if let Some(a) = &mut pv.audio {
                 let b = a.bar;
                 let on_bar = b.width > 0 && row >= b.y && row < b.bottom() && col + 1 >= b.x && col <= b.right();
@@ -1041,8 +1053,9 @@ impl App {
             match kind {
                 MouseEventKind::ScrollDown if pv.media.is_some() => pv.media.as_mut().unwrap().flip(1),
                 MouseEventKind::ScrollUp if pv.media.is_some() => pv.media.as_mut().unwrap().flip(-1),
-                MouseEventKind::ScrollDown => pv.scroll += 3,
-                MouseEventKind::ScrollUp => pv.scroll -= 3,
+                MouseEventKind::ScrollDown | MouseEventKind::ScrollUp => {
+                    pv.scroll += self.glide.notch(down * 3 * rows, tau, Instant::now())
+                }
                 MouseEventKind::Down(MouseButton::Left) => pv.closing = true,
                 _ => {}
             }
@@ -1055,10 +1068,14 @@ impl App {
                     // Another column on the line: this tick only takes it over
                     // (its node is already on the line); later ticks scroll it.
                     Some(id) if id != self.cursor => {
+                        self.glide.stop();
                         self.cam_hold.get_or_insert(self.cam_tx);
                         self.set_cursor(id);
                     }
-                    _ => self.column_step(if kind == MouseEventKind::ScrollDown { 1 } else { -1 }),
+                    _ => {
+                        let n = self.glide.notch(down * rows, tau, Instant::now());
+                        self.column_step(n as isize);
+                    }
                 }
             }
             MouseEventKind::Down(MouseButton::Left) => {
@@ -1101,6 +1118,25 @@ impl App {
         }
         let (c, r) = self.mouse?;
         self.column_at(c, r).filter(|&id| id != self.cursor)
+    }
+
+    /// Carry the wheel's momentum `dt` seconds on. True while it still glides.
+    fn glide(&mut self, dt: f32) -> bool {
+        let n = self.glide.tick(self.settings.momentum.tau(), dt);
+        if n != 0 {
+            match self.preview.as_mut() {
+                Some(pv) if !pv.closing && pv.audio.is_none() && pv.media.is_none() => pv.scroll += n,
+                Some(_) => self.glide.stop(),
+                None => {
+                    let was = self.cursor;
+                    self.column_step(n as isize);
+                    if self.cursor == was {
+                        self.glide.stop();
+                    }
+                }
+            }
+        }
+        self.glide.moving()
     }
 
     /// Something on screen moves on its own (a playing sound, a waveform still being read).
@@ -1234,9 +1270,10 @@ fn main() -> std::io::Result<()> {
             if std::mem::take(&mut app.repaint) {
                 let _ = term.clear();
             }
-            let mut moving = false;
+            // Real time, not Motion's: momentum is its own setting.
+            let mut moving = app.glide(dt);
             let dt = dt * app.settings.speed.factor();
-            if let Err(e) = term.draw(|f| moving = ui::frame(f, &mut app, dt)) {
+            if let Err(e) = term.draw(|f| moving |= ui::frame(f, &mut app, dt)) {
                 break Err(e);
             }
             animating = moving;
@@ -1732,6 +1769,50 @@ mod tests {
         assert_eq!(app.column_at(14, 12), Some(three), "on no entry: the line node");
         assert_eq!(app.column_at(24, 7), Some(two), "past the line's end: nearest the pointer");
         assert_eq!(app.column_at(5, 7), None, "outside every column");
+    }
+
+    #[test]
+    fn a_flicked_wheel_glides_on_and_stops_at_the_end() {
+        let names: Vec<String> = (0..40).map(|i| format!("f{i:02}")).collect();
+        let refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
+        let mut app = app_in("glide", &refs);
+        app.settings.wheel_speed = 2;
+        app.settings.momentum = settings::Momentum::Long;
+        let row = |app: &App| at(app).to_string();
+        let start = row(&app);
+        for _ in 0..3 {
+            app.mouse(MouseEventKind::ScrollDown, 0, 0);
+        }
+        let after = row(&app);
+        assert_ne!(start, after);
+        let mut frames = 0;
+        while app.glide(1.0 / 60.0) {
+            frames += 1;
+            assert!(frames < 600, "the glide ends");
+        }
+        assert!(row(&app) > after, "kept going after the last notch: {after} -> {}", row(&app));
+
+        // A key halts it at once.
+        for _ in 0..3 {
+            app.mouse(MouseEventKind::ScrollUp, 0, 0);
+        }
+        app.key(KeyCode::Char('?'), KeyModifiers::NONE);
+        let held = row(&app);
+        assert!(!app.glide(1.0 / 60.0));
+        assert_eq!(row(&app), held);
+
+        // At the list's end it stops rather than spinning.
+        app.key(KeyCode::Char('?'), KeyModifiers::NONE);
+        app.key(KeyCode::Char('G'), KeyModifiers::NONE);
+        for _ in 0..3 {
+            app.mouse(MouseEventKind::ScrollDown, 0, 0);
+        }
+        let mut frames = 0;
+        while app.glide(1.0 / 60.0) {
+            frames += 1;
+        }
+        assert!(frames < 10, "stopped at the end after {frames} frames");
+        assert_eq!(at(&app), "f39");
     }
 
     #[test]

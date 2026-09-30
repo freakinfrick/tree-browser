@@ -30,6 +30,27 @@ impl Speed {
     }
 }
 
+/// How far the wheel glides on after the last notch.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Momentum {
+    Off,
+    Short,
+    Medium,
+    Long,
+}
+
+impl Momentum {
+    /// Seconds for the glide's speed to fall to 1/e. 0 = no glide.
+    pub fn tau(self) -> f32 {
+        match self {
+            Momentum::Off => 0.0,
+            Momentum::Short => 0.12,
+            Momentum::Medium => 0.25,
+            Momentum::Long => 0.5,
+        }
+    }
+}
+
 /// Line and selector colors.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Accent {
@@ -161,6 +182,9 @@ pub struct Settings {
     pub explode_ignored: bool,
     pub step: StepThrough,
     pub mouse: bool,
+    /// Rows the tree moves per wheel notch; text previews move three times that.
+    pub wheel_speed: u8,
+    pub momentum: Momentum,
     pub graphics: Graphics,
     pub preview: TextPreview,
     pub wrap: bool,
@@ -193,6 +217,8 @@ impl Default for Settings {
             explode_ignored: false,
             step: StepThrough::Tree,
             mouse: true,
+            wheel_speed: 1,
+            momentum: Momentum::Short,
             graphics: Graphics::Auto,
             preview: TextPreview::Styled,
             wrap: true,
@@ -209,7 +235,7 @@ pub struct Item {
     pub help: &'static str,
 }
 
-pub const ITEMS: [Item; 28] = [
+pub const ITEMS: [Item; 30] = [
     Item { key: "row_spacing", label: "Row spacing", section: "Layout", help: "Blank rows between entries. More air, fewer entries on screen." },
     Item { key: "column_gap", label: "Column gap", section: "Layout", help: "Space between a column's longest name and the next column." },
     Item { key: "max_name", label: "Column width", section: "Layout", help: "Widest a column gets. Longer names are cut with a …" },
@@ -234,6 +260,8 @@ pub const ITEMS: [Item; 28] = [
     Item { key: "explode_ignored", label: "Explode ignored", section: "Behavior", help: "Let e open folders git ignores too. A folder you explode directly always opens." },
     Item { key: "step", label: "Step through", section: "Behavior", help: "What j and k walk: the folder, the column, or the whole open tree in reading order. Arrows and the wheel stay in the column." },
     Item { key: "mouse", label: "Mouse", section: "Behavior", help: "Off hands the mouse back to the terminal, so you can select text." },
+    Item { key: "wheel_speed", label: "Wheel speed", section: "Behavior", help: "Entries per wheel notch. Text previews scroll three lines for each." },
+    Item { key: "momentum", label: "Momentum", section: "Behavior", help: "How far a quick flick of the wheel glides on after you stop. Slow notches stay one step each." },
     Item { key: "graphics", label: "Image previews", section: "Behavior", help: "Pixels if the terminal can, half-blocks anywhere, or off. i in a preview flips it for this run." },
     Item { key: "preview", label: "Text preview", section: "Behavior", help: "Styled: glow for markdown, bat for code. Or bat for all, or plain text." },
     Item { key: "wrap", label: "Wrap lines", section: "Behavior", help: "Off cuts long lines at the edge of the preview." },
@@ -242,6 +270,8 @@ pub const ITEMS: [Item; 28] = [
 
 const SORTS: [SortKey; 4] = [SortKey::Name, SortKey::Modified, SortKey::Size, SortKey::Type];
 const SPEEDS: [Speed; 4] = [Speed::Slow, Speed::Normal, Speed::Fast, Speed::Instant];
+const WHEEL_SPEEDS: [u8; 4] = [1, 2, 3, 5];
+const MOMENTA: [Momentum; 4] = [Momentum::Off, Momentum::Short, Momentum::Medium, Momentum::Long];
 const ACCENTS: [Accent; 5] = [Accent::Indigo, Accent::Teal, Accent::Violet, Accent::Amber, Accent::Mono];
 const PALETTES: [Palette; 3] = [Palette::Ember, Palette::Aurora, Palette::Mono];
 const COLUMNS: [Columns; 2] = [Columns::Fit, Columns::Equal];
@@ -256,6 +286,12 @@ const PREVIEWS: [TextPreview; 3] = [TextPreview::Styled, TextPreview::Bat, TextP
 fn cycle<T: PartialEq + Copy>(all: &[T], cur: T, dir: i32) -> T {
     let i = all.iter().position(|&x| x == cur).unwrap_or(0) as i32;
     all[(i + dir).rem_euclid(all.len() as i32) as usize]
+}
+
+/// Step through `all` from `cur`, stopping at the ends.
+fn nudge<T: PartialEq + Copy>(all: &[T], cur: T, dir: i32) -> T {
+    let i = all.iter().position(|&x| x == cur).unwrap_or(0) as i32;
+    all[(i + dir).clamp(0, all.len() as i32 - 1) as usize]
 }
 
 fn sort_word(k: SortKey) -> &'static str {
@@ -273,6 +309,15 @@ fn speed_word(s: Speed) -> &'static str {
         Speed::Normal => "normal",
         Speed::Fast => "fast",
         Speed::Instant => "instant",
+    }
+}
+
+fn momentum_word(m: Momentum) -> &'static str {
+    match m {
+        Momentum::Off => "off",
+        Momentum::Short => "short",
+        Momentum::Medium => "medium",
+        Momentum::Long => "long",
     }
 }
 
@@ -391,6 +436,8 @@ impl Settings {
             "explode_ignored" => on_off(self.explode_ignored),
             "step" => step_word(self.step).into(),
             "mouse" => on_off(self.mouse),
+            "wheel_speed" => self.wheel_speed.to_string(),
+            "momentum" => momentum_word(self.momentum).into(),
             "graphics" => graphics_word(self.graphics).into(),
             "preview" => preview_word(self.preview).into(),
             "wrap" => on_off(self.wrap),
@@ -402,7 +449,7 @@ impl Settings {
     /// The value as the config file stores it.
     pub fn store(&self, key: &str) -> String {
         match key {
-            "row_spacing" | "column_gap" | "max_name" | "branch_offset" => self.show(key),
+            "row_spacing" | "column_gap" | "max_name" | "branch_offset" | "wheel_speed" => self.show(key),
             "sort_reverse" => self.sort.rev.to_string(),
             "show_hidden" => self.show_hidden.to_string(),
             "legend" | "live" | "ripples" | "git" | "dim_ignored" | "folders_first" | "natural_sort" | "explode_ignored" | "mouse" | "wrap"
@@ -439,6 +486,8 @@ impl Settings {
             "explode_ignored" => self.explode_ignored ^= true,
             "step" => self.step = cycle(&STEPS, self.step, dir),
             "mouse" => self.mouse ^= true,
+            "wheel_speed" => self.wheel_speed = nudge(&WHEEL_SPEEDS, self.wheel_speed, dir),
+            "momentum" => self.momentum = cycle(&MOMENTA, self.momentum, dir),
             "graphics" => self.graphics = cycle(&GRAPHICS, self.graphics, dir),
             "preview" => self.preview = cycle(&PREVIEWS, self.preview, dir),
             "wrap" => self.wrap ^= true,
@@ -475,6 +524,8 @@ impl Settings {
             "explode_ignored" => self.explode_ignored = d.explode_ignored,
             "step" => self.step = d.step,
             "mouse" => self.mouse = d.mouse,
+            "wheel_speed" => self.wheel_speed = d.wheel_speed,
+            "momentum" => self.momentum = d.momentum,
             "graphics" => self.graphics = d.graphics,
             "preview" => self.preview = d.preview,
             "wrap" => self.wrap = d.wrap,
@@ -515,6 +566,8 @@ impl Settings {
             "explode_ignored" => self.explode_ignored = flag()?,
             "step" => self.step = find(&STEPS, v, step_word).ok_or(bad("folder, column, tree"))?,
             "mouse" => self.mouse = flag()?,
+            "wheel_speed" => self.wheel_speed = v.parse().ok().filter(|n| WHEEL_SPEEDS.contains(n)).ok_or(bad("1, 2, 3, 5"))?,
+            "momentum" => self.momentum = find(&MOMENTA, v, momentum_word).ok_or(bad("off, short, medium, long"))?,
             "graphics" => self.graphics = find(&GRAPHICS, v, graphics_word).ok_or(bad("auto, pixels, blocks, off"))?,
             "preview" => self.preview = find(&PREVIEWS, v, preview_word).ok_or(bad("styled, bat, plain"))?,
             "wrap" => self.wrap = flag()?,
@@ -659,6 +712,10 @@ mod tests {
         assert_eq!(s.column_gap, 3);
         s.adjust("accent", -1);
         assert_eq!(s.accent, Accent::Mono);
+        s.wheel_speed = 3;
+        s.adjust("wheel_speed", 1);
+        s.adjust("wheel_speed", 1);
+        assert_eq!(s.wheel_speed, 5, "3 → 5, then holds");
         s.sort.rev = true;
         s.adjust("sort", 1);
         assert_eq!(s.sort, Sort { key: SortKey::Modified, rev: false }, "a new key starts in its natural direction");

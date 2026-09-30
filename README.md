@@ -107,7 +107,9 @@ tb --cwd-file PATH [DIR]  # on q, write the selected folder to PATH
 
 **Mouse:** click selects, click again opens. The wheel scrolls the column under the pointer: over any other
 column, or another open folder's list, the first tick takes it over (a faint pill marks it on hover)
-and the next ones scroll it. Turn **Mouse** off in the settings to select text with it instead.
+and the next ones scroll it. A quick flick glides on after you stop; any key or click halts it, and
+slow notches stay one step each (**Wheel speed** and **Momentum** in the settings). Turn **Mouse** off
+in the settings to select text with it instead.
 
 **In a preview:** `j` `k`, `Space` `PgDn`, `Ctrl-D` `Ctrl-U`, `g` `G` scroll text; for images and PDFs
 `j` `k` `Space` flip pages and `g` `G` jump to the first / last. `i` switches between pixels and
@@ -228,6 +230,8 @@ closes the panel.
 | Explode ignored | let `e` open git-ignored folders too (a folder you explode directly always opens) | off |
 | Step through | what `j` `k` `J` `K` walk: folder (its own list), column (every open list in the column), tree (the whole open tree in reading order); `g` `G` always stay in the folder; arrows and `PgUp` `PgDn` move straight up and down the column, and the wheel scrolls the column under the pointer | tree |
 | Mouse | off gives the mouse back to the terminal for selecting text | on |
+| Wheel speed | entries per wheel notch, 1, 2, 3, 5; text previews scroll three lines for each | 1 |
+| Momentum | how far a quick flick glides on after the last notch: off, short, medium, long | short |
 | Image previews | auto, pixels, blocks (half-blocks), off (captions only) | auto |
 | Text preview | styled (glow for markdown, bat for the rest), bat, plain | styled |
 | Wrap lines | off cuts long lines at the preview's edge | on |
