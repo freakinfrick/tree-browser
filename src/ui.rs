@@ -739,10 +739,10 @@ fn search_bar(f: &mut Frame, app: &App, area: Rect, q: &str) {
 }
 
 const KEYS: [(&str, &str); 24] = [
-    ("h j k l / arrows", "move · j k walk the whole open tree"),
+    ("h j k l / arrows", "move · j k walk the open tree, ↑ ↓ the column"),
     ("l / enter", "open folder · preview file"),
     ("space / tab", "fold / unfold"),
-    ("J K / pgup pgdn", "jump 10"),
+    ("J K / pgup pgdn", "jump 10 (pgup pgdn in the column)"),
     ("g G", "first / last sibling"),
     ("/ n N", "find in column · next / previous"),
     ("tab ↑↓ while /", "cycle matches · Caps = exact case"),

@@ -158,6 +158,7 @@ pub struct Settings {
     pub ripples: bool,
     pub git: bool,
     pub dim_ignored: bool,
+    pub explode_ignored: bool,
     pub step: StepThrough,
     pub mouse: bool,
     pub graphics: Graphics,
@@ -189,6 +190,7 @@ impl Default for Settings {
             ripples: true,
             git: true,
             dim_ignored: true,
+            explode_ignored: false,
             step: StepThrough::Tree,
             mouse: true,
             graphics: Graphics::Auto,
@@ -207,7 +209,7 @@ pub struct Item {
     pub help: &'static str,
 }
 
-pub const ITEMS: [Item; 27] = [
+pub const ITEMS: [Item; 28] = [
     Item { key: "row_spacing", label: "Row spacing", section: "Layout", help: "Blank rows between entries. More air, fewer entries on screen." },
     Item { key: "column_gap", label: "Column gap", section: "Layout", help: "Space between a column's longest name and the next column." },
     Item { key: "max_name", label: "Column width", section: "Layout", help: "Widest a column gets. Longer names are cut with a …" },
@@ -229,7 +231,8 @@ pub const ITEMS: [Item; 27] = [
     Item { key: "ripples", label: "Ripples", section: "Behavior", help: "Flash a live change and let it climb the tree." },
     Item { key: "git", label: "Git status", section: "Behavior", help: "Markers, branch and diffs inside git repos." },
     Item { key: "dim_ignored", label: "Dim ignored", section: "Behavior", help: "Fade files git ignores, like target/ and node_modules/." },
-    Item { key: "step", label: "Step through", section: "Behavior", help: "What j, k and the wheel walk: the folder, the column, or the whole open tree in reading order." },
+    Item { key: "explode_ignored", label: "Explode ignored", section: "Behavior", help: "Let e open folders git ignores too. A folder you explode directly always opens." },
+    Item { key: "step", label: "Step through", section: "Behavior", help: "What j and k walk: the folder, the column, or the whole open tree in reading order. Arrows and the wheel stay in the column." },
     Item { key: "mouse", label: "Mouse", section: "Behavior", help: "Off hands the mouse back to the terminal, so you can select text." },
     Item { key: "graphics", label: "Image previews", section: "Behavior", help: "Pixels if the terminal can, half-blocks anywhere, or off. i in a preview flips it for this run." },
     Item { key: "preview", label: "Text preview", section: "Behavior", help: "Styled: glow for markdown, bat for code. Or bat for all, or plain text." },
@@ -385,6 +388,7 @@ impl Settings {
             "ripples" => on_off(self.ripples),
             "git" => on_off(self.git),
             "dim_ignored" => on_off(self.dim_ignored),
+            "explode_ignored" => on_off(self.explode_ignored),
             "step" => step_word(self.step).into(),
             "mouse" => on_off(self.mouse),
             "graphics" => graphics_word(self.graphics).into(),
@@ -401,7 +405,7 @@ impl Settings {
             "row_spacing" | "column_gap" | "max_name" | "branch_offset" => self.show(key),
             "sort_reverse" => self.sort.rev.to_string(),
             "show_hidden" => self.show_hidden.to_string(),
-            "legend" | "live" | "ripples" | "git" | "dim_ignored" | "folders_first" | "natural_sort" | "mouse" | "wrap"
+            "legend" | "live" | "ripples" | "git" | "dim_ignored" | "folders_first" | "natural_sort" | "explode_ignored" | "mouse" | "wrap"
             | "remember" => (self.show(key) == "on").to_string(),
             _ => format!("\"{}\"", self.show(key)),
         }
@@ -432,6 +436,7 @@ impl Settings {
             "ripples" => self.ripples ^= true,
             "git" => self.git ^= true,
             "dim_ignored" => self.dim_ignored ^= true,
+            "explode_ignored" => self.explode_ignored ^= true,
             "step" => self.step = cycle(&STEPS, self.step, dir),
             "mouse" => self.mouse ^= true,
             "graphics" => self.graphics = cycle(&GRAPHICS, self.graphics, dir),
@@ -467,6 +472,7 @@ impl Settings {
             "ripples" => self.ripples = d.ripples,
             "git" => self.git = d.git,
             "dim_ignored" => self.dim_ignored = d.dim_ignored,
+            "explode_ignored" => self.explode_ignored = d.explode_ignored,
             "step" => self.step = d.step,
             "mouse" => self.mouse = d.mouse,
             "graphics" => self.graphics = d.graphics,
@@ -506,6 +512,7 @@ impl Settings {
             "ripples" => self.ripples = flag()?,
             "git" => self.git = flag()?,
             "dim_ignored" => self.dim_ignored = flag()?,
+            "explode_ignored" => self.explode_ignored = flag()?,
             "step" => self.step = find(&STEPS, v, step_word).ok_or(bad("folder, column, tree"))?,
             "mouse" => self.mouse = flag()?,
             "graphics" => self.graphics = find(&GRAPHICS, v, graphics_word).ok_or(bad("auto, pixels, blocks, off"))?,
