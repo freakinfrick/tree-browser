@@ -56,6 +56,8 @@ pub struct App {
     pub tree: Tree,
     pub cursor: usize,
     pub mt: Mtime,
+    /// Node count at the last absorb: rows added since then may have heat already cached.
+    absorbed: usize,
     pub scene: Scene,
     pub cam: Option<(Damped, Damped)>,
     /// Signal bead running along the line toward the cursor (world x).
@@ -217,6 +219,7 @@ impl App {
             glide: Glide::default(),
             cd_on_quit: false,
             can_cd: false,
+            absorbed: 0,
         };
         app.enter();
         app
@@ -239,9 +242,22 @@ impl App {
         for n in self.tree.nodes.iter_mut().filter(|n| n.is_dir) {
             n.rec = self.mt.cache.get(&n.path).map(|c| (c.0, c.1, c.3, c.4));
         }
+        self.absorbed = self.tree.nodes.len();
         if matches!(self.tree.sort.key, SortKey::Modified | SortKey::Size) {
             self.tree.resort();
         }
+    }
+
+    /// Take finished walks, and give newly opened folders the heat an
+    /// ancestor's walk already cached (no new walk result arrives for those).
+    /// Returns true if anything was absorbed.
+    fn take_heat(&mut self) -> bool {
+        let fresh = self.mt.poll();
+        let grown = self.tree.nodes.len() != self.absorbed;
+        if fresh || grown {
+            self.absorb();
+        }
+        fresh || grown
     }
 
     fn set_sort(&mut self, sort: Sort) {
@@ -1289,8 +1305,7 @@ fn main() -> std::io::Result<()> {
         match event::poll(timeout) {
             Ok(true) => {}
             Ok(false) => {
-                if app.mt.poll() {
-                    app.absorb();
+                if app.take_heat() {
                     app.epoch += 1;
                     dirty = true;
                 }
@@ -1353,9 +1368,7 @@ fn main() -> std::io::Result<()> {
             dirty = true;
         }
         app.epoch += 1;
-        if app.mt.poll() {
-            app.absorb();
-        }
+        app.take_heat();
         app.git_poll();
         app.explode_poll();
     };
@@ -1548,6 +1561,37 @@ mod tests {
         }
         assert_eq!(at(&app), "a");
         (app, d)
+    }
+
+    #[test]
+    fn opened_folder_takes_heat_cached_by_its_parent_walk() {
+        // r/a/b/c/new.md is new; every folder is years old. Walking a caches b,
+        // but opening a later brings no new walk result for b.
+        let root = std::env::temp_dir().join(format!("tb-deepheat-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("r/a/b/c")).unwrap();
+        fs::write(root.join("r/a/b/c/new.md"), "hot").unwrap();
+        let old = SystemTime::now() - Duration::from_secs(86400 * 1000);
+        for d in ["r/a/b/c", "r/a/b", "r/a"] {
+            fs::File::open(root.join(d)).unwrap().set_modified(old).unwrap();
+        }
+        let mut app = App::new(root.join("r"));
+        let a = app.cursor;
+        assert_eq!(at(&app), "a");
+        app.mt.request(&root.join("r/a"));
+        let t0 = std::time::Instant::now();
+        while app.tree.nodes[a].rec.is_none() && t0.elapsed() < Duration::from_secs(5) {
+            app.take_heat();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        if app.tree.kids(a).is_empty() {
+            app.tree.load(a);
+        }
+        let b = *app.tree.kids(a).first().expect("a holds b");
+        app.take_heat();
+        let hour_ago = SystemTime::now() - Duration::from_secs(3600);
+        assert!(app.tree.heat(b) > hour_ago, "b glows from c/new.md, not its own old mtime");
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
