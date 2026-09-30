@@ -1,4 +1,4 @@
-# tb shell integration. In ~/.bashrc:  source /path/to/tree-browser/tb.bash
+# tb shell integration. In ~/.bashrc:  source /path/to/treebeard/tb.bash
 #
 # q in tb leaves this shell in the folder under the cursor (a file: its folder);
 # esc / ctrl-c leave it where it was. Inside tb, ! runs a command and s opens a

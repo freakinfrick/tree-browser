@@ -911,7 +911,7 @@ fn help(f: &mut Frame, t: f32) {
                 .border_type(BorderType::Rounded)
                 .border_style(Style::new().fg(fade(acc().route)))
                 .style(Style::new().bg(to_color(POP_BG)))
-                .title(Span::styled(" tb ", Style::new().fg(fade(ROUTE_TEXT)).add_modifier(Modifier::BOLD))),
+                .title(Span::styled(" treebeard ", Style::new().fg(fade(ROUTE_TEXT)).add_modifier(Modifier::BOLD))),
         ),
         r,
     );

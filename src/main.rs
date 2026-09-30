@@ -1,4 +1,4 @@
-//! tb — horizontal tree file browser. Color = recency (recursive for dirs).
+//! treebeard (`tb`) — horizontal tree file browser. Color = recency (recursive for dirs).
 #[cfg(not(unix))]
 compile_error!("tb needs a Unix-like OS (Linux, macOS, BSD): it drives the tty with termios and signals");
 
@@ -1196,7 +1196,7 @@ fn main() -> std::io::Result<()> {
     let arg = arg.unwrap_or_else(|| ".".into());
     if arg == "-h" || arg == "--help" {
         println!(
-            "usage: tb [--cwd-file PATH] [DIR]\n\nhjkl/arrows move · enter/l open · space fold · . dotfiles · - reroot up · c collapse others · r reload · ? help\n\
+            "treebeard: horizontal tree file browser\n\nusage: tb [--cwd-file PATH] [DIR]\n\nhjkl/arrows move · enter/l open · space fold · . dotfiles · - reroot up · c collapse others · r reload · ? help\n\
              ! run a command in the selected folder ($f = selection) · s shell there (exit returns) · q quit · esc quit\n\
              --cwd-file: on q, write the selected folder there (tb.bash turns that into cd)\n\
              image/pdf preview: j/k page · i pixels <-> half-blocks · TB_GRAPHICS=halfblocks|kitty|sixel|iterm2|off\n\
