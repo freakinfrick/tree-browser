@@ -109,6 +109,10 @@ pub struct Tree {
     pub root: usize,
     pub show_hidden: bool,
     pub sort: Sort,
+    /// Folders above files under every sort key.
+    pub folders_first: bool,
+    /// Digit runs in names compare as numbers.
+    pub natural: bool,
     /// Always visible even when hidden (the root..cursor path), so the
     /// cursor can never sit inside something invisible.
     pub reveal: HashSet<usize>,
@@ -148,6 +152,30 @@ fn ext(name: &str) -> String {
     Path::new(name).extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default()
 }
 
+/// Compare with runs of digits as numbers: `file2` < `file10`. Equal
+/// numbers with different zero padding fall back to the text.
+pub fn natural_cmp(a: &str, b: &str) -> Ordering {
+    let (mut a, mut b) = (a, b);
+    loop {
+        let (Some(ca), Some(cb)) = (a.chars().next(), b.chars().next()) else { return a.len().cmp(&b.len()) };
+        if ca.is_ascii_digit() && cb.is_ascii_digit() {
+            let run = |s: &str| s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
+            let (na, nb) = (&a[..run(a)], &b[..run(b)]);
+            let (ta, tb) = (na.trim_start_matches('0'), nb.trim_start_matches('0'));
+            let o = ta.len().cmp(&tb.len()).then_with(|| ta.cmp(tb)).then_with(|| na.len().cmp(&nb.len()));
+            if o != Ordering::Equal {
+                return o;
+            }
+            (a, b) = (&a[na.len()..], &b[nb.len()..]);
+        } else {
+            if ca != cb {
+                return ca.cmp(&cb);
+            }
+            (a, b) = (&a[ca.len_utf8()..], &b[cb.len_utf8()..]);
+        }
+    }
+}
+
 impl Tree {
     pub fn new(path: &Path) -> Tree {
         Tree {
@@ -155,6 +183,8 @@ impl Tree {
             root: 0,
             show_hidden: false,
             sort: Sort::default(),
+            folders_first: false,
+            natural: true,
             reveal: HashSet::new(),
         }
     }
@@ -179,10 +209,11 @@ impl Tree {
             SortKey::Size => self.size(b).cmp(&self.size(a)),
             SortKey::Type => y.is_dir.cmp(&x.is_dir).then_with(|| ext(&x.name).cmp(&ext(&y.name))),
         };
-        let o = by_key
-            .then_with(|| x.name.to_lowercase().cmp(&y.name.to_lowercase()))
-            .then_with(|| x.name.cmp(&y.name));
-        if self.sort.rev { o.reverse() } else { o }
+        let (lx, ly) = (x.name.to_lowercase(), y.name.to_lowercase());
+        let by_name = if self.natural { natural_cmp(&lx, &ly) } else { lx.cmp(&ly) };
+        let o = by_key.then(by_name).then_with(|| x.name.cmp(&y.name));
+        let o = if self.sort.rev { o.reverse() } else { o };
+        if self.folders_first { y.is_dir.cmp(&x.is_dir).then(o) } else { o }
     }
 
     /// Put a loaded folder's entries in sort order. Returns true if it moved any.
@@ -372,5 +403,18 @@ impl Tree {
         }
         v.reverse();
         v
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn natural_order_counts_numbers() {
+        let mut v = ["file10", "file2", "file1", "file02", "a", "file", "b1c", "b1b"];
+        v.sort_by(|a, b| natural_cmp(a, b));
+        assert_eq!(v, ["a", "b1b", "b1c", "file", "file1", "file2", "file02", "file10"]);
+        assert_eq!(natural_cmp("x99999999999999999999999", "x100000000000000000000000"), Ordering::Less, "no overflow");
     }
 }

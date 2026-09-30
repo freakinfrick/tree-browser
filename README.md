@@ -37,8 +37,9 @@ and color tells you where work happened recently.
   click or drag, and simple keys for pause, seek and volume.
 - **Git aware.** Changed files carry a marker, closed folders show what's changed inside, ignored
   build output fades back, the status bar names the branch, and `d` in a preview shows the diff.
-- **Yours to tune.** `,` opens settings for row spacing, column gap, name width, accent and heat
-  colors, motion speed and every feature switch, saved to a small config file.
+- **Yours to tune.** `,` opens 25 settings: spacing, column width, age and size after names, sort
+  order, accent and heat colors, heat range, line style, motion, previews, the mouse, reopening
+  where you left off, and every feature switch, saved to a small config file.
 - **Shell without leaving.** `!` runs a command in the selected folder, `s` opens a shell there, and
   `q` can leave your shell `cd`'d to wherever you ended up.
 
@@ -105,7 +106,7 @@ tb --cwd-file PATH [DIR]  # on q, write the selected folder to PATH
 
 **Mouse:** click selects, click again opens. The wheel scrolls the column under the pointer: over a parent
 or child column on the line, the first tick takes that column over (a faint pill marks it on hover) and
-the next ones scroll it.
+the next ones scroll it. Turn **Mouse** off in the settings to select text with it instead.
 
 **In a preview:** `j` `k`, `Space` `PgDn`, `Ctrl-D` `Ctrl-U`, `g` `G` scroll text; for images and PDFs
 `j` `k` `Space` flip pages and `g` `G` jump to the first / last. `i` switches between pixels and
@@ -208,14 +209,28 @@ closes the panel.
 |---|---|---|
 | Row spacing | blank rows between entries, 0–3 | 0 |
 | Column gap | space before the next column, 3–12 | 3 |
-| Name width | longer names are cut with `…`, 12–60 | 28 |
+| Column width | widest a column gets; longer names are cut with `…`, 12–60 | 28 |
+| Columns | fit (as wide as the longest name), equal (every column the column width) | fit |
+| Name details | off, age, size, both, dimmed after each name | off |
 | Sort by, Reverse | same as `o` and `O` | name, off |
+| Folders first | folders above files under every sort | off |
+| Natural sort | `file2` before `file10` | on |
 | Dotfiles | same as `.` | hidden |
 | Accent | indigo, teal, violet, amber, mono (lines, selector, highlights) | indigo |
 | Heat colors | ember (red → blue), aurora (yellow → purple, avoids red-green), mono | ember |
+| Heat range | age that gets the coldest color: day, week, month, year, 5y | 5y |
+| Tree lines | rounded, square, heavy, double, ascii | rounded |
 | Legend | the color key in the status bar | on |
 | Motion | slow, normal, fast, instant (no animation) | normal |
 | Live updates, Ripples, Git status, Dim ignored | on / off | on |
+| Mouse | off gives the mouse back to the terminal for selecting text | on |
+| Image previews | auto, pixels, blocks (half-blocks), off (captions only) | auto |
+| Text preview | styled (glow for markdown, bat for the rest), bat, plain | styled |
+| Wrap lines | off cuts long lines at the preview's edge | on |
+| Remember place | reopen the folders and selection you left, per starting folder | off |
+
+Remember place keeps the last 50 starting folders in `~/.local/state/tb/places` (under
+`$XDG_STATE_HOME` if that's set).
 
 Every change is saved immediately to `~/.config/tb/config.toml` (under `$XDG_CONFIG_HOME` if that's
 set, or wherever `TB_CONFIG` points). It's plain `key = value` TOML that you can also edit by hand. tb
@@ -229,7 +244,7 @@ palette = "aurora"
 sort = "modified"
 ```
 
-`TB_SORT`, `TB_LIVE=off` and `TB_GIT=off` override the file for that run.
+`TB_SORT`, `TB_LIVE=off`, `TB_GIT=off` and `TB_GRAPHICS` override the file for that run.
 
 Text size isn't a setting: a terminal program can't change its font. Use your terminal's zoom
 (usually `Ctrl`/`Cmd` and `+` / `-`) and tb re-lays itself out to fit.
@@ -282,7 +297,8 @@ Inside tmux the query is skipped and half-blocks are used. Inside herdr, tb star
 because herdr claims kitty support for every attached client whatever terminal it draws into; press
 `i`, or set `TB_GRAPHICS=kitty`, when that terminal really is Ghostty or Kitty.
 
-To override the detection, set `TB_GRAPHICS` to `kitty`, `sixel`, `iterm2`, `halfblocks` or `off`
+**Image previews** in the settings picks one for good: auto (the above), pixels (whatever the terminal
+claimed), blocks, or off. To override the detection for one run, set `TB_GRAPHICS` to `kitty`, `sixel`, `iterm2`, `halfblocks` or `off`
 (captions only).
 
 ## Demo

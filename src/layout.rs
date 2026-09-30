@@ -10,8 +10,11 @@
 //!
 //! Each parent's elbow gets its own trunk column so trunks never merge.
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::time::SystemTime;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
+use crate::settings::{Columns, Details, LineStyle};
 use crate::tree::Tree;
 
 pub const MAXW: usize = 28;
@@ -27,11 +30,13 @@ pub struct Spacing {
     pub gap: i32,
     /// Names are cut to this many columns.
     pub maxw: usize,
+    pub columns: Columns,
+    pub details: Details,
 }
 
 impl Default for Spacing {
     fn default() -> Spacing {
-        Spacing { rows: 0, gap: 3, maxw: MAXW }
+        Spacing { rows: 0, gap: 3, maxw: MAXW, columns: Columns::Fit, details: Details::Off }
     }
 }
 pub const UP: u8 = 1;
@@ -48,7 +53,10 @@ pub struct Placed {
     pub id: usize,
     pub x: i32,
     pub y: i32,
+    /// Name, then (with name details on) padding and the details.
     pub label: String,
+    /// Bytes of `label` that are the name.
+    pub name: usize,
     /// Block hangs off the cursor path (not dimmed).
     pub active: bool,
 }
@@ -85,8 +93,23 @@ pub struct Cell {
 
 pub type Lines = HashMap<(i32, i32), Cell>;
 
+/// Glyph per direction mask, one row per `LineStyle`.
+const GLYPHS: [[char; 16]; 5] = [
+    ['·', '│', '│', '│', '─', '╯', '╮', '┤', '─', '╰', '╭', '├', '─', '┴', '┬', '┼'],
+    ['·', '│', '│', '│', '─', '┘', '┐', '┤', '─', '└', '┌', '├', '─', '┴', '┬', '┼'],
+    ['·', '┃', '┃', '┃', '━', '┛', '┓', '┫', '━', '┗', '┏', '┣', '━', '┻', '┳', '╋'],
+    ['·', '║', '║', '║', '═', '╝', '╗', '╣', '═', '╚', '╔', '╠', '═', '╩', '╦', '╬'],
+    ['.', '|', '|', '|', '-', '+', '+', '+', '-', '+', '+', '+', '-', '+', '+', '+'],
+];
+
+static STYLE: AtomicU8 = AtomicU8::new(0);
+
+pub fn set_line_style(s: LineStyle) {
+    STYLE.store(s as u8, Ordering::Relaxed);
+}
+
 pub fn glyph(mask: u8) -> char {
-    ['·', '│', '│', '│', '─', '╯', '╮', '┤', '─', '╰', '╭', '├', '─', '┴', '┬', '┼'][mask as usize & 15]
+    GLYPHS[STYLE.load(Ordering::Relaxed) as usize][mask as usize & 15]
 }
 
 /// Glyph for a cell: the route's horizontal run is a double "tube"
@@ -94,6 +117,12 @@ pub fn glyph(mask: u8) -> char {
 pub fn cell_glyph(c: &Cell) -> char {
     if c.route & (LEFT | RIGHT) == 0 {
         return glyph(c.mask);
+    }
+    // The tube can't stand out against double lines, and ASCII has no double set.
+    match STYLE.load(Ordering::Relaxed) {
+        3 => return glyph(c.mask),
+        4 => return if c.mask & (UP | DOWN) == 0 { '=' } else { '+' },
+        _ => {}
     }
     match c.mask & 15 {
         15 => '╪',
@@ -109,6 +138,78 @@ pub fn cell_glyph(c: &Cell) -> char {
     }
 }
 
+
+/// One column's labels and name lengths. Details sit in their own
+/// right-aligned column after the names; equal columns pad every name to
+/// the column width.
+fn column_labels(tree: &Tree, level: &[(usize, i32, String, bool)], sp: Spacing, now: SystemTime) -> Vec<(String, usize)> {
+    let details: Vec<String> = level.iter().map(|l| detail(tree, l.0, sp.details, now)).collect();
+    if sp.details == Details::Off {
+        return level.iter().map(|l| (l.2.clone(), l.2.len())).collect();
+    }
+    let namew = match sp.columns {
+        Columns::Fit => level.iter().map(|l| l.2.width()).max().unwrap_or(0),
+        Columns::Equal => sp.maxw,
+    };
+    let dw = details.iter().map(|d| d.width()).max().unwrap_or(0);
+    level
+        .iter()
+        .zip(details)
+        .map(|(l, d)| {
+            let pad = namew - l.2.width() + 2 + dw - d.width();
+            (format!("{}{}{d}", l.2, " ".repeat(pad)), l.2.len())
+        })
+        .collect()
+}
+
+/// Age and/or size, as the name details show them. A folder's size is
+/// blank until its walk lands.
+fn detail(tree: &Tree, id: usize, what: Details, now: SystemTime) -> String {
+    let age = || short_age(now.duration_since(tree.heat(id)).unwrap_or_default().as_secs());
+    let n = &tree.nodes[id];
+    let size = || if n.is_dir && n.rec.is_none() { String::new() } else { short_size(tree.size(id)) };
+    match what {
+        Details::Off => String::new(),
+        Details::Age => age(),
+        Details::Size => size(),
+        Details::Both => match size() {
+            s if s.is_empty() => age(),
+            s => format!("{} · {s:>4}", age()),
+        },
+    }
+}
+
+/// `now 5m 3h 2d 4w 8mo 3y`.
+pub fn short_age(secs: u64) -> String {
+    const M: u64 = 60;
+    const H: u64 = 60 * M;
+    const D: u64 = 24 * H;
+    match secs {
+        s if s < M => "now".into(),
+        s if s < H => format!("{}m", s / M),
+        s if s < D => format!("{}h", s / H),
+        s if s < 7 * D => format!("{}d", s / D),
+        s if s < 30 * D => format!("{}w", s / (7 * D)),
+        s if s < 365 * D => format!("{}mo", s / (30 * D)),
+        s => format!("{}y", s / (365 * D)),
+    }
+}
+
+/// `980B 4.2K 12M 1.3G`: at most four columns.
+pub fn short_size(n: u64) -> String {
+    let mut v = n as f64;
+    for u in ["B", "K", "M", "G", "T"] {
+        if v < 1000.0 || u == "T" {
+            return match u {
+                "B" => format!("{n}B"),
+                _ if v < 9.95 => format!("{v:.1}{u}"),
+                _ => format!("{v:.0}{u}"),
+            };
+        }
+        v /= 1024.0;
+    }
+    unreachable!()
+}
 
 pub fn truncate_to(s: &str, max: usize) -> String {
     if s.width() <= max {
@@ -149,14 +250,17 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
     let cut = |s: String| truncate_to(&s, sp.maxw);
     let mut level = vec![(tree.root, 0, cut(label_of(tree.root)), true)];
     let mut x = 0i32;
+    let now = SystemTime::now();
     for depth in 1.. {
-        for (id, y, label, active) in &level {
+        let labels = column_labels(tree, &level, sp, now);
+        for ((id, y, _, active), (label, name)) in level.iter().zip(&labels) {
             if *id == cursor {
                 out.cursor = (x, *y, label.width() as i32);
             }
-            out.placed.push(Placed { id: *id, x, y: *y, label: label.clone(), active: *active });
+            out.placed.push(Placed { id: *id, x, y: *y, label: label.clone(), name: *name, active: *active });
         }
-        let colw = level.iter().map(|l| l.2.width() as i32).max().unwrap_or(0);
+        let widest = labels.iter().map(|l| l.0.width() as i32).max().unwrap_or(0);
+        let colw = if sp.columns == Columns::Equal && sp.details == Details::Off { widest.max(sp.maxw as i32) } else { widest };
         let on_line = spine.get(depth - 1).filter(|s| level.iter().any(|l| l.0 == **s));
         let parents: Vec<_> = level
             .iter()
@@ -351,10 +455,48 @@ mod tests {
     }
 
     #[test]
+    fn equal_columns_and_details_line_up() {
+        let (t, a, _, three) = deep("equal");
+        let fit = layout(&t, three, &name_of(&t), Spacing::default());
+        let eq = layout(&t, three, &name_of(&t), Spacing { columns: Columns::Equal, maxw: 12, ..Spacing::default() });
+        assert_eq!(pos(&fit, &t, "1").0 - pos(&fit, &t, "a").0, 1 + 1 + 3, "fit: name, one trunk, gap");
+        assert_eq!(pos(&eq, &t, "1").0 - pos(&eq, &t, "a").0, 12 + 1 + 3, "equal: the column width");
+
+        let det = layout(&t, three, &name_of(&t), Spacing { details: Details::Age, ..Spacing::default() });
+        let row = |name: &str| det.placed.iter().find(|p| t.nodes[p.id].name == name).unwrap();
+        assert_eq!(row("a").label, "a  now");
+        assert_eq!(row("a").name, 1);
+        assert_eq!(row("a").label.width(), row("b").label.width(), "details right-aligned");
+        assert_eq!(det.cursor.2, row("3").label.width() as i32, "the pill covers the details");
+        let _ = a;
+    }
+
+    #[test]
+    fn short_ages_and_sizes() {
+        let d = 86400;
+        let ages: Vec<String> = [5, 300, 7200, 3 * d, 15 * d, 100 * d, 800 * d].map(short_age).into();
+        assert_eq!(ages, ["now", "5m", "2h", "3d", "2w", "3mo", "2y"]);
+        let sizes: Vec<String> = [980, 4300, 12 << 20, 1395864371].map(short_size).into();
+        assert_eq!(sizes, ["980B", "4.2K", "12M", "1.3G"]);
+    }
+
+    #[test]
+    fn every_line_style_draws_bars_and_joins() {
+        for row in &GLYPHS {
+            let g = |m: u8| row[m as usize];
+            assert_eq!((g(UP), g(DOWN)), (g(UP | DOWN), g(UP | DOWN)), "one vertical bar");
+            assert_eq!((g(LEFT), g(RIGHT)), (g(LEFT | RIGHT), g(LEFT | RIGHT)), "one horizontal bar");
+            assert_ne!(g(UP | DOWN), g(LEFT | RIGHT));
+            assert_ne!(g(UP | DOWN | RIGHT), g(UP | DOWN), "a join isn't a bar");
+        }
+        assert!(GLYPHS[4].iter().all(char::is_ascii), "ascii style is ascii");
+    }
+
+    #[test]
     fn spacing_spreads_rows_widens_gaps_and_cuts_names() {
         let (t, _, one, three) = deep("spacing");
         let tight = layout(&t, three, &name_of(&t), Spacing::default());
-        let airy = layout(&t, three, &name_of(&t), Spacing { rows: 2, gap: 7, maxw: MAXW });
+        let airy = layout(&t, three, &name_of(&t), Spacing { rows: 2, gap: 7, ..Spacing::default() });
         for name in ["1", "2", "3", "a", "b"] {
             assert_eq!(pos(&airy, &t, name).1, pos(&tight, &t, name).1 * 3, "{name}: every row three apart");
         }

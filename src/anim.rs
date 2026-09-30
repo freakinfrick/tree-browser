@@ -6,7 +6,7 @@
 //! that spring back into their nearest surviving ancestor while fading out.
 //! Connectors are drawn from the animated positions, so they follow along.
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU8, Ordering};
 
 use crate::layout::Layout;
 use crate::settings::Palette;
@@ -123,6 +123,16 @@ pub fn set_palette(p: Palette) {
     PALETTE.store(p as u8, Ordering::Relaxed);
 }
 
+/// Multiplier on age before the gradient lookup, as f32 bits (1.0 = the
+/// gradient's own 5-year span).
+static HEAT_SCALE: AtomicU32 = AtomicU32::new(0x3f80_0000);
+
+/// Stretch the gradient so `range` seconds reaches its coldest color.
+pub fn set_heat_range(range: f32) {
+    let span = heat_stops()[heat_stops().len() - 1].0;
+    HEAT_SCALE.store((span / range).to_bits(), Ordering::Relaxed);
+}
+
 /// The gradient in use.
 pub fn heat_stops() -> &'static Stops {
     match PALETTE.load(Ordering::Relaxed) {
@@ -134,7 +144,7 @@ pub fn heat_stops() -> &'static Stops {
 
 pub fn heat(age_secs: f32) -> Rgb {
     let stops = heat_stops();
-    let a = age_secs.max(1.0).ln();
+    let a = (age_secs * f32::from_bits(HEAT_SCALE.load(Ordering::Relaxed))).max(1.0).ln();
     if a <= stops[0].0.ln() {
         return stops[0].1;
     }
@@ -157,6 +167,8 @@ pub struct NodeAnim {
     /// Color the renderer is fading toward.
     pub target: Rgb,
     pub label: String,
+    /// Bytes of `label` that are the name; the rest is name details.
+    pub name: usize,
     pub w: i32,
     pub ghost: bool,
     /// Target (x, y) this frame; ghosts retarget each frame.
@@ -204,6 +216,7 @@ impl Scene {
                 a.tx = p.x as f32;
                 a.ty = p.y as f32;
                 a.label.clone_from(&p.label);
+                a.name = p.name;
                 a.w = w;
                 a.ghost = false;
                 continue;
@@ -218,6 +231,7 @@ impl Scene {
                     rgb: [0.0; 3],
                     target: [0.0; 3],
                     label: p.label.clone(),
+                    name: p.name,
                     w,
                     ghost: false,
                     tx: p.x as f32,
@@ -293,6 +307,16 @@ mod tests {
             d.v
         };
         assert!((run(30.0) - run(120.0)).abs() < 0.6);
+    }
+
+    #[test]
+    fn heat_range_stretches_the_gradient() {
+        let coldest = heat_stops()[heat_stops().len() - 1].1;
+        set_heat_range(86400.0);
+        let day_old = heat(86400.0);
+        set_heat_range(5.0 * 365.0 * 86400.0);
+        assert_eq!(day_old, coldest, "a day range: a day old is as cold as it gets");
+        assert_ne!(heat(86400.0), coldest);
     }
 
     #[test]

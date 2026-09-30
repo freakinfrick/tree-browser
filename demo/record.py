@@ -162,7 +162,7 @@ key("o", gap=1.7); key("o", gap=1.2); key("o", gap=1.0); key("o", gap=0.9)
 expect("15_mordor")
 
 say(", settings apply as you change them")
-key(",", gap=0.6); key(*"jjjjjj", gap=0.12)                       # -> Accent
+key(",", gap=0.6); key(*"jjjjjjjjjj", gap=0.12)                   # -> Accent
 key("l", gap=0.8); key("l", gap=0.8); key("j", gap=0.4); key("l", gap=1.2)   # teal, violet; heat colors: aurora
 key("h", gap=0.4); key("k", gap=0.2); key("h", "h", gap=0.3); key("Escape", gap=0.6)  # back to the defaults
 
