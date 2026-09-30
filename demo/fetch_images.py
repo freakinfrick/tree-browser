@@ -9,7 +9,7 @@ import json, os, re, subprocess, sys, time, urllib.parse, urllib.request
 
 S = os.path.dirname(os.path.abspath(__file__))
 ASSETS = os.path.join(S, "assets")
-UA = {"User-Agent": "tb-demo-fixture/0.1 (https://github.com/freakinfrick/tree-browser; demo fixture)"}
+UA = {"User-Agent": "tb-demo-fixture/0.1 (https://github.com/freakinfrick/treebeard; demo fixture)"}
 WIDTH = 1600
 
 
