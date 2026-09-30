@@ -1,0 +1,31 @@
+# Shire Post: Quick Post routes and rules (post office, Michel Delving)
+# The Quick Post runs by relay; letters travel faster than the hobbits who
+# wrote them, which is the whole point. See outgoing.json for the day's bag.
+service: quick-post
+revised: "3019-12"   # after the occupation; Sharkey's men "reorganised" the post
+routes:
+  - name: west-road
+    stops: [Michel Delving, Waymoot, Frogmorton, Bywater, Hobbiton]
+    daily: true
+    note: "Hobbiton delivery after second breakfast; never before"
+  - name: east-farthing
+    stops: [Hobbiton, Stock, Bucklebury Ferry, Crickhollow]
+    daily: true
+    note: "the ferry is part of the route; the ferryman is not part of the Post"
+  - name: south-farthing
+    stops: [Bywater, Longbottom, Sarn Ford]
+    daily: false
+    note: "tuesdays; pipe-weed orders take priority over love letters"
+  - name: tookland
+    stops: [Tuckborough, Great Smials]
+    daily: true
+    note: "the Thain's mail is carried in a separate bag, and the bag is carried by a Took"
+out_of_shire:
+  bree: "via any Bree-hobbit going home; not guaranteed (see 04_bree/prancing-pony/butterbur-reminders.txt)"
+  rivendell: "hand to a passing Dwarf or Elf; allow a season"
+  gondor: "hand to the King's messenger when he calls (since 3020)"
+  mordor: null   # route closed 3019-03-25; no forwarding address
+rules:
+  max_weight: "one seed cake, or the equivalent in mushrooms"
+  postage_due: "on delivery, at the door, in front of the neighbours"
+  lost_letters: "reported to the Postmaster; the one from Gandalf held at Bree for a summer is the case study"

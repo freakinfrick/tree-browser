@@ -1,0 +1,37 @@
+GUEST BOOK — the house of Tom Bombadil, under the hill, by the Withywindle
+(kept by Goldberry, River-daughter; Tom does not write things down.
+ Tom says the book is "for the guests, who forget.")
+
+DATE         GUEST(S)                        NIGHTS  REMARKS
+-----------  ------------------------------  ------  --------------------------------
+(no date)    Tom Bombadil                    --      was here first. "before the river
+                                                     and the trees; before the Dark
+                                                     Lord came from Outside."
+(no date)    Goldberry                       --      stays. the lilies are hers.
+(long ago)   Farmer Maggot                   often   "a sound fellow"; brings mushrooms.
+                                                     Tom visits him too; neither says
+                                                     much about it at home.
+3018-09-26   F. Baggins, S. Gamgee,          2       arrived out of Old Man Willow, wet.
+             M. Brandybuck, P. Took                  3018-09-27: stayed in for the rain.
+                                                     long talk, mostly Tom's. Frodo
+                                                     showed Tom the Ring; Tom put it
+                                                     on, and did not vanish. Tom made
+                                                     it vanish, found it again, handed
+                                                     it back like a button. Frodo put
+                                                     it on to check; Tom saw him
+                                                     anyway. Frodo not amused.
+3018-09-28   (same four, departing)          --      taught a rhyme to call Tom "in
+                                                     need". used the same day, on the
+                                                     Downs. see ../barrow-downs/.
+3019 (late   Gandalf                         many    left the four hobbits on the road
+ autumn)                                             near Bree to come here "for a long
+                                                     talk". Tom calls him a stone that
+                                                     must roll; he calls Tom a
+                                                     moss-gatherer. both pleased.
+
+HOUSE RULES (Goldberry's hand)
+  1. Wipe your feet; the floors are washed with rain.
+  2. Nobody leaves hungry. Nobody leaves before Tom finishes the song.
+  3. The dreams you have in this house are not our business. Please do not
+     tell us about them at breakfast unless they are about ponies.
+  4. Nothing is kept here that is not freely given. That includes the Ring.

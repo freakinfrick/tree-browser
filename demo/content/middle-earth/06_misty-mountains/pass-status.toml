@@ -1,0 +1,38 @@
+# Passes of the Hithaeglir: status board, maintained by the Rivendell
+# cartography desk. Last reviewed TA 3019-01-12 (after Caradhras voted).
+
+[meta]
+range = "Hithaeglir (Misty Mountains)"
+maintainer = "Rivendell library, cartography desk"
+review_cycle = "whenever someone comes back alive"
+
+[passes.high-pass]
+also_known_as = "Pass of Imladris"
+status = "open, technically"
+hazards = ["goblins", "stone-giants throwing things", "a front porch that is a trapdoor"]
+last_incident = "TA 2941, see goblin-town/incident-2941.md"
+recommended = false
+
+[passes.redhorn-gate]
+also_known_as = "Caradhras pass"
+status = "closed"
+hazards = ["snow", "wind", "the mountain itself"]
+last_incident = "TA 3019-01-12, see caradhras/route-vote.md"
+recommended = false
+note = "does not accept appeals"
+
+[passes.moria]
+also_known_as = "Khazad-dum (under, not over)"
+status = "do not enter"
+hazards = ["Watcher in the Water", "orcs", "drums", "SEV-0"]
+last_incident = "TA 3019-01-15, see 07_moria/balrog-incident-report.md"
+recommended = false
+
+[passes.gap-of-rohan]
+also_known_as = "around"
+status = "open"
+hazards = ["watched from Isengard"]
+last_incident = "ongoing, see 12_isengard/"
+recommended = false
+
+# Summary: no pass is recommended. Travellers are advised to be an Eagle.

@@ -1,0 +1,8 @@
+room,wing,floor,booked_for,night_of,occupied_by,status_next_morning,notes
+room 4 (hobbit room; bed 1),north,ground,Mr. Underhill & friends,3018-09-29,bolsters and a brown mat,"beds slashed; bolsters in pieces; window forced","built for Hobbits: round windows, low beds. see weathertop/incident-report.md for why the beds were empty"
+room 4 (hobbit room; bed 2),north,ground,Mr. Underhill & friends,3018-09-29,bolsters,"same","Strider's idea. Butterbur's objection noted and overruled"
+the small parlour,north,ground,(not booked),3018-09-29,"Frodo, Sam, Merry, Pippin, Strider","intact; nobody slept much","barred; the Ranger sat up by the window all night"
+the common room,main,ground,(open),3018-09-29,"Bree-folk, dwarves, a squint-eyed southerner","chairs broken, one table danced on","site of the song, the fall, and the vanishing; see lost-and-found.md"
+the stable,yard,ground,five ponies (Merry's),3018-09-29,nobody,"doors broken; ponies gone","ponies later wandered home to Fatty Lumpkin's paddock (Tom's pony found them)"
+room 2,south,upper,a southerner,3018-09-29,"Bill Ferny's friend (squint-eyed)","gone before dawn, bill unpaid","see bill-ferny/pony-bill-of-sale.txt for where Bree's money went that week"
+room 4 (hobbit room),north,ground,"Mr. Baggins, now not Underhill",3019-10-28,"four hobbits and Gandalf","intact","Butterbur gave them the same rooms 'for luck'. they asked for different ones"

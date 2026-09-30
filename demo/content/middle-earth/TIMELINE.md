@@ -9,9 +9,9 @@ TA 2        Isildur loses it in the Gladden Fields. see the-ring/gladden-fields.
 TA 2463     Déagol finds it; Gollum takes it. see the-ring/bearers.csv.
 2941        a hobbit finds a ring in a cave. logs it as "a ring".
 2941        Smaug is retired; the Battle of Five Armies. see 01_lonely-mountain/.
-2968-09-22  the Long-expected Party. host vanishes mid-speech. see bag-end logs.
-3018-09-29  four hobbits + one ring leave the Shire. Bree, then Weathertop.
-3018-09-30  en route, before Bree: Tom Bombadil, Old Man Willow, the Barrow-wights. see 03_old-forest/.
+3001-09-22  the Long-expected Party. host vanishes mid-speech. see bag-end logs.
+3018-09-23  Frodo leaves Bag End; four hobbits + one ring cross the Hedge 09-26. Bree 09-29, then Weathertop.
+3018-09-26  en route, before Bree: Old Man Willow, Tom Bombadil, the Barrow-wights (09-28). see 03_old-forest/.
 3018-10-18  Nazgûl attack on Weathertop. see 04_bree/weathertop/incident-report.md.
 3018-10-20  the ford. Elrond commands the river. see 05_rivendell/ford-of-bruinen/.
 3018-10-25  Council of Elrond. item 4 deferred to lunch, then to session 2.

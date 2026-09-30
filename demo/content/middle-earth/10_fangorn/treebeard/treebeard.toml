@@ -1,0 +1,42 @@
+# treebeard.toml: settings for the forest's own copy of the tool.
+# Change nothing here without an Entmoot. (See rfcs/0000-template.md.)
+
+[project]
+name        = "treebeard"          # rfcs/0001-rename-from-tree-browser.md
+formerly    = "tree-browser"       # kept, so old paths still lead home
+command     = "tb"
+maintainer  = "Fangorn"
+age         = "Fourth"
+
+[behaviour]
+hasty            = false
+confirm_delete   = "twice, a day apart"
+refresh_interval = "one season"
+greeting         = "hoom"
+
+[colour]
+# Old wood is blue. Blue is not a warning.
+cold = "the Years of the Trees"
+warm = "this morning"
+hot  = "a hobbit has just sat on it"
+
+[lint]
+min_name_len   = 9        # shorter than "treebeard" means too short
+reject_hyphens = false    # the Entmoot has no position on hyphens
+reject_words   = ["browse", "browser"]   # what goats do to saplings
+
+[lint.calls]
+# Short words you may shout across a glade. Not names. (RFC 0001, s.6)
+allow = ["tb", "hoom", "hom", "Treebeard"]
+
+[entmoot]
+place       = "Derndingle"
+quorum      = "the whole forest"
+min_days    = 3
+max_days    = "as long as it takes"
+huorns_vote = false       # they attend anyway
+
+[entwives]
+search        = true
+last_seen     = "the Brown Lands, Second Age"
+notify_on_any = true      # even a rumour

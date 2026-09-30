@@ -1,0 +1,14 @@
+[isen] 3019-03-02 dusk   sensor=north-gate   status=ok; forest reported moving south (disregard)
+[isen] 3019-03-02 night  sensor=north-gate   status=ok; large tree at gate; "tree is knocking"
+[isen] 3019-03-02 night  sensor=north-gate   status=DOWN; gate removed; not opened, removed
+[isen] 3019-03-02 night  sensor=ring-wall    stones being pulled out "like bread crusts"
+[isen] 3019-03-02 night  sensor=furnaces     fire in the pits; one Ent burned; Ents now angry
+[isen] 3019-03-02 night  sensor=orthanc      wizard at the window; wizard says nothing; unusual
+[isen] 3019-03-03 day    sensor=dam          Isen dammed upstream (not our dam)
+[isen] 3019-03-03 night  sensor=dam          dam released; water level +1 m/min
+[isen] 3019-03-03 night  sensor=pits         pits flooding; steam; loud
+[isen] 3019-03-04 morn   sensor=pits         all furnaces 0; see orthanc/uruk-hai-production.csv
+[isen] 3019-03-04 morn   sensor=orthanc      tower dry above the first floor; wizard inside
+[isen] 3019-03-05 noon   sensor=gate-ruins   two hobbits sitting on rubble, eating, smoking
+[isen] 3019-03-05 noon   note: "Welcome, my lords, to Isengard!" (Merry, to Theoden)
+[isen] 3019-03-05 noon   sensor=all          no further readings; sensors underwater

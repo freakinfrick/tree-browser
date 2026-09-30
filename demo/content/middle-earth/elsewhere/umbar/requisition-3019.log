@@ -1,0 +1,21 @@
+# requisition-3019.log — Corsair fleet, from Umbar to the Anduin, and after
+# filed: Gondor, Pelargir harbour-office · cross-refs: fleet-manifest.csv,
+#        ../../11_rohan/paths-of-the-dead/oath-keepers.md
+
+3019-03-05 07:00:00 INFO  fleet departs Umbar: 50 great ships, lesser craft uncounted
+3019-03-05 07:00:01 INFO  orders: sail north, enter the Anduin, burn the coast, meet the host at Minas Tirith
+3019-03-09 16:00:00 INFO  fleet enters the Ethir Anduin; southern fiefs keep their men home to meet us
+3019-03-10 18:00:00 WARN  scouts: a small band of riders crossing the Ringló; "and something behind them"
+3019-03-11 12:00:00 WARN  fleet at Pelargir; loading the plunder of Lebennin
+3019-03-11 15:00:00 WARN  shore parties at Linhir: Lamedon and the riders engaged; then everyone ran
+3019-03-12 17:00:00 WARN  shore parties driven back on Pelargir; the fear follows them in
+3019-03-13 09:00:00 CRIT  shadow host arrives at Pelargir; lanterns out; oars dropped
+3019-03-13 09:00:04 CRIT  crews: 100% abandoned ship; many into the river, some into the south
+3019-03-13 09:15:00 INFO  slaves at the oars: freed by order of the heir of Isildur
+3019-03-13 10:00:00 INFO  fleet: requisitioned; new owner: Aragorn son of Arathorn
+3019-03-13 10:00:01 INFO  receipt: "none issued; the previous owners were not available"
+3019-03-13 11:00:00 INFO  oath of the Dead: fulfilled; shadow host dismissed
+3019-03-14 00:00:00 INFO  fleet sails north; crews: men of Lebennin and Lamedon
+3019-03-15 09:00:00 INFO  fleet sighted from the walls of Minas Tirith; black sails; city despairs
+3019-03-15 09:05:00 INFO  standard unfurled at the mast: White Tree, Seven Stars, crown; city revises opinion
+3019-03-15 09:40:00 INFO  fleet lands at the Harlond; host joins the Pelennor

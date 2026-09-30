@@ -1,0 +1,31 @@
+ARTIFACT LABEL: the One Ring
+catalogue no.   FORGE-1600-001 (see forging.md)
+material        gold (apparently plain)
+markings        none visible at room temperature
+
+RECOVERED MARKINGS (heat test, Bag End, TA 3018-04-13; see heat-test.md)
+  script        Fëanorian letters (Tengwar), elvish in form
+  language      the Black Speech of Mordor
+  position      inside and outside the band, in fine lines of fire
+  duration      visible only while heated; fade as the metal cools
+
+  line 1 (transliterated)
+      Ash nazg durbatulûk, ash nazg gimbatul,
+  line 2 (transliterated)
+      ash nazg thrakatulûk agh burzum-ishi krimpatul.
+
+  gloss (short form, per Gandalf; the full verse is filed in rings-of-power.txt)
+      one ring to rule them all, one ring to find them,
+      one ring to bring them all, and in the darkness bind them.
+
+HANDLING
+  - do not read the inscription aloud in Imladris (Gandalf did, at the
+    Council, in the Black Speech; the valley went dark; Elrond objected)
+  - do not heat for longer than needed. it will not melt. that is the point
+  - the only fire hot enough is the one that made it: see
+    15_mordor/mount-doom/ring-destruction.md
+
+PROVENANCE NOTE
+  The same words were spoken aloud by the maker at the forging. The Elves
+  of Eregion heard them in their own rings and took the Three off at once.
+  That was the first incident report. This label is the last.

@@ -28,8 +28,8 @@ asking for a name · **Name sought:** "Baggins".
   be off, and threatened to set the dogs on him. The Rider, to everyone's
   surprise, went. "He offered me gold for 'Baggins', and I offered him
   Grip, Fang, and Wolf." — Farmer Maggot, the Marish, 3018-09-25.
-- 3018-09-26 — the Riders reached the Shire on the very night Frodo and the
-  others were leaving it. The whole escape was run on a margin of hours.
+- 3018-09-25 — a Rider reached the Bucklebury Ferry landing on the very night
+  Frodo and the others crossed the river. The whole escape was run on a margin of hours.
 
 ## Sightings ledger (eye-witness, name-redacted)
 
@@ -38,7 +38,7 @@ asking for a name · **Name sought:** "Baggins".
 | 3018-09-22 | Sarn Ford | ranger on watch | "passed without sound, refused the ferry" |
 | 3018-09-23 | Bywater | inn guest | "asked only for Baggins, nothing else" |
 | 3018-09-25 | the Marish | Maggot's farmhand | "sniffed the air like a dog at the gate" |
-| 3018-09-26 | Bucklebury Ferry | dockworker | "stood at the far bank and hissed" |
+| 3018-09-25 | Bucklebury Ferry | dockworker | "stood at the far bank and hissed" |
 
 ## What the Riders were
 

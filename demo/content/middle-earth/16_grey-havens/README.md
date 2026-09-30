@@ -3,7 +3,8 @@
 > **Record:** `havens-roll-0001` · **Filed:** Círdan the Shipwright ·
 > **Founded:** Second Age · **Status:** one-way departures · **Classification:**
 > terminal · **Cross-refs:** `last-boat-timetable.csv`, `packing-list.md`,
-> `02_the-shire/fourth-age.md`
+> `02_the-shire/fourth-age.md`, `shipyard/white-ship.toml`, `lost-and-found.csv`,
+> `well-im-back.md`, `embarkation.jpg` (a harbour at sunset; see CREDITS.md)
 
 **Kind:** the Elvish harbor at the end of the world's road.
 **Position:** the Gulf of Lune, in the west of Eriador.

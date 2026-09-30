@@ -1,0 +1,20 @@
+# roac-dispatches.log: raven relay, Ravenhill station
+# operator: Roäc son of Carc, chief of the ravens of the Mountain (age 153; "hard of hearing, not of thinking")
+# protocol: speech (Westron/Khuzdul on request), thrushes not supported
+# clock: reconstructed afterwards by the station; the Dwarves kept no calendar that autumn
+# cross-refs: 01_lonely-mountain/smaug-death.md, 01_lonely-mountain/battle-of-five-armies.md, 01_lonely-mountain/front-gate/
+2941-11-02T07:10:00 INFO  thrush: unauthorised relay detected on the grey stone; content: a hobbit's report of a weak spot; forwarded to a bowman in Lake-town (not by us)
+2941-11-03T09:30:00 INFO  roac: arrived at the front gate; identified self; asked for "the son of Thráin"
+2941-11-03T09:31:10 INFO  roac: news packet 1/3 delivered: THE DRAGON IS DEAD (Esgaroth, three nights ago, by Bard of the line of Girion)
+2941-11-03T09:32:00 INFO  roac: news packet 2/3 delivered: Lake-men and the Elvenking are marching on the Mountain for a share of the hoard
+2941-11-03T09:33:45 WARN  roac: news packet 3/3 (advice): trust Bard, not the gold. recipient acknowledged packets 1 and 2 only
+2941-11-03T09:40:00 INFO  thorin: outbound request: summon Dáin of the Iron Hills with all the strength he can bring
+2941-11-03T09:40:05 INFO  relay: courier assigned (young raven, fast, unnamed in all records)
+2941-11-03T09:40:30 WARN  roac: dispatched under protest; noted for the record that a siege is easier to start than to stop
+2941-11-06T16:00:00 INFO  relay: courier reached the Iron Hills; Dáin mustering; ETA "days, with pigs"
+2941-11-15T11:20:00 INFO  roac: observes Thorin fire an arrow into the shield of Bard's herald during parley. filed as "negotiations: ongoing"
+2941-11-16T02:00:00 INFO  roac: a small figure left the walled gate by rope at night, heading for the Elvenking's camp. not reported upward. old ravens know when not to report
+2941-11-17T07:00:00 INFO  relay: Dáin's host sighted, ~500 Dwarves with mattocks and the worst tempers in the east
+2941-11-17T12:30:00 ERROR sky: darkening; bats; wargs on the north wind. all parties reclassified from "enemy" to "ally" in under an hour
+2941-11-17T15:00:00 INFO  eagles: arrived. ravens stand down; the sky is someone else's problem now
+2941-11-18T08:00:00 INFO  roac: final dispatch: the King under the Mountain is dead, and Fíli and Kíli with him. Dáin is king. the ravens will keep their post

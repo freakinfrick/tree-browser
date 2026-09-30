@@ -3,7 +3,8 @@
 > **Record:** `marsh-roll-0001` · **Filed:** the guide (Gollum), relayed by
 > Samwise Gamgee · **Span:** crossed TA 3019-03 · **Status:** do not follow the
 > lights · **Classification:** memorial, misread as a hazard ·
-> **Cross-refs:** `do-not-follow-the-lights.txt`, `gollum/service-record.md`
+> **Cross-refs:** `do-not-follow-the-lights.txt`, `gollum/service-record.md`,
+> `marsh-light-readings.csv`, `crossing-journal.log`, `dagorlad-memorial-roll.md`
 
 **Kind:** a fen that is also a grave.
 **Position:** between the Emyn Muil and the Dagorlad, north-west of the Black

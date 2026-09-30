@@ -4,7 +4,8 @@
 > **Span:** the river, continuous; the Fellowship, TA 3019-02 ·
 > **Status:** the Fellowship broke here · **Classification:** water hazard ·
 > **Cross-refs:** `boats.csv`, `rauros-falls.md`, `amon-hen/fellowship-dissolution.md`,
-> `amon-hen/boromir-last-stand.md`
+> `amon-hen/boromir-last-stand.md`, `river-log.log`, `sarn-gebir-portage.md`,
+> `argonath/clearance-report.md`
 
 **Kind:** the greatest river of Middle-earth, and the route the Ring took south.
 **Position:** from the Grey Mountains in the north to the Bay of Belfalas;

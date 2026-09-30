@@ -1,0 +1,34 @@
+# halls.toml — Durin's Folk, northern holdings, final inventory at abandonment
+# filed: the treasurers of Thrór, TA 2590 · cross-refs: README.md
+
+[realm]
+name = "Ered Mithrin"
+occupied = "TA 2210 - 2590"
+king_at_close = "Thrór"
+status = "abandoned"
+
+[hall.kings]
+door = "west face, the long valley"
+condition = "sound; door scorched by nothing (cold-drake)"
+notes = "Dáin I and Frór fell on this threshold, 2589"
+
+[hall.east-vale]
+door = "barred"
+condition = "raided 2576; held"
+
+[workings.gold]
+yield = "the best in the North"
+status = "closed since 2571; dragons have the key"
+
+[claims.scatha-hoard]
+claimant = "Durin's Folk"
+held_by = "the Éothéod (Fram son of Frumgar)"
+basis = "the gold was ours before the worm lay on it"
+reply_received = "a necklace of Scatha's teeth, with a message"
+message = "Jewels like these you will not match in your treasuries."
+outcome = "Fram slain in the quarrel that followed; claim unresolved"
+status = "open, and to remain open"
+
+[evacuation]
+first_item_packed = "the Arkenstone"
+destinations = ["Erebor (Thrór)", "the Iron Hills (Grór)"]

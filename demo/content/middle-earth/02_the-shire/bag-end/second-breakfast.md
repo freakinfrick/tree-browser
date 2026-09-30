@@ -1,7 +1,7 @@
 # Meal plan: week of the Long-expected Party
 
-**Filed by:** the Bag End pantry, Hobbiton, 2968-09-19
-**Reference:** MEAL-2968-111 (revised after the dwarves' washing-up song was
+**Filed by:** the Bag End pantry, Hobbiton, 3001-09-19
+**Reference:** MEAL-3001-111 (revised after the dwarves' washing-up song was
 ruled out of scope)
 **Cross-refs:** `02_the-shire/green-dragon-inn/tab.csv`, `08_lothlorien/lembas-recipe.yaml`
 
@@ -20,11 +20,11 @@ ruled out of scope)
 - [x] Is a second breakfast a *breakfast* or a *brunch*? (breakfast; motion carried)
 - [x] Can elevenses be moved to 10:45 on market days? (yes, market days only;
   approved by Bilbo "so long as the tea is already on" — Bilbo, Bag End,
-  2968-09-19)
+  3001-09-19)
 - [x] Who ate the last of the mushrooms? **Investigation ongoing.**
 
 > Suspects: P. Took, M. Brandybuck. Motive: mushrooms. Opportunity: always.
-> — Samwise Gamgee (then under-gardener), Bag End pantry, 2968-09-19
+> — Samwise Gamgee (then under-gardener), Bag End pantry, 3001-09-19
 
 ## Field rations (for the road)
 

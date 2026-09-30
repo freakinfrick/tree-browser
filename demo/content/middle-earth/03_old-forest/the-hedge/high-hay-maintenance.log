@@ -1,0 +1,18 @@
+# high-hay-maintenance.log: the Hedge (High Hay), Buckland's eastern boundary
+# maintained by: the Brandybucks of Brandy Hall, on behalf of Buckland
+# length: about twenty miles, from the Brandywine Bridge to where the Withywindle meets the river
+# cross-refs: 03_old-forest/the-hedge/bonfire-glade.md, 02_the-shire/bounders/border-watch.log
+# older entries transcribed from the Brandy Hall books; the Forest keeps no copy
+TA-2340 INFO  planting: Gorhendad Oldbuck crosses the river, founds Buckland, digs Brandy Hall. first hedge laid
+TA-23xx INFO  hedge: grown thick and tall; "tall enough that a Man on a horse cannot see over"
+TA-24xx WARN  hedge: section near the Gate found leaning outward overnight. no wind that night
+TA-24xx WARN  hedge: roots coming up under the hedge from the forest side. trimmed
+TA-24xx ERROR hedge: trees on the forest side "came up against the Hedge and leaned over it". Bucklanders cut hundreds
+TA-24xx ERROR bonfire: the cut trees burned in a great fire in the Forest; ring of ground left bare. see bonfire-glade.md
+TA-2911 WARN  gate: the Fell Winter; white wolves over the frozen Brandywine; Horn-call of Buckland sounded
+TA-29xx INFO  gate: Hedge Gate (north end) locked at dark, keys at Brandy Hall. unchanged since
+TA-3018-09-26 INFO  tunnel: the old tunnel under the Hedge from Crickhollow's side opened for four hobbits at dawn. gate locked behind them
+TA-3018-09-26 WARN  tunnel: Fatty Bolger, remaining, reports the trees "listening". logged, not actioned
+TA-3018-09-30 ERROR gate: black riders past the North-gate at night. the Horn sounded again. see 02_the-shire/bounders/border-watch.log
+TA-3019-12 INFO  audit: Hedge intact along its length. Forest side: unchanged. Forest's opinion of the Hedge: unchanged
+TA-3020 INFO  policy: no cutting on the Forest side without a Brandybuck present and a good reason. the Forest was not asked to sign

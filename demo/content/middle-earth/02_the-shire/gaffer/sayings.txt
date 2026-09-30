@@ -1,0 +1,37 @@
+SAYINGS OF THE GAFFER
+Hamfast Gamgee, No. 3 Bagshot Row, Hobbiton. Gardener (retired), potato
+authority (not retired). Collected by his son Samwise over many years,
+filed here so they stop being quoted wrong at the Ivy Bush.
+
+ON POTATOES
+  - The roots of a matter are the part to dig at. Top growth is talk.
+  - Taters want a dry spell and a wet spell, and not both on the same day.
+  - A poor crop is a gardener's fault; a good crop is the weather's.
+
+ON THE GENTRY
+  - Mr. Bilbo is a very nice gentlehobbit, and there's no call to go
+    talking about where his money came from.
+  - Elves and dragons: the less said. Cabbages and potatoes: say what you
+    like, it'll do you no harm.
+  - Don't go getting mixed up in the business of your betters, or you'll
+    land in trouble too big for you.
+
+ON TROUBLE
+  - Where there's life there's hope. (Sam carried this one to Mordor and
+    back. It is the only saying in this file to have been field-tested.)
+  - It's an ill wind as blows nobody any good, and all's well as ends better.
+  - Trouble won't come to a hole that keeps its door shut. (Disproved,
+    3018-09-23; see ../bounders/border-watch.log. The Gaffer does not wish
+    to discuss it.)
+
+ON BAGSHOT ROW (added 3019-11)
+  - They dug up the Row for a gravel pit. They put me in a house on the
+    new side. A house is not a hole, whatever it says on the door.
+  - Mr. Frodo got me back into a proper place, and my son got me a
+    daughter-in-law. I've had worse Novembers.
+  - "New Row" is what they're calling it. Sharkey's End is what I'm calling
+    it, and I'm the one who lives there.
+
+END OF FILE. The Gaffer has asked that this list be read "in a respectful
+voice" and never set to music at the Green Dragon (see
+../green-dragon-inn/songs.txt, which has not banned it yet, and should).

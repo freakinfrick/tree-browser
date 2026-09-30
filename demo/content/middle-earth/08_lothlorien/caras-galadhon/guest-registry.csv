@@ -1,0 +1,11 @@
+guest,people,arrived,departed,flet,dietary,notes
+Frodo Baggins,Hobbit,3019-01-17,3019-02-16,guest pavilion,none,"Ring-bearer; looked in the Mirror; offered it; see ../mirror-of-galadriel/the-test.md"
+Samwise Gamgee,Hobbit,3019-01-17,3019-02-16,guest pavilion,"second helpings","asked about the rope-making; gifted rope; see ../farewell-gifts.md"
+Meriadoc Brandybuck,Hobbit,3019-01-17,3019-02-16,guest pavilion,"second breakfast",
+Peregrin Took,Hobbit,3019-01-17,3019-02-16,guest pavilion,"all breakfasts",
+Aragorn son of Arathorn,Man,3019-01-17,3019-02-16,guest pavilion,none,"has been here before (TA 2980, Cerin Amroth)"
+Boromir of Gondor,Man,3019-01-17,3019-02-16,guest pavilion,none,"flagged by the Lady; tested; did not say how"
+Legolas Greenleaf,Elf,3019-01-17,3019-02-16,guest pavilion,none,"Silvan cousin; sang a lot"
+Gimli son of Gloin,Dwarf,3019-01-17,3019-02-16,guest pavilion,none,"blindfolded at the border; asked for one hair; given three"
+Gandalf the Grey,Maia,,,,,"did not arrive (see 07_moria/balrog-incident-report.md); lament sung nightly"
+Gandalf the White,Maia,3019-02-17,3019-02-17,,,"brought in by Gwaihir after the fellowship left; healed; clothed in white"

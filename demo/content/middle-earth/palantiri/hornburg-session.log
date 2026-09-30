@@ -1,0 +1,22 @@
+# palantir session log: the Orthanc stone, used at the Hornburg
+# operator: Aragorn son of Arathorn (rightful user; heir of Elendil)
+# custody: handed over by Gandalf at Dol Baran, 3019-03-05 night, "by right"
+# cross-ref: registry.md, 12_isengard/orthanc/palantir-access.log
+
+3019-03-06 05:40  INFO   session opened. chamber of the Hornburg, alone. door barred.
+3019-03-06 05:40  INFO   remote peer: Barad-dur (stone of Minas Ithil, relayed). peer active.
+3019-03-06 05:41  WARN   peer attempting to take control of the session.
+3019-03-06 05:41  INFO   operator asserting ownership: heir of Isildur; the stone is his by right.
+3019-03-06 05:44  WARN   contest of wills. duration unknown to the operator; long to the log.
+3019-03-06 05:52  INFO   control held by operator. stone turned to his will.
+3019-03-06 05:52  INFO   operator displays: the sword re-forged (Anduril). message: "the heir lives".
+3019-03-06 05:53  INFO   peer response: not recorded. peer was "not pleased", per operator.
+3019-03-06 05:53  INFO   operator viewing south. result: the Corsairs of Umbar moving on the river.
+3019-03-06 05:54  WARN   threat to Minas Tirith from the south, unguarded. no army can reach in time.
+3019-03-06 05:54  INFO   decision recorded: take the Paths of the Dead. see 11_rohan/paths-of-the-dead/.
+3019-03-06 06:10  INFO   session closed by operator. operator exits grey-faced, silent.
+3019-03-06 06:10  INFO   side effect (intended): the Enemy now hurries. a hasty enemy moves before he is ready.
+3019-03-06 06:11  INFO   custody: stone retained by operator; later to the King's treasury.
+
+# summary: first authenticated session in centuries. the only user who made the
+# stone answer to him instead of the other way round. still: do not try this at home.

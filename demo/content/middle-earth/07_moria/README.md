@@ -4,7 +4,7 @@
 > the last filing) · **Span:** First Age (founding) — abandoned TA 1981 ·
 > **Status:** 🔴 do not enter · **Classification:** legacy monolith, on fire ·
 > **Cross-refs:** `balrog-incident-report.md`, `mazarbul-chamber/book-of-records.txt`,
-> `west-gate/lock.rs`
+> `west-gate/lock.rs`, `west-gate/sign-in.log`, `west-gate/ithildin-maintenance.md`
 
 **Kind:** the greatest of the Dwarf-mansions, dug under the Misty Mountains.
 **Position:** beneath the mountains at their middle; the West-gate faces the
@@ -28,7 +28,7 @@ the Dwarf-holds — the one they delved too deep.
 - **TA 2989–2994.** Balin leads an attempt to reclaim it; the colony is
   destroyed. The Book of Mazarbul records the last days; Gandalf finds it,
   torn, in 3019 (`mazarbul-chamber/book-of-records.txt`).
-- **TA 3019-01-15.** The Fellowship passes through: the West-gate opens for
+- **TA 3019-01-13 → 01-15.** The Fellowship passes through: the West-gate opens for
   the word *friend* (`west-gate/lock.rs`, `west-gate/password-hint.txt`), the
   Watcher strikes (`west-gate/watcher-incident.md`), and at the Bridge of
   Khazad-dûm Gandalf holds the Balrog and falls

@@ -1,0 +1,30 @@
+# muster.yaml — the host of Harad for the assault on Minas Tirith
+# filed: recovered from a baggage wagon on the Pelennor, 3019-03-16
+# translated by: the Rangers of Ithilien · cross-refs: mumak-registry.csv,
+#   14_gondor/pelennor-fields/battle-report.md
+host: Harad
+standard: "black serpent on scarlet"
+commander: "the Chieftain of the Black Serpent"
+summoned_by: "the Tower, via messengers who did not take no for an answer"
+march:
+  from: Near Harad
+  route: "the Harad Road, north through Ithilien"
+  crossing: Osgiliath
+  arrive: 3019-03-15
+contingents:
+  - name: horse of Harad
+    strength: "several thousand"
+  - name: foot of Harad
+    strength: "many thousands, with scimitars"
+  - name: the mûmakil
+    strength: "a dozen or so, with towers"
+    note: "horses will not go near them; plan accordingly"
+orders:
+  - "hold the south of the field"
+  - "meet the horsemen of the North if they come"
+  - "they will not come"
+outcome:
+  - 3019-03-15: "the horsemen of the North came"
+  - 3019-03-15: "the Chieftain charged Théoden and was slain by him"
+  - 3019-03-15: "black sails came up the river; they were not ours"
+  - 3019-03-15: "host broken by nightfall; survivors south"

@@ -1,6 +1,6 @@
 # The Paths of the Dead: oath-keepers
 
-**Filed by:** the heir's herald, at the stone of Erech · **Date:** 3019-03-10 ·
+**Filed by:** the heir's herald, at the stone of Erech · **Date:** 3019-03-08 ·
 **Ticket:** DUN-0001 · **Cross-ref:** `14_gondor/pelennor-fields/battle-report.md`.
 
 The people of the Mountains betrayed Isildur long ago and were cursed to
@@ -51,8 +51,9 @@ the only signatory who can sign it closed.
 
 When the King of the Dead asked whether they were now released, the answer
 was recorded as the last word spoken to them: "Keep your oath, and go." —
-Aragorn son of Arathorn, on the Pelennor, 3019-03-15. The Dead dispersed
-then, and are not recorded again. The host that fought at the Pelennor is
+Aragorn son of Arathorn, at Pelargir, 3019-03-13, once the Corsairs'
+fleet was taken. The Dead dispersed then, and are not recorded again. The
+living host that sailed those ships to the Pelennor is
 accounted in `14_gondor/pelennor-fields/battle-report.md`, where the black
 ships are listed among the arrivals that ended the day.
 

@@ -1,7 +1,7 @@
 # the Old Forest & the Barrow-downs — location record
 
 > **Record:** `forest-roll-0001` · **Filed:** (no one; the Forest files
-> nothing) · **Record entered by:** Frodo Baggins, TA 3018-09-30 ·
+> nothing) · **Record entered by:** Frodo Baggins, TA 3018-09-26 ·
 > **Status:** unbothered, awake · **Classification:** none; see Tom Bombadil ·
 > **Cross-refs:** `tom-bombadil.md`, `old-man-willow.md`,
 > `barrow-downs/barrow-wight-report.md`
@@ -24,7 +24,7 @@ one (`tom-bombadil.md`).
 
 - **Since the First Age.** The trees have been here, and Tom remembers the
   first raindrop and the first acorn; the Forest is a relic, not a realm.
-- **TA 3018-09-30.** Frodo, Sam, Merry, and Pippin enter to avoid the Black
+- **TA 3018-09-26.** Frodo, Sam, Merry, and Pippin enter to avoid the Black
   Riders and are almost lost: **Old Man Willow** swallows Merry, and a
   barrow-wight takes all four in the Barrow-downs. Tom rescues them twice,
   both times by song (`old-man-willow.md`, `barrow-downs/barrow-wight-report.md`).
@@ -51,3 +51,11 @@ matters.
 
 Unchanged. The trees still watch the path, Tom still sings, and the only
 entity in this repo with perfect uptime is the one that files nothing.
+
+## Also filed here
+
+- `the-hedge/`: the High Hay's maintenance log, and the Bonfire Glade,
+  the one scar the Forest keeps open.
+- `tom-house/guest-book.txt`: Goldberry's book, for the guests, who forget.
+- `barrow-downs/blade-issue.csv`: where the four barrow-blades ended up.
+- `path-finder.py`: a route planner. Every route arrives at the Withywindle.

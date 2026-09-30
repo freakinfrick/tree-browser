@@ -70,3 +70,12 @@ Filed under `the-quest/` — the road from Bag End to the mountain and back:
 
 Reclaimed and re-occupied. The dragon is dead, the king is under the
 mountain, and the forges — the ones Smaug did not reach — are lit again.
+
+## Also filed here
+
+- `the-quest/contract.md`: the burglar's engagement letter, one fourteenth
+  of total profits (if any).
+- `front-gate/wall-change-request.md`: walling up the Front Gate, reviewed.
+- `ravens/`: Roäc's dispatch log and the Ravenhill roster.
+- `arkenstone-chain-of-custody.csv`: every hand the Heart of the Mountain
+  passed through, ending in a tomb.

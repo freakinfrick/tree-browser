@@ -3,7 +3,7 @@
 > **Record:** `isengard-roll-0001` · **Filed:** (last filed by Saruman, then by
 > the Ents) · **Status:** ⚫ decommissioned, flooded · **Classification:**
 > rogue service · **Cross-refs:** `orthanc/`, `saruman-memo.pdf.src`,
-> `10_fangorn/breaking-of-isengard.md`
+> `10_fangorn/breaking-of-isengard.md`, `flood-telemetry.log`, `treegarth-handover.md`
 
 **Kind:** a ring-wall fortress in a vale, built around a tower that was never
 meant to be an industry.
@@ -43,4 +43,4 @@ did to a garden.
 ## Status
 
 Decommissioned. The furnaces are out, the water has come in, and the Ents
-have planted trees in the ruins.
+have planted trees in the ruins (`treegarth-handover.md`).

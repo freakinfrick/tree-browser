@@ -1,9 +1,9 @@
 # Barrow-wights: incident report
 
-**Filed by:** Frodo Baggins · **Date filed:** 3018-09-30, at Tom Bombadil's
-house, the morning after · **Incident ID:** BARROW-3018-09-30
+**Filed by:** Frodo Baggins · **Date filed:** 3018-09-29, at the Prancing Pony,
+Bree, the evening after · **Incident ID:** BARROW-3018-09-28
 **Site:** the Barrow-downs, east of the Old Forest
-**Date:** 3018-09-30, night (the same day they left Tom's house)
+**Date:** 3018-09-28, fog, then dark (the day they left Tom's house)
 **Severity:** SEV-1 (the Ring-bearer nearly sacrificed)
 **Refs:** `03_old-forest/tom-bombadil.md`, `14_gondor/pelennor-fields/eowyn-vs-witchking.md`
 
@@ -22,12 +22,12 @@ house, the morning after · **Incident ID:** BARROW-3018-09-30
 
 > "Cold be hand and heart and bone, and cold be sleep under stone: never
 > more to wake on stony bed, never, till the Sun fails and the Moon is dead."
-> — the Barrow-wight, in the barrow, 3018-09-30 (as remembered by Frodo;
+> — the Barrow-wight, in the barrow, 3018-09-28 (as remembered by Frodo;
 > the cadence, not the words, is filed here)
 
 > "Get out, you old Wight! Vanish in the sunlight! ... out into the barren
 > lands far beyond the mountains!"
-> — Tom Bombadil, banishing the wight, 3018-09-30
+> — Tom Bombadil, banishing the wight, 3018-09-28
 
 ## Loot recovered
 

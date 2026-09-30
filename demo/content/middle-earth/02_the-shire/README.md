@@ -58,3 +58,13 @@ records, the *origin*: the Ring was created, found, and inherited here.
 
 Recovering, then flourishing. The party tree was replanted, the mill was
 demolished, and the spoons were restored to twelve of twelve.
+
+## Also filed here
+
+- `sackville-baggins/bag-end-conveyance.md`: Bag End, three owners in two years.
+- `bounders/border-watch.log`: the border patrol, from a fox to Bywater.
+- `gaffer/sayings.txt`: Hamfast Gamgee, on potatoes and trouble.
+- `party-field/mallorn-growth.csv`: the tree Sam planted where the Party
+  Tree stood.
+- `shire-post/quick-post-routes.yaml`: the Quick Post, and why Bree is
+  "not guaranteed".

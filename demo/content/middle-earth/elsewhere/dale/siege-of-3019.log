@@ -1,0 +1,21 @@
+# siege-of-3019.log — watch-tower, Ravenhill relay, forwarded to Erebor
+# filed: TA 3019 · keeper: the watch of Dale · cross-refs: ../../01_lonely-mountain/README.md
+
+3019-03-10 06:12:00 WARN  easterlings sighted crossing the Carnen; count: "more than the ravens can"
+3019-03-10 06:40:00 INFO  bells: rung (all of them)
+3019-03-10 07:05:00 INFO  market: closed until further notice
+3019-03-11 12:00:00 INFO  messenger to Erebor: received; Dáin Ironfoot musters
+3019-03-14 18:30:00 WARN  outlying farms: abandoned; stock driven under the Mountain
+3019-03-17 05:00:00 CRIT  battle of dale: engaged in the vale of the River Running
+3019-03-17 11:20:00 CRIT  gate of dale: breached; fighting moves to the Mountain's feet
+3019-03-17 15:45:00 CRIT  king brand: fallen before the Gate of Erebor
+3019-03-17 15:46:00 CRIT  king dáin ironfoot: fallen, standing over the body of Brand
+3019-03-17 16:30:00 INFO  survivors (Men and Dwarves): withdrawn inside Erebor; gate shut
+3019-03-18 00:00:00 WARN  siege state: active; enemy camped in the ruins of the market
+3019-03-18 00:00:01 INFO  stores inside the Mountain: sufficient; morale: grim
+3019-03-25 14:00:00 INFO  unexplained: enemy host wavers, several captains ride east
+3019-03-27 06:00:00 INFO  word arrives from the south: the Dark Tower has fallen
+3019-03-27 06:30:00 INFO  sortie: Bard II and Thorin III Stonehelm lead Men and Dwarves out
+3019-03-27 12:00:00 INFO  siege state: lifted; enemy driven east over the Carnen
+3019-03-28 09:00:00 INFO  bard ii: crowned; thorin iii: crowned; both on the same morning
+3019-04-15 10:00:00 INFO  market: reopened (see toy-market-ledger.csv)

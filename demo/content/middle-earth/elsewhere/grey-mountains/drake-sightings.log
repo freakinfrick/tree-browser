@@ -1,0 +1,19 @@
+# drake-sightings.log — northern watch, Ered Mithrin halls (archived 2590)
+# filed: Durin's Folk · cross-refs: README.md, halls.toml, cold-drake-alarm.sh
+
+2555-11-02 03:10:00 INFO  smoke over the Withered Heath; filed as "weather"
+2570-01-14 22:00:00 WARN  dragons increasing in the northern waste; count unknown, all large
+2570-01-14 22:00:01 WARN  new class observed: cold-drake (no fire; claws, teeth, patience)
+2571-06-30 04:20:00 WARN  eastern gold-workings raided; workings closed
+2576-09-09 01:15:00 WARN  outer hall of the east vale attacked; doors held
+2580-02-18 23:40:00 CRIT  road between the halls cut; couriers stop; post by raven only
+2584-12-05 02:00:00 WARN  ravens reluctant
+2589-10-21 05:30:00 CRIT  great cold-drake at the door of the King's hall
+2589-10-21 05:31:00 CRIT  king dáin i: slain at his own door
+2589-10-21 05:31:01 CRIT  frór, second son: slain beside him
+2589-10-21 06:00:00 INFO  drake withdrew; hall held; alarm had sounded (too late)
+2589-10-22 09:00:00 INFO  council of the kin: thrór is king; question tabled: "why are we still here"
+2590-04-01 07:00:00 INFO  decision: leave. thrór to Erebor; grór to the Iron Hills
+2590-04-10 08:00:00 INFO  arkenstone: packed first
+2590-05-02 18:00:00 INFO  last dwarf out; doors left shut; log archived
+2770-01-01 00:00:00 WARN  (appended by Erebor) the move south did not help. see 01_lonely-mountain/

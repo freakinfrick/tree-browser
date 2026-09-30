@@ -1,0 +1,42 @@
+# Vessel specification: the white ship
+# yard: Mithlond, the Grey Havens · shipwright: Círdan · spec rev: TA 3021-09
+# cross-ref: ../last-boat-timetable.csv, ../packing-list.md
+
+[vessel]
+name        = "the white ship"            # the Elves do not name the ship; the voyage is the name
+builder     = "Círdan the Shipwright"
+yard        = "Mithlond"
+hull        = "white timber, grey-rigged"
+sails       = "grey, like the Havens"
+crew        = "Elves of Lindon"
+draught     = "shallow; the sea will not be a problem"
+
+[route]
+origin      = "Gulf of Lune"
+destination = "the Straight Road, then Tol Eressëa, then Valinor"
+waypoints   = []                          # none that can be charted from this side
+return_trip = false
+round_world = false                       # removed from the circles of the world at the Downfall
+
+[capacity]
+berths      = 7
+reserved    = ["Elrond", "Galadriel", "Gandalf", "Bilbo", "Frodo"]
+cargo       = ["Vilya", "Nenya", "Narya"]  # the Three, powers spent; carried by their keepers
+livestock   = ["Shadowfax"]               # boarded with Gandalf, by some accounts
+
+[departure]
+date        = "3021-09-29"
+tide        = "evening"
+light       = "west, going grey, then silver"
+farewells   = "short"                     # see packing-list.md: everyone is crying
+
+[deck_log]
+entries = [
+  "3021-09-29 dusk: cast off. no bell rung.",
+  "3021-09-29 dusk: a sound of singing heard over the water, from shore, then no shore.",
+  "3021-09-29 night: grey rain-curtain turned to silver glass. rolled back. white shores.",
+]
+
+[maintenance]
+next_survey = "never"                     # the ship does not come back to be surveyed
+warranty    = "the whole Age"

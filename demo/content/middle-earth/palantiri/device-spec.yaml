@@ -1,0 +1,29 @@
+# Palantír: device specification (as recovered from Númenórean archives)
+# cross-ref: registry.md, SECURITY.md (CVE-3019-0002)
+model: "palantír (pl. palantíri), 'that which looks far away'"
+maker: "the Noldor of Eldamar (by tradition, the craft of Fëanor's people)"
+issued_to: "Elendil and his sons, the Faithful of Númenor"
+units_in_middle_earth: 7
+master_unit: "Avallónë, Tol Eressëa (the Tower of Avallónë); read-only from here"
+form_factor:
+  shape: "perfect sphere, dark crystal"
+  sizes: ["about one foot (small stones)", "too great for one man to lift (Osgiliath, Elostirion)"]
+  finish: "smooth; looks like black glass until woken"
+mounting: "fixed at their sites; the small stones may be carried, which is the problem"
+interface:
+  input: "will; the user stares, the stone answers"
+  output: "images, silent; far places, and far times"
+  audio: false
+  text: false
+  sharing: "two stones may converse; a stronger one may dominate a weaker user"
+security:
+  authentication: none
+  encryption: none
+  logout: "look away (harder than it sounds)"
+  known_issues:
+    - "a hostile operator holds the Ithil stone"
+    - "stones show true things, selected by whoever is stronger on the other end"
+    - "no timestamp on visions; past, present and far away look the same"
+power: "inherent; does not run down"
+warranty: "Númenor sank in SA 3319; claims not being processed"
+recommended_storage: "face-down, cloth over it, and a wizard's hat on top"

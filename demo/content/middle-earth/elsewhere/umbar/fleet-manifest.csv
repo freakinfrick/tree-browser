@@ -1,0 +1,13 @@
+ship,class,oars,sails,crew_at_departure,crew_at_pelargir,master,status
+Sea-Wolf of Castamir,dromund,120,black,340,0,captain of the fleet,taken by the Dead
+Kin-strife,dromund,110,black,310,0,"(name not recorded; he jumped)",taken by the Dead
+Tide of Harad,dromund,100,black,290,0,unknown,taken by the Dead
+Night Over Pelargir,dromund,100,black,285,0,unknown,taken by the Dead
+Haven's Pride,dromund,96,black,270,0,unknown,taken; renamed in Gondor
+Red Gull,galley,60,red,140,0,unknown,taken by the Dead
+Grey Knife,galley,60,black,138,0,unknown,taken by the Dead
+Southern Wind,galley,58,black,130,0,unknown,burned by her own crew
+Silent Oar,galley,52,black,120,0,unknown,taken by the Dead
+Salt Debt,galley,50,black,118,0,unknown,taken by the Dead
+(forty more great ships),dromund,~100,black,~12000,0,various,taken by the Dead
+(many lesser craft),mixed,-,mixed,unrecorded,0,various,"fled south, or into the river"

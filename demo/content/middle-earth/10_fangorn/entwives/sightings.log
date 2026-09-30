@@ -1,0 +1,24 @@
+# sightings.log: every report of the Entwives, however thin.
+# Kept by Fangorn. Nothing is deleted. Rumours are logged at WARN,
+# not DEBUG, because a rumour is all there has been.
+
+S.A. ????        INFO  gardens east of Anduin: tended, flourishing; Ents visit, then go home
+S.A. ????        INFO  Entwives decline to come west; "we like it here, where the fruit is"
+S.A. ????        INFO  Ents decline to go east; "we like it here, where the trees are"
+S.A. ????        WARN  (this is the log line everyone would take back)
+S.A. 3429-3441   CRIT  war of the Last Alliance; gardens east of Anduin burned
+S.A. 3441+       CRIT  Fangorn walks to the gardens: empty. the Brown Lands. no trace
+S.A. 3441+       INFO  Men of the region recall them teaching the growing of corn; left no address
+T.A. ????        WARN  rumour: gardens further south; Fangorn walks south; nothing
+T.A. ????        WARN  rumour: gardens further east; Fangorn walks east; nothing
+T.A. ????        INFO  search paused; Fangorn needed at home; forest growing dark
+T.A. 3018 (spr)  WARN  Northfarthing: Hal (Gamgee cousin) sees a tree-man, "big as an elm",
+                       walking beyond the North Moors. reported at the Green Dragon; mocked
+T.A. 3019-03-01  INFO  two hobbits in Fangorn; asked to look for Entwives on their travels
+T.A. 3019-03-01  INFO  hobbits agree. they are hasty but they are kind
+T.A. 3019-08-22  INFO  Fangorn asks the travellers again, at the Treegarth of Orthanc:
+                       "send word if you hear of the Entwives in your lands"
+T.A. 3020        WARN  issue #5 filed by Samwise Gamgee: the Northfarthing sighting, again
+T.A. 3020        INFO  North Moors added to search-index.json
+F.A. 7           INFO  Gamgee, now Mayor, reports: no tall walkers seen; mallorn planted
+F.A. 121         INFO  still watching. the log is open. the log stays open

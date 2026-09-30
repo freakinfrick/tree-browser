@@ -1,0 +1,35 @@
+# Rangers of the North: watch roster for Bree-land and the East Road
+# Kept by the Dúnedain of Arnor. Not shown to the Bree-folk, who call the
+# Rangers "vagabonds" and sleep soundly because of them.
+# Cross-refs: ../prancing-pony/guest-register.csv, ../weathertop/incident-report.md
+
+[chieftain]
+name = "Aragorn son of Arathorn"
+bree_name = "Strider"
+chieftain_since = "TA 2933"          # at the age of two; fostered at Rivendell while the Rangers kept watch without him
+status = "on the road with four hobbits (3018-09-30)"
+
+[watch.bree]
+posts = ["the Chetwood", "Archet road", "the West-gate (from outside)"]
+strength = "never enough"
+note = "the Bree-folk think the road is safe. that is the job"
+
+[watch.east_road]
+posts = ["the Midgewater Marshes", "Weathertop", "the Last Bridge"]
+strength = "thin since the Nine crossed the Brandywine"
+note = "Weathertop is a watch post, not a campsite. do not light fires on it"
+
+[watch.sarn_ford]
+posts = ["Sarn Ford"]
+strength = "overrun 3018-09-22"
+note = "the Nine came through here into the Shire; Rangers killed or driven off"
+
+[orders]
+shire = "guard the borders; never be seen doing it"
+bree = "eat at the Pony; pay the tab; say little"
+if_asked = "we are travellers"
+
+[departed]
+date = "3019-02"
+roster = "thirty Rangers, the Grey Company, ridden south to their chieftain"
+note = "Bree unguarded for a year; the Bree-folk noticed, eventually. see 05_rivendell/grey-company.md"

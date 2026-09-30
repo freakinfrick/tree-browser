@@ -3,7 +3,8 @@
 > **Record:** `fangorn-roll-0001` · **Filed:** the Entmoot (in session) ·
 > **Status:** slow, then roused · **Classification:** a forest that is also a
 > committee · **Cross-refs:** `entmoot/agenda.md`, `gandalf-reboot.log`,
-> `breaking-of-isengard.md`, `huorn-migration.csv`
+> `breaking-of-isengard.md`, `huorn-migration.csv`, `treebeard/`,
+> `entwives/`, `old-growth/`
 
 **Kind:** the oldest surviving forest in Middle-earth, home of the Ents.
 **Position:** at the south-eastern feet of the Misty Mountains, bordering
@@ -36,6 +37,15 @@ here is hasty; the Entmoot is a parliament that can take three days to say
 |---|---|---|
 | Treebeard | eldest Ent | `CAST.md` |
 | the Huorns | the trees that moved | `huorn-migration.csv` |
+
+## Also kept here
+
+- **`treebeard/`**: the forest's own record of the tool that shows it
+  sideways, lately renamed after its eldest, by an Entmoot of twelve days
+  (`treebeard/rfcs/0001-rename-from-tree-browser.md`).
+- **`entwives/`**: an open search, and a letter that has not been sent.
+- **`old-growth/`**: the Eldest's rings, one folder per Age, a long way
+  down. Not to be hurried through.
 
 ## Status
 

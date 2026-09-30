@@ -3,7 +3,8 @@
 > **Record:** `hithaeglir-roll-0001` · **Filed:** the Rivendell library
 > (cartography desk) · **Status:** hostile; pass closed · **Classification:**
 > weather advisory · **Cross-refs:** `caradhras/route-vote.md`,
-> `caradhras/weather-report.json`, `07_moria/`, `01_lonely-mountain/the-quest/riddles-in-the-dark.md`
+> `caradhras/weather-report.json`, `caradhras/snowfall.log`, `pass-status.toml`, `goblin-town/`, `07_moria/`,
+> `01_lonely-mountain/the-quest/riddles-in-the-dark.md`
 
 **Kind:** the great mountain chain that splits Eriador from Rhovanion.
 **Position:** north–south from the cold waste to the Gap; Khazad-dûm is dug

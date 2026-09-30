@@ -1,0 +1,11 @@
+time,gauge,level_ft,flow,turbidity,read_by,note
+3018-10-20 15:00,ford stones,1.2,gentle,clear,Glorfindel,"normal autumn level; a horse can cross"
+3018-10-20 15:55,ford stones,1.2,gentle,clear,Glorfindel,"Asfaloth sighted on the East Road at speed"
+3018-10-20 16:00,ford stones,1.3,gentle,clear,Glorfindel,"Asfaloth across; five black horses halted on the east bank"
+3018-10-20 16:00,ford stones,1.3,gentle,clear,Frodo (on horseback),"'Go back!' shouted at the riders. riders not deterred. gauge not affected"
+3018-10-20 16:00,upstream,4.0,rising,white,Elrond (remote),"river commanded; see flood.log"
+3018-10-20 16:01,ford stones,1.4,surging,clear,Aragorn,"fire from the far bank; the last riders driven into the ford by flame"
+3018-10-20 16:01,ford stones,9.5,flood,white horses,Glorfindel,"crest arrives; plumed waves; riders in mid-stream"
+3018-10-20 16:02,ford stones,11.0,flood,white horses,Glorfindel,"gauge post under water; readings estimated from the far bank"
+3018-10-20 18:00,ford stones,2.0,falling,muddy,Glorfindel,"level falling; riders gone downstream"
+3018-10-21 08:00,ford stones,1.3,gentle,clear,a gardener of Elrond's,"back to normal. the river's gauge was replaced; the old one was found two miles down, near a horse"

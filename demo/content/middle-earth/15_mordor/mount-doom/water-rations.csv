@@ -1,0 +1,12 @@
+day,date,stage,water_start,water_end,lembas_left,source,rationed_by,notes
+1,3019-03-15,"out of the Tower of Cirith Ungol, heading north",half a bottle,a mouthful,plenty,orc-hole cistern (bitter),Sam,"escaped in orc gear; Frodo's own clothes gone"
+2,3019-03-16,the Morgai valley,a mouthful,full bottles,plenty,"a thin stream in the Morgai, the last clean water in Mordor",Sam,"Sam drank first, in case; it was only cold"
+3,3019-03-17,the Morgai,two bottles,two bottles,waning,none,Sam,"a star seen through the reek. Sam: the Shadow is only a small and passing thing"
+4,3019-03-18,"the Isenmouthe, on the Durthang road",two bottles,one and a half,waning,none,Sam,"in sight of the Isenmouthe; overtaken and swept into an orc column as stragglers"
+5,3019-03-19,the road toward Barad-dur,one and a half,one and a half,waning,a cistern at an orc-camp (dared not),Sam,"slipped out of the column in a crush; took the road east"
+6,3019-03-20,the road toward Barad-dur,one and a half,one,low,none,Sam,"walking by day on the road; nobody looks at two small orcs"
+7,3019-03-21,the road toward Barad-dur,one,one,low,none,Sam,"the Mountain always on the right hand, never closer"
+8,3019-03-22,Gorgoroth plain,one,half,low,none,Sam,"the dreadful nightfall; left the road and turned south for the Mountain"
+9,3019-03-23,Gorgoroth plain,half,a few sips,nearly none,none,Sam,"threw away the orc gear; kept only what walks"
+10,3019-03-24,the foot of the Mountain,a few sips,dregs,nearly none,none,Sam,"Sam gave up his share without saying so; Frodo noticed and said nothing"
+11,3019-03-25,the Sammath Naur,dregs,none,none,none,n/a,"no return journey was provisioned. see mount-doom/ring-destruction.md"

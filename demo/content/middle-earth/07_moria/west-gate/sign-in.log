@@ -1,0 +1,16 @@
+[west-gate] 3019-01-13 dusk   visitor=gandalf  moon rising; ithildin tracing visible
+[west-gate] 3019-01-13 dusk   inscription read: "Speak, friend, and enter."
+[west-gate] 3019-01-13 dusk   attempt 1: "Annon edhellen, edro hi ammen!"   REJECTED
+[west-gate] 3019-01-13 dusk   attempt 2: (Dwarvish opening word)            REJECTED
+[west-gate] 3019-01-13 dusk   attempt 3: (every opening spell in Westron)    REJECTED
+[west-gate] 3019-01-13 night  attempts 4-11: (Elvish, Mannish, Orkish)        REJECTED
+[west-gate] 3019-01-13 night  visitor=boromir  throws a stone into the lake   (not an attempt)
+[west-gate] 3019-01-13 night  visitor=gandalf  sits down; "I will beat my head on the doors"
+[west-gate] 3019-01-13 night  visitor=gandalf  laughs; stands
+[west-gate] 3019-01-13 night  attempt 12: "Mellon"                           ACCEPTED
+[west-gate] 3019-01-13 night  note: the hint was the password; see password-hint.txt
+[west-gate] 3019-01-13 night  session opened; 9 users, 0 ponies (Bill released by Sam)
+[west-gate] 3019-01-13 night  WARN: lake activity; 20 tentacles on the causeway
+[west-gate] 3019-01-13 night  ERROR: holly trees uprooted; doors slammed from outside
+[west-gate] 3019-01-13 night  session cannot be closed from inside; exit via East-gate only
+[west-gate] 3019-01-13 night  audit: Frodo seized by the ankle, released; see watcher-incident.md

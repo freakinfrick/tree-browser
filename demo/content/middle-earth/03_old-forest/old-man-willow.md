@@ -1,10 +1,10 @@
 # Old Man Willow: incident report
 
 **Filed by:** Frodo Baggins, with Samwise Gamgee, on the account of the
-hobbits rescued · **Date filed:** 3018-09-30, at Tom Bombadil's house ·
-**Incident ID:** WILLOW-3018-09-30
+hobbits rescued · **Date filed:** 3018-09-26, at Tom Bombadil's house ·
+**Incident ID:** WILLOW-3018-09-26
 **Site:** the Old Forest, bank of the Withywindle
-**Date:** 3018-09-30, afternoon (the first full day out of the Shire)
+**Date:** 3018-09-26, afternoon (the first full day out of the Shire)
 **Severity:** SEV-1 (one hobbit swallowed; two trapped)
 **Refs:** `03_old-forest/tom-bombadil.md`, `03_old-forest/barrow-downs/barrow-wight-report.md`
 
@@ -23,7 +23,7 @@ hobbits rescued · **Date filed:** 3018-09-30, at Tom Bombadil's house ·
   with it in its own language.
 
 > "Eat earth! Dig deep! Drink water! Go to sleep!"
-> — Tom Bombadil, to Old Man Willow, bank of the Withywindle, 3018-09-30
+> — Tom Bombadil, to Old Man Willow, bank of the Withywindle, 3018-09-26
 
 ## Lesson
 

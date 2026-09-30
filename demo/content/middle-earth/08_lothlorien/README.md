@@ -3,7 +3,8 @@
 > **Record:** `lorien-roll-0001` · **Filed:** the Galadhrim · **Status:** open
 > to the Galadhrim; the Fellowship passed through · **Classification:** staging
 > env, beautiful, temporary · **Cross-refs:** `celeborn.md`,
-> `mirror-of-galadriel/the-test.md`, `farewell-gifts.md`, `lembas-recipe.yaml`
+> `mirror-of-galadriel/the-test.md`, `farewell-gifts.md`, `lembas-recipe.yaml`,
+> `caras-galadhon/` (guest registry, border patrol, the lament)
 
 **Kind:** the Golden Wood, realm of the Galadhrim.
 **Position:** between the Celebrant and the Anduin, east of Moria; the city

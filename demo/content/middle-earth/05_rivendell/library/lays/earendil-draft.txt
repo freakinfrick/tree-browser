@@ -1,0 +1,49 @@
+THE LAY OF EÄRENDIL (working draft, Bilbo's hand; margins by others)
+Hall of Fire, Rivendell. Performed 3018-10-24, the night of the feast.
+Status: performed once; revised forever.
+
+ ------------------------------------------------------------------------
+  [draft verse, stanza 1, Bilbo]
+    A mariner there was who built
+    a ship of silver-birch and gilt,
+    and sailed it where no charts were kept,
+    while all the lamps of Westward slept.
+
+  [margin, Bilbo]  "birch" is fine. do not let anyone say "birch" is not
+                   fine.
+  [margin, Aragorn] Birch is right, for once: the timber was felled in
+                   Nimbrethil. "Gilt" is decoration. Leave it.
+
+  [draft verse, stanza 2, Bilbo]
+    Upon his brow a jewel burned ...
+
+  [margin, Aragorn] Add a green stone. Put it in.
+  [margin, Bilbo]  there is already a jewel. it is the Silmaril. it is
+                   the whole point of the song.
+  [margin, Aragorn] A green stone as well. It matters.
+  [margin, Bilbo]  to whom?
+  [margin, Aragorn] Put it in.
+
+  [draft verse, stanza 2, revised]
+    Upon his brow a jewel burned,
+    and at his breast, as I have learned
+    from one who would not tell me why,
+    a stone of green, like leaves, like sky.
+
+ ------------------------------------------------------------------------
+
+EDITOR'S NOTES (Lindir, of the household of Elrond)
+  - The Hall could not tell which parts were written by a Man and which by
+    a Hobbit. This was meant as a compliment. Mr. Baggins did not take it
+    as one, and neither, oddly, did the Dúnadan.
+  - Mortals, to Elvish ears, all sound much alike; this is also a
+    compliment, and was also received poorly.
+  - Stanzas 3 through 8 are omitted from this file for length. They are
+    very long. The Hall was asked to sing them twice. Bilbo counted this
+    as an encore.
+
+CATALOGUE ENTRY
+  shelf ........ library/lays/
+  see also ..... ../red-book.txt (Bilbo's translations), ../numenor.md
+                 (Eärendil's son Elros, first King of Númenor)
+  copies ....... one; the author keeps "improving" it

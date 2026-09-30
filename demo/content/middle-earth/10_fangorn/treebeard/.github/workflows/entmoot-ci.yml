@@ -1,0 +1,56 @@
+# entmoot-ci.yml: every change is heard by the whole forest.
+# A run takes three days. This is not a bug. See rfcs/0000-template.md.
+name: entmoot
+
+on:
+  pull_request:
+    branches: [ancient]
+  schedule:
+    - cron: "0 6 21 3 *"      # once a year, at the spring equinox, to be sure
+
+concurrency:
+  group: entmoot
+  cancel-in-progress: false    # nothing is cancelled for being slow
+
+jobs:
+  day-1-roll-call:
+    runs-on: derndingle
+    timeout-minutes: 1440
+    steps:
+      - uses: actions/checkout@v4
+      - name: Say good morning
+        run: echo "hoom" && sleep 43200     # until about midday
+      - name: Recite every name present, in full
+        run: ./scripts/roll-call --full-names --no-abbreviations
+
+  day-2-deliberation:
+    needs: day-1-roll-call
+    runs-on: derndingle
+    timeout-minutes: 1440
+    steps:
+      - name: Consider whether to be hasty
+        run: ./scripts/consider --question "should we be hasty?"
+        continue-on-error: true       # the question is tabled every time
+      - name: Lint names
+        run: cargo run --bin entish -- .
+      - name: Ask the trees
+        run: ./scripts/ask-the-trees --wait-for oaks
+
+  day-3-decision:
+    needs: day-2-deliberation
+    runs-on: derndingle
+    timeout-minutes: 1440
+    steps:
+      - name: Vote
+        run: ./scripts/tally entmoot/name-vote.csv --one-row-per-ent
+      - name: Build
+        run: cargo build --release      # takes seconds; nobody comments on it
+      - name: Announce
+        run: echo "we have decided."
+
+  huorns:
+    runs-on: fangorn-edge
+    if: always()
+    steps:
+      - name: Stand near the job
+        run: echo "(no output)"

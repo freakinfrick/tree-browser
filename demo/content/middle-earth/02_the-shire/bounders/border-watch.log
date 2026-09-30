@@ -1,0 +1,17 @@
+# border-watch.log: the Bounders (Shire border patrol), all four Farthings
+# filed by: the First Shirriff's office, Michel Delving; forwarded to the Thain at Tuckborough
+# cross-refs: 02_the-shire/black-riders.md, 02_the-shire/scouring-of-the-shire/report.md, 04_bree/bree-gate/gate-log.log
+3018-03-11 INFO  west-farthing: nothing. a fox. filed for completeness
+3018-06-02 WARN  east-farthing: strange folk seen on the Brandywine road; tall, not from Bree; turned back without trouble
+3018-06-14 INFO  thain: bounders doubled on the east and south borders. no reason given to the bounders
+3018-08-30 WARN  south-farthing: "squint-eyed" Men asking about pipe-weed prices at Longbottom; cash buyers; sent on to Hobbiton by a Sackville-Baggins
+3018-09-22 INFO  hobbiton: Frodo Baggins's fiftieth birthday; quiet; no fireworks; filed because it was quiet
+3018-09-23 ERROR hobbiton: black rider at the Gaffer's door on Bagshot Row asking for "Baggins". Gaffer: "gone to Buckland." Gaffer regrets this
+3018-09-24 WARN  stock road: riders sniffing along the lanes by night; a party of Elves on the road; the Elves did not stop to file
+3018-09-25 WARN  marish: black rider at Farmer Maggot's; dogs set on it; dogs declined
+3018-09-25 ERROR buckland: rider on the Bucklebury Ferry landing as the raft pushed off, Frodo Baggins aboard; ferry kept to the far bank
+3018-09-26 INFO  buckland: four hobbits gone through the Hedge into the Old Forest at dawn. bounders not consulted. see 03_old-forest/
+3018-09-30 ERROR crickhollow: riders broke in before dawn; the Horn-call of Buckland sounded, first time in a hundred years; house empty but for Fatty Bolger, who ran
+3019-02-10 WARN  bridge: new gates on the Brandywine Bridge, "by order of the Chief". bounders not consulted again
+3019-11-03 ERROR bywater: Battle of Bywater. seventy ruffians dead or taken; nineteen hobbits killed. the Horn of the Mark blown by Mr. Meriadoc
+3019-11-04 INFO  thain: bounders restored to normal strength. new rule: anyone who asks for "Baggins" at a door is to be offered tea, and kept talking, and reported

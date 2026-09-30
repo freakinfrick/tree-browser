@@ -1,0 +1,27 @@
+ITHILIEN RANGERS: WILDLIFE SIGHTING FORM
+form no. ITL-WS-3019-0307            ref: 14_gondor/ithilien/henneth-annun.md
+reported by: Samwise Gamgee (civilian, detained, observing)
+witnessed by: Mablung, Damrod (rangers)
+date: TA 3019-03-07, mid-morning, the road north of the Crossroads
+
+species:        oliphaunt (Harad war-beast; the Rangers say "mûmak")
+count:          1 (confirmed). witness requested it be written "ONE, but a big one"
+size:           "grey as a hill, tall as a house (a large house)"
+features:       tusks with bands of gold; tower on its back, full of soldiers;
+                ears like sails; legs like trees that have learned to walk
+behaviour:      charged through the ambush, then off into the woods toward the
+                river, trumpeting. rangers did not pursue. nobody pursued.
+condition:      unknown. last seen crashing south-east, rider-less
+threat level:   to rangers: high. to the Haradrim: also high, as it turned out
+
+witness statement (verbatim, lightly edited for punctuation):
+  "There was an Oliphaunt! Nobody at home is going to believe me. The Gaffer
+   said they were a tale for fireside. Well, I've seen one, and I don't want
+   to see another. Put it down that I saw it. Put down the date."
+
+ranger's note (Damrod): witness would not stop talking about it for the rest
+  of the day. confirmed he has heard a rhyme about them in his own country.
+  it rhymes. we let him recite it once.
+
+disposition: sighting logged. no further oliphaunts in Ithilien this month;
+             more at the Pelennor (see pelennor-fields/battle-report.md).

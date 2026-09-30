@@ -1,7 +1,7 @@
 # Tom Bombadil: personnel record
 
 **Filed by:** no one; he is self-describing and uninterested in the form ·
-**Record entered by:** Frodo Baggins, at Tom's house, 3018-09-30 ·
+**Record entered by:** Frodo Baggins, at Tom's house, 3018-09-27 ·
 **Record ID:** TOM-0 (he declined the number)
 **Name:** Tom Bombadil (also "Eldest", "the Master"; he does not check a box)
 **Address:** the Old Forest, near the Withywindle
@@ -19,15 +19,15 @@
 
 > "Eldest, that's what I am. ... Tom remembers the first raindrop and the
 > first acorn."
-> — Tom Bombadil, to the hobbits, his house on the Withywindle, 3018-09-30
+> — Tom Bombadil, to the hobbits, his house on the Withywindle, 3018-09-27
 
 ## Incidents handled (all resolved, all by song)
 
 - `03_old-forest/old-man-willow.md` — the tree that swallowed Merry; Tom argued
-  it open, 3018-09-30.
+  it open, 3018-09-26.
 - `03_old-forest/barrow-downs/barrow-wight-report.md` — the wight that laid out
   the four hobbits; Tom sang it into the sunlight and handed out the
-  barrow-blades, 3018-09-30. One of those blades later undid the Witch-king
+  barrow-blades, 3018-09-28. One of those blades later undid the Witch-king
   (`14_gondor/pelennor-fields/eowyn-vs-witchking.md`).
 
 ## The Ring test

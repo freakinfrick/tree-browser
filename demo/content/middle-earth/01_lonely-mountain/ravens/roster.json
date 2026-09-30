@@ -1,0 +1,19 @@
+{
+  "station": "Ravenhill, the southern spur of Erebor",
+  "maintained_by": "Roäc son of Carc",
+  "updated": "2941-11-18",
+  "ravens": [
+    {"name": "Carc", "status": "retired", "age_at_record": null, "note": "Roäc's father; remembered by Balin as a friend of Thrór"},
+    {"name": "Roäc", "status": "active", "age_at_record": 153, "role": "chief; speaks Westron", "note": "prefers dwarves who listen"},
+    {"name": "(unnamed)", "status": "active", "role": "courier to the Iron Hills", "note": "flew the summons to Dáin; the records never asked its name"}
+  ],
+  "not_on_roster": [
+    {"name": "the old thrush", "reason": "not a raven", "note": "delivered the single most important message of the war and got no credit"},
+    {"name": "the crebain", "reason": "work for the other side", "see": "06_misty-mountains/"}
+  ],
+  "services": {
+    "news": "free for the heirs of Durin",
+    "gossip": "free for everyone",
+    "retrieval of shiny objects": "discontinued after the dragon"
+  }
+}

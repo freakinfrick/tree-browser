@@ -51,3 +51,11 @@ The wound is a countdown; the only mitigation is Elrond, fast
 
 Open for business. The beer is good, the news is late, and the tall man in
 the corner is now the King — but he still pays his tab.
+
+## Also filed here
+
+- `bree-gate/gate-log.log`: Harry Goatleaf's night at the West-gate.
+- `bill-ferny/pony-bill-of-sale.txt`: twelve silver pennies for Bill the pony.
+- `prancing-pony/room-plan.csv`: who slept where on the night of the raid
+  (not in their beds).
+- `rangers/watch-roster.toml`: the watch the Bree-folk never saw.

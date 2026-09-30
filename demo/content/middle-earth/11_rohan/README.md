@@ -28,7 +28,7 @@ Felaróf, and the lord of them all is Shadowfax (`edoras/horse-parking.md`).
   `helms-deep/culvert-bug.md`), the keep holds, and at dawn the Huorns and
   the charge of Théoden break the siege (`helms-deep/siege-postmortem.md`,
   `helms-deep/wall-repairs.rs`).
-- **TA 3019-03-10.** Aragorn takes the **Paths of the Dead** under the
+- **TA 3019-03-08.** Aragorn takes the **Paths of the Dead** under the
   mountain and summons the Oathbreakers — the Dead Men of Dunharrow, cursed
   by Isildur — to fulfil their oath (`paths-of-the-dead/oath-keepers.md`,
   `paths-of-the-dead/anduril.md`).

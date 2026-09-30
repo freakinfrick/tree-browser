@@ -1,0 +1,17 @@
+# gate-log.log: West-gate of Bree, on the Greenway road
+# gatekeeper: Harry Goatleaf (nights), with a lamp and too many questions
+# policy: gate shut at nightfall; travellers after dark are asked their business, and asked again
+# cross-refs: 04_bree/prancing-pony/butterbur-reminders.txt, 04_bree/bill-ferny/pony-bill-of-sale.txt, 02_the-shire/bounders/border-watch.log
+3018-09-29T19:40:00 INFO  gate: shut for the night. lamp lit. road quiet
+3018-09-29T21:05:00 INFO  gate: four hobbits on ponies from the west, "from Buckland". business: "our own". admitted
+3018-09-29T21:05:30 WARN  gate: a dark figure seen climbing over the gate after the hobbits passed. gatekeeper did not see it. gatekeeper was looking at the hobbits
+3018-09-29T21:06:00 INFO  gate: gatekeeper crossed the road to Bill Ferny's house. for no reason. (see 3018-09-30T09:00)
+3018-09-29T23:30:00 WARN  road: Merry Brandybuck out for a walk; found in the lane by Nob, "knocked over by a black breath". carried back to the Pony
+3018-09-30T03:00:00 ERROR gate: gate forced from outside. gatekeeper "ran into his house". hinges on the road, gate on the grass
+3018-09-30T03:10:00 ERROR inn: horses thundering through the village; the Pony's stable doors broken; all the ponies gone. see 04_bree/prancing-pony/lost-and-found.md
+3018-09-30T09:00:00 INFO  gate: gatekeeper reappears, uninjured, with a new coat and no explanation
+3018-09-30T10:00:00 INFO  road: the party leaves by the East-gate: four hobbits, one Ranger, one thin pony bought off Bill Ferny for far too much
+3018-09-30T10:05:00 WARN  road: Bill Ferny jeers from his hedge; hit on the nose by an apple thrown by Sam Gamgee. filed as "self-defence, pre-emptive"
+3018-09-30T10:06:00 INFO  gate: Harry Goatleaf asks Strider his business. Strider does not answer. Harry does not ask twice
+3019-10-28T21:00:00 WARN  gate: returning hobbits in armour asking to be let in. gatekeeper hesitant; hobbits patient; one wizard, less so
+3019-10-28T21:01:00 INFO  gate: Harry Goatleaf opens, on seeing the wizard. Bill Ferny's house: empty; "gone off south", says Harry, not sorry

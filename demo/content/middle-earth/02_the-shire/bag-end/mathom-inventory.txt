@@ -2,16 +2,16 @@ MATHOM INVENTORY: BAG END
 (things too useful to throw away, too useless to keep)
 
 Keeper: Bilbo Baggins
-Final audit: 2968-09-21 (one day before the Party; entries after this date
+Final audit: 3001-09-21 (one day before the Party; entries after this date
 are additions made by the next keeper, Frodo, who claims he is only
 "minding the list")
 
   1. umbrella, green, one spoke missing ............. keep. (caught on the
-     Party-field marquee, 2968-09-18; "leave it" — Bilbo, Bag End, 2968-09-18)
+     Party-field marquee, 3001-09-18; "leave it" — Bilbo, Bag End, 3001-09-18)
   2. brass buttons, loose, 14 .......................... keep. (spares for a
      waistcoat that no longer buttons)
   3. letter-opener shaped like a dragon (tasteless) ... give to Lobelia.
-     ("It would suit her" — Bilbo, Bag End, 2968-09-20)
+     ("It would suit her" — Bilbo, Bag End, 3001-09-20)
   4. troll-cave key (large, rusty) ................... keep, obviously.
      (from the 2941 expedition; see `01_lonely-mountain/the-quest/`)
   5. map with runes nobody can read in daylight ....... Elrond has the other
@@ -23,12 +23,12 @@ are additions made by the next keeper, Frodo, who claims he is only
   8. walking stick, dwarf-made, far too short ......... keep. (gifted 2941;
      "sentimental" — Bilbo; see `01_lonely-mountain/the-quest/`)
   9. mithril something, in a box, in a chest .......... do not mention.
-     (passed to Frodo with the estate, 2968)
+     (passed to Frodo with the estate, 3001)
  10. ring, plain gold .................................. (crossed out)
      (crossed out again)
  11. conkers, one bucket, forty years of winning ....... give to the
      Brandybuck children. (first one won off the Old Took, 2910)
  12. poem, unfinished, 'the road goes ever on' ......... keep. (add a verse
-     after the Party; "it will want one" — Bilbo, Bag End, 2968-09-21)
+     after the Party; "it will want one" — Bilbo, Bag End, 3001-09-21)
  13. dwarf-made toy, carved oak, squeaks ............... keep. (from the 2941
-     return; "the younger cousins still like it" — Bilbo, Bag End, 2968-09-19)
+     return; "the younger cousins still like it" — Bilbo, Bag End, 3001-09-19)

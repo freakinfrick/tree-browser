@@ -1,0 +1,9 @@
+reading,date,time,position,lights_seen,colour,behaviour,guide_advice,observer_note
+1,3019-03-01,dusk,northern edge (off the Emyn Muil),3,pale green,steady,"don't look","Sam: thought they were lanterns. they were not lanterns."
+2,3019-03-01,first watch,the reed-beds,11,greenish white,flickering,"don't look, don't look","Frodo stared. took two tries to get him walking again."
+3,3019-03-01,middle watch,the deep pools,"too many to count",pale,"moving when you moved","follow Smeagol's feet","the guide counted them and would not say the number."
+4,3019-03-02,before dawn,the deep pools,40,pale,"came closer when Frodo tripped","hobbit must not fall in","Frodo half in the water; Sam pulled him out by the collar."
+5,3019-03-02,dawn,southern pools,0,n/a,"went out with the light","go quick now","the lights keep office hours. the faces do not."
+6,3019-03-02,noon,open fen,0,n/a,n/a,"hide","a winged shadow passed over, westward. all three lay flat in the mud."
+7,3019-03-02,dusk,near the Dagorlad,2,pale green,"fading as the ground dried","nearly out","last two lights. nobody said goodbye to them."
+summary,3019-03-02,,,"one night, one crossing",,,"5/5 guide","no instrument was used; the instrument would have been looked into."

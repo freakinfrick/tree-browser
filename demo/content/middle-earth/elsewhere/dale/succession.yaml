@@ -1,0 +1,28 @@
+# succession.yaml — the royal line of Dale
+# filed: the scribes of Dale · ledger: dale-crown-0003
+# cross-refs: siege-of-3019.log, 01_lonely-mountain/the-black-arrow.md
+realm: Dale
+seat: the rebuilt town under Erebor
+kings:
+  - name: Girion
+    title: lord of Dale
+    reign: "? - 2770"
+    end: "slain when Smaug came down"
+  - name: Bard I
+    title: the Bowman, Dragonslayer
+    reign: "2944 - 2977"
+    claim: "heir of Girion; also, killed the dragon"
+    note: "paid for the rebuilding with his share of the hoard"
+  - name: Bain
+    reign: "2977 - 3007"
+    note: "a quiet reign; the markets did well"
+  - name: Brand
+    reign: "3007 - 3019"
+    end: "fell before the Gate of Erebor, 3019-03-17"
+  - name: Bard II
+    reign: "3019 -"
+    note: "lifted the siege with Thorin III, 3019-03-27"
+allies:
+  erebor: "the King under the Mountain (whoever that is this year)"
+  gondor: "the King Elessar, by treaty, Fourth Age"
+vacancies: 0

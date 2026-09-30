@@ -1,0 +1,28 @@
+{
+  "index": "entwives-search",
+  "maintainer": "Fangorn",
+  "opened": "S.A. 3441",
+  "closed": null,
+  "note": "One entry per place. 'searched' means walked by an Ent, not asked about.",
+  "places": [
+    {"place": "the Brown Lands (former gardens)", "direction": "east of Anduin",
+     "searched": true,  "by": "Fangorn", "when": "S.A. 3441+", "found": "ash; stubble; no one"},
+    {"place": "the Wold of Rohan", "direction": "south-east",
+     "searched": true,  "by": "Fangorn", "when": "T.A. early", "found": "grass; horses, later"},
+    {"place": "the East Emnet", "direction": "east",
+     "searched": true,  "by": "Fangorn", "when": "T.A. early", "found": "nothing growing on purpose"},
+    {"place": "south, past the White Mountains", "direction": "south",
+     "searched": true,  "by": "Fangorn", "when": "T.A.", "found": "Men's farms; orchards; no Entwives"},
+    {"place": "the North Moors, Northfarthing", "direction": "far north-west",
+     "searched": false, "by": null, "when": null,
+     "found": null, "lead": "Hal's tree-man, 3018; see sightings.log, ../treebeard/issues/0005",
+     "blocked_by": "too far for an Ent; Rangers asked to look"},
+    {"place": "the Shire (gardens generally)", "direction": "far north-west",
+     "searched": false, "by": "Samwise Gamgee (informal)", "when": "F.A. 7 onward",
+     "found": "a very great many gardens, none of them walking"},
+    {"place": "Ithilien", "direction": "south-east",
+     "searched": false, "by": null, "when": null,
+     "found": null, "lead": "the gardens there are being replanted; worth a look in a few centuries"}
+  ],
+  "summary": {"places": 7, "searched": 4, "found": 0, "hope": "kept"}
+}

@@ -58,3 +58,9 @@ The `istari/dossier.md` holds what the Wise know of the Wizards.
 
 Departed. The valley still stands, but the lights are out, and the last
 ship has gone.
+
+## Also filed here
+
+- `library/lays/earendil-draft.txt`: Bilbo's song, with a Ranger's margins.
+- `istari/radagast-field-report.md`: the report that got Gandalf out of Orthanc.
+- `ford-of-bruinen/gauge-readings.csv`: the river, by the foot.
