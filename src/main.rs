@@ -4,9 +4,12 @@ compile_error!("tb needs a Unix-like OS (Linux, macOS, BSD): it drives the tty w
 
 mod anim;
 mod audio;
+mod explode;
+mod git;
 mod layout;
 mod media;
 mod mtime;
+mod settings;
 mod shell;
 mod tree;
 mod ui;
@@ -25,12 +28,26 @@ use ratatui::crossterm::execute;
 
 use anim::{Damped, Scene};
 use mtime::Mtime;
+use settings::{Settings, ITEMS};
 use shell::Run;
-use tree::Tree;
+use tree::{Sort, SortKey, Tree};
 use ui::Preview;
 
 /// Frame budget while animating. Idle = no frames at all.
 const FRAME: Duration = Duration::from_micros(16_667);
+
+/// A live-change ripple waits this long per level before lighting the next folder up.
+pub const RIPPLE_STEP: Duration = Duration::from_millis(90);
+/// And is dropped this long after it reaches a node, faded out by then.
+pub const RIPPLE_LIFE: Duration = Duration::from_millis(2200);
+
+/// A live change lighting a node: when the ripple reaches it, and how
+/// brightly (1 at the change, dimmer each level up).
+#[derive(Clone, Copy, Debug)]
+pub struct Ripple {
+    pub start: Instant,
+    pub strength: f32,
+}
 
 pub struct App {
     pub tree: Tree,
@@ -38,8 +55,6 @@ pub struct App {
     pub mt: Mtime,
     pub scene: Scene,
     pub cam: Option<(Damped, Damped)>,
-    /// Route flash on navigation, decays 1 -> 0.
-    pub flash: f32,
     /// Signal bead running along the line toward the cursor (world x).
     pub bead: Option<Damped>,
     /// Cursor (id, world x) last frame, to launch the bead from.
@@ -87,7 +102,40 @@ pub struct App {
     pub can_cd: bool,
     /// Polls the open folders for changes; None = off (TB_LIVE=off, and in tests).
     live: Option<watch::Watch>,
+    /// Live changes climbing the tree, by node.
+    pub ripples: std::collections::HashMap<usize, Ripple>,
+    /// Git status of the repos the open folders are in; None = off (TB_GIT=off, and in tests).
+    pub git: Option<git::Git>,
+    /// Live updates and git may run (off in tests, which drive changes by hand).
+    services: bool,
+    /// What `,` edits and the config file stores.
+    pub settings: Settings,
+    /// Settings menu: the selected row; None = closed.
+    pub menu: Option<usize>,
+    pub menu_anim: f32,
+    /// Where settings are saved; None = no home to save in.
+    pub config: Option<PathBuf>,
+    /// Config file lines that couldn't be used, shown in the menu.
+    pub config_errs: Vec<String>,
+    /// Why the last save failed, shown in the menu.
+    pub save_err: Option<String>,
+    /// `e` reading everything under a folder; None = idle.
+    pub exploding: Option<Exploding>,
+    /// A short message for the status bar, and when it was posted.
+    pub note: Option<(String, Instant)>,
 }
+
+pub struct Exploding {
+    /// The folder being exploded.
+    pub target: usize,
+    rx: std::sync::mpsc::Receiver<explode::Msg>,
+    /// Folders read so far.
+    pub folders: usize,
+    pub born: Instant,
+}
+
+/// How long a status bar note stays up.
+pub const NOTE: Duration = Duration::from_secs(3);
 
 pub struct Search {
     pub query: String,
@@ -118,7 +166,6 @@ impl App {
             mt: Mtime::spawn(),
             scene: Scene::default(),
             cam: None,
-            flash: 0.0,
             bead: None,
             last_cursor: None,
             help: false,
@@ -143,6 +190,17 @@ impl App {
             hist_at: 0,
             pending: None,
             live: None,
+            ripples: std::collections::HashMap::new(),
+            git: None,
+            services: false,
+            settings: Settings::default(),
+            menu: None,
+            menu_anim: 0.0,
+            config: None,
+            config_errs: Vec::new(),
+            save_err: None,
+            exploding: None,
+            note: None,
             cd_on_quit: false,
             can_cd: false,
         };
@@ -161,10 +219,89 @@ impl App {
         self.tree.nodes[id].name.clone()
     }
 
-    /// Copy fresh mtime-cache results onto the nodes.
+    /// Copy fresh mtime-cache results onto the nodes, and re-sort if the
+    /// order depends on them.
     fn absorb(&mut self) {
         for n in self.tree.nodes.iter_mut().filter(|n| n.is_dir) {
-            n.rec = self.mt.cache.get(&n.path).map(|c| (c.0, c.1, c.3));
+            n.rec = self.mt.cache.get(&n.path).map(|c| (c.0, c.1, c.3, c.4));
+        }
+        if matches!(self.tree.sort.key, SortKey::Modified | SortKey::Size) {
+            self.tree.resort();
+        }
+    }
+
+    fn set_sort(&mut self, sort: Sort) {
+        self.settings.sort = sort;
+        self.apply_settings();
+    }
+
+    /// Room in the layout, from the settings.
+    pub fn spacing(&self) -> layout::Spacing {
+        let s = &self.settings;
+        layout::Spacing { rows: s.row_spacing as i32, gap: s.column_gap as i32, maxw: s.max_name as usize }
+    }
+
+    /// Push the settings into the tree, the colors and the background workers.
+    fn apply_settings(&mut self) {
+        let s = self.settings;
+        anim::set_palette(s.palette);
+        ui::set_accent(s.accent);
+        let heat_changed = self.tree.show_hidden != s.show_hidden;
+        self.tree.show_hidden = s.show_hidden;
+        if self.tree.sort != s.sort || (heat_changed && s.sort.key == SortKey::Modified) {
+            self.tree.sort = s.sort;
+            self.tree.resort();
+        }
+        if !s.live {
+            self.live = None;
+            self.ripples.clear();
+        } else if self.services && self.live.is_none() {
+            self.live = Some(watch::Watch::spawn(watch::EVERY));
+        }
+        if !s.git {
+            self.git = None;
+        } else if self.services && self.git.is_none() {
+            self.git = Some(git::Git::spawn(git::EVERY));
+        }
+        if !s.ripples {
+            self.ripples.clear();
+        }
+        self.epoch += 1;
+    }
+
+    /// One setting changed in the menu: apply it and save it.
+    fn setting_changed(&mut self, key: &str) {
+        self.apply_settings();
+        let Some(p) = &self.config else { return };
+        // A new sort key starts unreversed, so the file's reverse must follow.
+        let keys: &[&str] = if key == "sort" { &["sort", "sort_reverse"] } else { &[key] };
+        self.save_err = keys.iter().find_map(|k| self.settings.save(p, k).err()).map(|e| format!("can't save: {e}"));
+    }
+
+    fn menu_key(&mut self, code: KeyCode, mods: KeyModifiers) {
+        let Some(i) = self.menu else { return };
+        let n = ITEMS.len();
+        let key = ITEMS[i].key;
+        match code {
+            KeyCode::Esc | KeyCode::Char(',' | 'q') => self.menu = None,
+            KeyCode::Char('c') if mods.contains(KeyModifiers::CONTROL) => self.menu = None,
+            KeyCode::Char('j') | KeyCode::Down | KeyCode::Tab => self.menu = Some((i + 1) % n),
+            KeyCode::Char('k') | KeyCode::Up | KeyCode::BackTab => self.menu = Some((i + n - 1) % n),
+            KeyCode::Char('g') | KeyCode::Home => self.menu = Some(0),
+            KeyCode::Char('G') | KeyCode::End => self.menu = Some(n - 1),
+            KeyCode::Char('l' | ' ') | KeyCode::Right | KeyCode::Enter => {
+                self.settings.adjust(key, 1);
+                self.setting_changed(key);
+            }
+            KeyCode::Char('h') | KeyCode::Left => {
+                self.settings.adjust(key, -1);
+                self.setting_changed(key);
+            }
+            KeyCode::Char('r') => {
+                self.settings.reset(key);
+                self.setting_changed(key);
+            }
+            _ => {}
         }
     }
 
@@ -176,9 +313,6 @@ impl App {
     }
 
     fn set_cursor(&mut self, id: usize) {
-        if id != self.cursor {
-            self.flash = 1.0;
-        }
         self.cursor = id;
         self.tree.reveal = self.tree.path_to(id).into_iter().collect();
         if let Some(p) = self.tree.nodes[id].parent {
@@ -197,8 +331,7 @@ impl App {
     fn enter(&mut self) {
         let id = self.cursor;
         if !self.tree.nodes[id].is_dir {
-            let w = ui::popup(ratatui::layout::Rect::new(0, 0, self.view.0, self.view.1 + 1)).width;
-            self.preview = Some(Preview::load(&self.tree.nodes[id].path, w));
+            self.open_file(id);
             return;
         }
         self.tree.load(id);
@@ -249,6 +382,9 @@ impl App {
             self.mt.cache.remove(&p);
         }
         let name = self.tree.nodes[self.cursor].path.clone();
+        if let Some(g) = &self.git {
+            g.poke();
+        }
         self.tree.reload(id);
         self.absorb();
         let again = self.tree.kids(id).iter().copied().find(|&k| self.tree.nodes[k].path == name);
@@ -266,6 +402,100 @@ impl App {
         !changes.is_empty() && self.apply_changes(changes)
     }
 
+    /// `e`: open every folder under the selected one (a file's own folder),
+    /// reading them on a worker while a spinner turns.
+    fn explode(&mut self) {
+        if self.exploding.is_some() {
+            return;
+        }
+        let n = &self.tree.nodes[self.cursor];
+        let target = if n.is_dir { self.cursor } else { n.parent.unwrap_or(self.cursor) };
+        let skip = self.git.as_ref().map(|g| g.ignored()).unwrap_or_default();
+        let rx = explode::spawn(self.tree.nodes[target].path.clone(), self.tree.show_hidden, skip);
+        self.exploding = Some(Exploding { target, rx, folders: 0, born: Instant::now() });
+    }
+
+    /// Take the explode worker's news. Returns true if anything changed.
+    fn explode_poll(&mut self) -> bool {
+        let Some(x) = &mut self.exploding else { return false };
+        let mut done = None;
+        let mut any = false;
+        loop {
+            match x.rx.try_recv() {
+                Ok(explode::Msg::Progress(n)) => {
+                    x.folders = n;
+                    any = true;
+                }
+                Ok(explode::Msg::Done(dirs, capped)) => {
+                    done = Some((dirs, capped));
+                    break;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => return any,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => break,
+            }
+        }
+        let target = x.target;
+        self.exploding = None;
+        if let Some((dirs, capped)) = done {
+            self.burst(target, dirs, capped);
+        }
+        true
+    }
+
+    /// Hang the walked folders on the tree and open them all at once, so
+    /// they unfurl together.
+    fn burst(&mut self, target: usize, dirs: Vec<(PathBuf, Vec<tree::Node>)>, capped: bool) {
+        if !self.tree.attached(target) {
+            return;
+        }
+        let mut id_of = std::collections::HashMap::from([(self.tree.nodes[target].path.clone(), target)]);
+        let mut opened = 0;
+        // Parents come before their children, so each folder's id is known by the time it's reached.
+        for (dir, nodes) in dirs {
+            let Some(&id) = id_of.get(&dir) else { continue };
+            self.tree.load_nodes(id, nodes);
+            self.tree.nodes[id].expanded = true;
+            opened += 1;
+            for &k in self.tree.nodes[id].children.as_deref().unwrap_or(&[]) {
+                if self.tree.nodes[k].is_dir {
+                    id_of.insert(self.tree.nodes[k].path.clone(), k);
+                }
+            }
+        }
+        let what = if opened == 1 { "1 folder".to_string() } else { format!("{opened} folders") };
+        let msg = if capped { format!("opened the first {what} (stopped there)") } else { format!("opened {what}") };
+        self.note = Some((msg, Instant::now()));
+        self.absorb();
+        self.epoch += 1;
+    }
+
+    /// Point git at the open folders and take its results. Returns true if they changed.
+    fn git_poll(&mut self) -> bool {
+        let Some(g) = &mut self.git else { return false };
+        g.set(self.tree.open_dirs().into_iter().map(|d| self.tree.nodes[d].path.clone()).collect());
+        g.poll()
+    }
+
+    /// Git state of a node, None if clean or not in a repo.
+    pub fn git_state(&self, id: usize) -> Option<git::St> {
+        self.git.as_ref()?.state(&self.tree.nodes[id].path)
+    }
+
+    /// Open the file preview, with a diff one `d` away when git has changes for it.
+    fn open_file(&mut self, id: usize) {
+        let w = ui::popup(ratatui::layout::Rect::new(0, 0, self.view.0, self.view.1 + 1)).width;
+        let path = self.tree.nodes[id].path.clone();
+        let mut pv = Preview::load(&path, w);
+        if pv.media.is_none()
+            && pv.audio.is_none()
+            && self.git_state(id).is_some_and(|s| s >= git::St::Staged)
+            && let Some((top, _)) = self.git.as_ref().and_then(|g| g.repo_of(&path))
+        {
+            pv.diff = Some(top.to_path_buf());
+        }
+        self.preview = Some(pv);
+    }
+
     /// Fold live changes into the tree: re-list each changed folder in place,
     /// warm it and its ancestors, and move the cursor off anything deleted.
     fn apply_changes(&mut self, changes: Vec<watch::Change>) -> bool {
@@ -275,7 +505,18 @@ impl App {
         for c in changes {
             let Some(&id) = open.get(&c.dir) else { continue };
             any = true;
-            if self.tree.refresh(id) || c.listing {
+            let r = self.tree.refresh(id);
+            let ripples = self.settings.ripples;
+            // Light what changed, or the folder itself when what changed is gone.
+            let shown = |k: &usize| self.tree.show_hidden || !self.tree.is_hidden(*k);
+            let mut origins: Vec<usize> = r.touched.iter().copied().filter(shown).collect();
+            if r.gone.iter().any(shown) {
+                origins.push(id);
+            }
+            if ripples {
+                self.ripple(&origins);
+            }
+            if r.changed || c.listing {
                 // Entries came or went: re-walk this folder for an exact heat.
                 self.mt.forget(&c.dir);
                 self.mt.request(&c.dir);
@@ -294,10 +535,31 @@ impl App {
         if !any {
             return false;
         }
+        if let Some(g) = &self.git {
+            g.poke();
+        }
         self.reattach();
         self.absorb();
         self.epoch += 1;
         true
+    }
+
+    /// Start ripples at `origins` that climb to the root, a level per RIPPLE_STEP.
+    fn ripple(&mut self, origins: &[usize]) {
+        let now = Instant::now();
+        for &o in origins {
+            for (k, id) in self.tree.path_to(o).into_iter().rev().enumerate() {
+                let fresh = Ripple { start: now + RIPPLE_STEP * k as u32, strength: 0.8f32.powi(k as i32).max(0.35) };
+                let r = self.ripples.entry(id).or_insert(fresh);
+                if fresh.start < r.start {
+                    // A closer change gets here first.
+                    *r = Ripple { strength: r.strength.max(fresh.strength), ..fresh };
+                } else if now.saturating_duration_since(r.start) > RIPPLE_STEP * 4 {
+                    // Mostly faded: flash again.
+                    *r = fresh;
+                }
+            }
+        }
     }
 
     /// If the cursor's entry (or a folder above it) was deleted, land on the
@@ -309,9 +571,8 @@ impl App {
             return;
         };
         let (dir, gone) = (w[0], w[1]);
-        let name = self.tree.nodes[gone].name.to_lowercase();
         let kids = self.tree.kids(dir);
-        let to = kids.iter().copied().find(|&k| self.tree.nodes[k].name.to_lowercase() >= name).or(kids.last().copied());
+        let to = kids.iter().copied().find(|&k| self.tree.cmp(k, gone).is_ge()).or(kids.last().copied());
         self.set_cursor(to.unwrap_or(dir));
         if let Some(s) = &mut self.search
             && !self.tree.attached(s.origin)
@@ -478,6 +739,10 @@ impl App {
             self.search_key(code, mods);
             return true;
         }
+        if self.menu.is_some() {
+            self.menu_key(code, mods);
+            return true;
+        }
         if code == KeyCode::Char('i')
             && let (Some(p), Some(m)) = (&mut self.picker, self.preview.as_mut().and_then(|pv| pv.media.as_mut()))
         {
@@ -528,6 +793,7 @@ impl App {
                 KeyCode::Char('j') | KeyCode::Down => pv.scroll += 1,
                 KeyCode::Char('k') | KeyCode::Up => pv.scroll -= 1,
                 KeyCode::Char('d') if ctrl => pv.scroll += page / 2,
+                KeyCode::Char('d') => pv.toggle_diff(),
                 KeyCode::Char('u') if ctrl => pv.scroll -= page / 2,
                 KeyCode::PageDown | KeyCode::Char(' ') => pv.scroll += page,
                 KeyCode::PageUp => pv.scroll -= page,
@@ -535,6 +801,11 @@ impl App {
                 KeyCode::Char('G') | KeyCode::End => pv.scroll = i32::MAX / 2,
                 _ => {}
             }
+            return true;
+        }
+        // Esc stops an explode instead of quitting.
+        if code == KeyCode::Esc && self.exploding.take().is_some() {
+            self.note = Some(("explode cancelled".into(), Instant::now()));
             return true;
         }
         if self.help && code != KeyCode::Char('?') {
@@ -561,10 +832,19 @@ impl App {
             KeyCode::Char('-') | KeyCode::Backspace => {
                 self.tree.reroot_up();
                 self.tree.reveal = self.tree.path_to(self.cursor).into_iter().collect();
-                self.flash = 1.0;
             }
-            KeyCode::Char('.') => self.tree.show_hidden ^= true,
+            KeyCode::Char('.') => {
+                self.settings.show_hidden ^= true;
+                self.apply_settings();
+            }
+            KeyCode::Char('o') => self.set_sort(self.settings.sort.next()),
+            KeyCode::Char('O') => self.set_sort(Sort { rev: !self.settings.sort.rev, ..self.settings.sort }),
+            KeyCode::Char(',') => {
+                self.menu = Some(0);
+                self.help = false;
+            }
             KeyCode::Char('c') => self.collapse_others(),
+            KeyCode::Char('e') => self.explode(),
             KeyCode::Char('r') => self.reload(),
             KeyCode::Char('?') => self.help ^= true,
             KeyCode::Char('!') => {
@@ -582,7 +862,7 @@ impl App {
 
     fn mouse(&mut self, kind: MouseEventKind, col: u16, row: u16) {
         // Clicks would silently change the folder the typed command runs in.
-        if self.prompt.is_some() || self.search.is_some() {
+        if self.prompt.is_some() || self.search.is_some() || self.menu.is_some() {
             return;
         }
         if let Some(pv) = self.open_preview() {
@@ -656,9 +936,11 @@ impl App {
 
     /// Something on screen moves on its own (a playing sound, a waveform still being read).
     fn ticking(&self) -> bool {
-        self.preview.as_ref().and_then(|p| p.audio.as_ref()).is_some_and(|a| {
-            a.state() == audio::State::Playing || !a.wave_done
-        })
+        self.exploding.is_some()
+            || self.note.as_ref().is_some_and(|n| n.1.elapsed() < NOTE)
+            || self.preview.as_ref().and_then(|p| p.audio.as_ref()).is_some_and(|a| {
+                a.state() == audio::State::Playing || !a.wave_done
+            })
     }
 
     /// Track the pointer; true when the hover cue changed and needs a frame.
@@ -714,17 +996,38 @@ fn main() -> std::io::Result<()> {
              --cwd-file: on q, write the selected folder there (tb.bash turns that into cd)\n\
              image/pdf preview: j/k page · i pixels <-> half-blocks · TB_GRAPHICS=halfblocks|kitty|sixel|iterm2|off\n\
              audio preview: plays at once · space pause · left/right 5 s · shift 30 s · 0-9 jump · up/down volume · m mute\n\
+             , opens the settings (saved to ~/.config/tb/config.toml, or $TB_CONFIG)\n\
+             e explodes the selected folder: opens every folder inside (hidden and git-ignored ones stay closed) · esc stops it\n\
+             o cycles the sort (name · modified · size · type) · O reverses it · TB_SORT=size (or -size, modified, type) sets the start\n\
              open folders update live (about once a second) · TB_LIVE=off turns that off\n\
+             git: M modified · + staged · ? untracked · ! conflict · ignored names dim · d in a preview shows the diff · TB_GIT=off\n\
              color = last modified (dirs: newest anything inside): red = minutes, orange = hours, tan = days, grey = weeks, blue = years"
         );
         return Ok(());
     }
     let start = std::fs::canonicalize(&arg)?;
     let mut app = App::new(start);
-    app.can_cd = cwd_file.is_some();
-    if std::env::var("TB_LIVE").map_or(true, |v| v != "off") {
-        app.live = Some(watch::Watch::spawn(watch::EVERY));
+    app.config = settings::path();
+    (app.settings, app.config_errs) = Settings::load(app.config.as_deref());
+    // Environment variables win for this run.
+    if let Ok(s) = std::env::var("TB_SORT") {
+        match Sort::parse(&s) {
+            Some(sort) => app.settings.sort = sort,
+            None => {
+                eprintln!("tb: TB_SORT={s:?}: expected name, modified, size or type, with - in front to reverse");
+                std::process::exit(2);
+            }
+        }
     }
+    if std::env::var("TB_LIVE").is_ok_and(|v| v == "off") {
+        app.settings.live = false;
+    }
+    if std::env::var("TB_GIT").is_ok_and(|v| v == "off") {
+        app.settings.git = false;
+    }
+    app.can_cd = cwd_file.is_some();
+    app.services = true;
+    app.apply_settings();
     let mut term = ratatui::init();
     let hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -754,6 +1057,7 @@ fn main() -> std::io::Result<()> {
                 let _ = term.clear();
             }
             let mut moving = false;
+            let dt = dt * app.settings.speed.factor();
             if let Err(e) = term.draw(|f| moving = ui::frame(f, &mut app, dt)) {
                 break Err(e);
             }
@@ -776,6 +1080,8 @@ fn main() -> std::io::Result<()> {
                     dirty = true;
                 }
                 dirty |= app.live_poll();
+                dirty |= app.git_poll();
+                dirty |= app.explode_poll();
                 dirty |= app.ticking();
                 continue;
             }
@@ -830,6 +1136,8 @@ fn main() -> std::io::Result<()> {
         if app.mt.poll() {
             app.absorb();
         }
+        app.git_poll();
+        app.explode_poll();
     };
     restore();
     if let (true, Some(f)) = (app.cd_on_quit, cwd_file) {
@@ -988,6 +1296,178 @@ mod tests {
         assert_eq!(at(&app), "alpha", "or the last entry when it was at the end");
     }
 
+    fn names(app: &App, dir: usize) -> Vec<String> {
+        app.tree.kids(dir).iter().map(|&k| app.tree.nodes[k].name.clone()).collect()
+    }
+
+    /// d/ holds big.log (300 B, a year old), mid.txt (20 B, now), a/ (1000 B inside, a week old)
+    /// and Zed (no extension, 5 B, a day old). The cursor starts on a/.
+    fn sort_fixture(name: &str) -> (App, usize) {
+        let root = std::env::temp_dir().join(format!("tb-sort-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("d/a")).unwrap();
+        let ago = |days: u64| SystemTime::now() - Duration::from_secs(86400 * days);
+        for (f, n, t) in [("big.log", 300, ago(365)), ("mid.txt", 20, SystemTime::now()), ("Zed", 5, ago(1))] {
+            fs::write(root.join("d").join(f), vec![0; n]).unwrap();
+            fs::File::open(root.join("d").join(f)).unwrap().set_modified(t).unwrap();
+        }
+        fs::write(root.join("d/a/inner"), [0; 1000]).unwrap();
+        fs::File::open(root.join("d/a/inner")).unwrap().set_modified(ago(7)).unwrap();
+        let mut app = App::new(root.join("d"));
+        let d = app.tree.nodes[app.cursor].parent.unwrap();
+        app.mt.request(&root.join("d/a"));
+        let t0 = std::time::Instant::now();
+        while app.tree.nodes[app.cursor].rec.is_none() && t0.elapsed() < Duration::from_secs(5) {
+            app.mt.poll();
+            app.absorb();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(at(&app), "a");
+        (app, d)
+    }
+
+    #[test]
+    fn o_cycles_sorts_and_the_cursor_rides_along() {
+        let (mut app, d) = sort_fixture("cycle");
+        assert_eq!(names(&app, d), ["a", "big.log", "mid.txt", "Zed"]);
+        typed(&mut app, "o");
+        assert_eq!(names(&app, d), ["mid.txt", "Zed", "a", "big.log"], "newest first, folders by what's inside");
+        typed(&mut app, "o");
+        assert_eq!(names(&app, d), ["a", "big.log", "mid.txt", "Zed"], "largest first, folders by total size");
+        typed(&mut app, "O");
+        assert_eq!(names(&app, d), ["Zed", "mid.txt", "big.log", "a"], "O flips it");
+        typed(&mut app, "o");
+        assert_eq!(names(&app, d), ["a", "Zed", "big.log", "mid.txt"], "folders, then no extension, then by extension");
+        assert!(!app.tree.sort.rev, "a new key starts in its natural direction");
+        typed(&mut app, "o");
+        assert_eq!(app.tree.sort, Sort::default());
+        assert_eq!(at(&app), "a", "the cursor stays on its entry through every re-sort");
+        typed(&mut app, "j");
+        assert_eq!(at(&app), "big.log", "and moves in the new order");
+    }
+
+    #[test]
+    fn live_changes_keep_the_sort() {
+        let (mut app, d) = sort_fixture("live");
+        app.set_sort(Sort::parse("modified").unwrap());
+        fs::write(app.tree.nodes[d].path.join("new.md"), "").unwrap();
+        app.apply_changes(vec![change(&app, d, true)]);
+        assert_eq!(names(&app, d)[0], "new.md", "a fresh file lands at the top");
+        app.step(isize::MAX / 2);
+        assert_eq!(at(&app), "big.log");
+        fs::remove_file(app.tree.nodes[app.cursor].path.clone()).unwrap();
+        app.apply_changes(vec![change(&app, d, true)]);
+        assert_eq!(at(&app), "a", "a deleted last entry hands the cursor to the one before it");
+    }
+
+    #[test]
+    fn sort_parses_names_and_a_reversing_dash() {
+        assert_eq!(Sort::parse("size"), Some(Sort { key: SortKey::Size, rev: false }));
+        assert_eq!(Sort::parse("-modified"), Some(Sort { key: SortKey::Modified, rev: true }));
+        assert_eq!(Sort::parse("type"), Some(Sort { key: SortKey::Type, rev: false }));
+        assert_eq!(Sort::parse("bogus"), None);
+    }
+
+    #[test]
+    fn live_change_ripples_up_from_what_changed() {
+        let mut app = app_in("ripple", &["alpha", "beta", ".hidden"]);
+        let d = app.tree.nodes[app.cursor].parent.unwrap();
+        let (root, alpha, beta) = (app.tree.root, app.cursor, app.tree.kids(d)[1]);
+        let bump = |app: &App, name: &str| {
+            let p = app.tree.nodes[d].path.join(name);
+            fs::File::open(p).unwrap().set_modified(SystemTime::now() + Duration::from_secs(5)).unwrap();
+        };
+        bump(&app, ".hidden");
+        app.apply_changes(vec![change(&app, d, false)]);
+        assert!(app.ripples.is_empty(), "a hidden file changing lights nothing while dotfiles are hidden");
+
+        bump(&app, "beta");
+        app.apply_changes(vec![change(&app, d, false)]);
+        assert!(!app.ripples.contains_key(&alpha), "untouched siblings stay dark");
+        let (b, dr, rr) = (app.ripples[&beta], app.ripples[&d], app.ripples[&root]);
+        assert!(b.start < dr.start && dr.start < rr.start, "climbs a level at a time");
+        assert!(b.strength > dr.strength && dr.strength > rr.strength, "dimmer as it climbs");
+
+        fs::remove_file(app.tree.nodes[alpha].path.clone()).unwrap();
+        app.ripples.clear();
+        app.apply_changes(vec![change(&app, d, true)]);
+        assert_eq!(app.ripples[&d].strength, 1.0, "a deletion lights the folder it left");
+    }
+
+    #[test]
+    fn settings_menu_changes_applies_and_saves() {
+        let mut app = app_in("menu", &["alpha", "beta"]);
+        let cfg = std::env::temp_dir().join(format!("tb-menu-{}/config.toml", std::process::id()));
+        let _ = fs::remove_file(&cfg);
+        app.config = Some(cfg.clone());
+        typed(&mut app, ",");
+        assert_eq!(app.menu, Some(0));
+        typed(&mut app, "ll");
+        assert_eq!(app.spacing().rows, 2, "row spacing is the first row");
+        typed(&mut app, "h");
+        assert_eq!(app.settings.row_spacing, 1);
+        let at = |k: &str| ITEMS.iter().position(|i| i.key == k).unwrap();
+        app.menu = Some(at("sort"));
+        typed(&mut app, "l");
+        assert_eq!(app.tree.sort.key, SortKey::Modified, "the tree follows at once");
+        app.menu = Some(at("show_hidden"));
+        typed(&mut app, " ");
+        assert!(app.tree.show_hidden);
+        typed(&mut app, "r");
+        assert!(!app.tree.show_hidden, "r resets to the default");
+        typed(&mut app, "j");
+        assert_eq!(app.menu, Some(at("show_hidden") + 1));
+        app.key(KeyCode::Esc, KeyModifiers::NONE);
+        assert!(app.menu.is_none());
+        assert!(!app.key(KeyCode::Esc, KeyModifiers::NONE), "esc after closing quits as usual");
+
+        let (saved, errs) = Settings::load(Some(&cfg));
+        assert!(errs.is_empty(), "{errs:?}");
+        assert_eq!((saved.row_spacing, saved.sort.key, saved.show_hidden), (1, SortKey::Modified, false));
+        let text = fs::read_to_string(&cfg).unwrap();
+        assert!(text.contains("sort_reverse = false"), "a new sort key saves its direction too: {text}");
+    }
+
+    #[test]
+    fn keys_keep_the_settings_in_step() {
+        let mut app = app_in("keys-settings", &["alpha"]);
+        typed(&mut app, "oO.");
+        assert_eq!(app.settings.sort, Sort { key: SortKey::Modified, rev: true });
+        assert!(app.settings.show_hidden && app.tree.show_hidden);
+    }
+
+    #[test]
+    fn e_explodes_the_selected_folder_and_esc_stops_it() {
+        let mut app = app_in("explode", &["file.txt"]);
+        let d = app.tree.nodes[app.cursor].parent.unwrap();
+        let base = app.tree.nodes[d].path.clone();
+        for p in ["src/a/b", "src/c", "src/.cache/x"] {
+            fs::create_dir_all(base.join(p)).unwrap();
+        }
+        app.reload();
+        let src = app.tree.kids(d).into_iter().find(|&k| app.tree.nodes[k].name == "src").unwrap();
+        app.set_cursor(src);
+        typed(&mut app, "e");
+        assert!(app.exploding.as_ref().is_some_and(|x| x.target == src));
+        let t0 = Instant::now();
+        while app.exploding.is_some() && t0.elapsed() < Duration::from_secs(5) {
+            app.explode_poll();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let open = |app: &App, rel: &str| {
+            let p = base.join(rel);
+            app.tree.nodes.iter().position(|n| n.path == p).is_some_and(|i| app.tree.nodes[i].expanded && app.tree.attached(i))
+        };
+        assert!(open(&app, "src") && open(&app, "src/a") && open(&app, "src/a/b") && open(&app, "src/c"));
+        assert!(!open(&app, "src/.cache"), "hidden folders stay shut while dotfiles are hidden");
+        assert_eq!(app.cursor, src, "the cursor stays on the exploded folder");
+        assert!(app.note.as_ref().is_some_and(|n| n.0 == "opened 4 folders"), "{:?}", app.note);
+
+        typed(&mut app, "e");
+        assert!(app.key(KeyCode::Esc, KeyModifiers::NONE), "esc stops the explode, not tb");
+        assert!(app.exploding.is_none());
+    }
+
     #[test]
     fn live_change_warms_the_folder_and_its_ancestors() {
         let mut app = app_in("live-heat", &["alpha"]);
@@ -996,7 +1476,7 @@ mod tests {
         let root = app.tree.root;
         for id in [d, root] {
             let p = app.tree.nodes[id].path.clone();
-            app.mt.cache.insert(p, (old, true, true, old));
+            app.mt.cache.insert(p, (old, true, true, old, 0));
         }
         app.absorb();
         assert!(app.heat_of(root) <= old);

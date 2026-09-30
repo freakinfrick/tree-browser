@@ -16,12 +16,12 @@ use std::time::SystemTime;
 const WALK_CAP: usize = 50_000;
 
 /// (dir, newest mtime beneath, walk finished without hitting the cap,
-///  newest mtime among non-dot entries only)
-type Entry = (PathBuf, SystemTime, bool, SystemTime);
+///  newest mtime among non-dot entries only, total bytes of files beneath)
+type Entry = (PathBuf, SystemTime, bool, SystemTime, u64);
 
 /// (newest mtime beneath, complete, came from a walk rooted at this dir,
-///  newest ignoring dotfiles/dot-dirs and dir listing churn)
-pub type Cached = (SystemTime, bool, bool, SystemTime);
+///  newest ignoring dotfiles/dot-dirs and dir listing churn, bytes beneath)
+pub type Cached = (SystemTime, bool, bool, SystemTime, u64);
 
 pub struct Mtime {
     tx: Sender<PathBuf>,
@@ -106,9 +106,9 @@ fn worker(rx: Receiver<PathBuf>, tx: Sender<Vec<(PathBuf, Cached)>>, cap: usize)
         let mut out = Vec::new();
         let mut budget = cap;
         walk(&dir, &mut budget, &mut out);
-        let out = out.into_iter().map(|(p, t, c, v)| {
+        let out = out.into_iter().map(|(p, t, c, v, n)| {
             let direct = p == dir;
-            (p, (t, c, direct, v))
+            (p, (t, c, direct, v, n))
         });
         if tx.send(out.collect()).is_err() {
             return;
@@ -116,15 +116,17 @@ fn worker(rx: Receiver<PathBuf>, tx: Sender<Vec<(PathBuf, Cached)>>, cap: usize)
     }
 }
 
-/// Returns (newest, complete, newest_visible). `newest_visible` skips dot
-/// entries (and everything under dot-dirs) and a dir's own mtime, which
-/// moves whenever any entry, hidden or not, is created or removed.
-pub fn walk(dir: &Path, budget: &mut usize, out: &mut Vec<Entry>) -> (SystemTime, bool, SystemTime) {
+/// Returns (newest, complete, newest_visible, bytes). `newest_visible` skips
+/// dot entries (and everything under dot-dirs) and a dir's own mtime, which
+/// moves whenever any entry, hidden or not, is created or removed. `bytes`
+/// is the apparent size of every non-dir entry beneath, hidden ones included.
+pub fn walk(dir: &Path, budget: &mut usize, out: &mut Vec<Entry>) -> (SystemTime, bool, SystemTime, u64) {
     let mut newest = fs::symlink_metadata(dir)
         .and_then(|m| m.modified())
         .unwrap_or(SystemTime::UNIX_EPOCH);
     let mut vis = SystemTime::UNIX_EPOCH;
     let mut complete = true;
+    let mut bytes = 0;
     if let Ok(rd) = fs::read_dir(dir) {
         for e in rd.flatten() {
             if *budget == 0 {
@@ -135,24 +137,30 @@ pub fn walk(dir: &Path, budget: &mut usize, out: &mut Vec<Entry>) -> (SystemTime
             let hidden = e.file_name().as_encoded_bytes().first() == Some(&b'.');
             let is_dir = e.file_type().is_ok_and(|t| t.is_dir());
             // DirEntry::metadata is lstat on Linux: symlinks are not followed.
-            if let Ok(t) = e.metadata().and_then(|m| m.modified()) {
-                newest = newest.max(t);
-                if !hidden && !is_dir {
-                    vis = vis.max(t);
+            if let Ok(m) = e.metadata() {
+                if !is_dir {
+                    bytes += m.len();
+                }
+                if let Ok(t) = m.modified() {
+                    newest = newest.max(t);
+                    if !hidden && !is_dir {
+                        vis = vis.max(t);
+                    }
                 }
             }
             if is_dir {
-                let (t, c, v) = walk(&e.path(), budget, out);
+                let (t, c, v, n) = walk(&e.path(), budget, out);
                 newest = newest.max(t);
                 if !hidden {
                     vis = vis.max(v);
                 }
+                bytes += n;
                 complete &= c;
             }
         }
     }
-    out.push((dir.to_path_buf(), newest, complete, vis));
-    (newest, complete, vis)
+    out.push((dir.to_path_buf(), newest, complete, vis, bytes));
+    (newest, complete, vis, bytes)
 }
 
 #[cfg(test)]
@@ -196,7 +204,7 @@ mod tests {
         fs::write(root.join(".bash_history"), "x").unwrap();
         let mut out = Vec::new();
         let mut budget = WALK_CAP;
-        let (all, _, vis) = walk(&root, &mut budget, &mut out);
+        let (all, _, vis, _) = walk(&root, &mut budget, &mut out);
         let recent = SystemTime::now() - Duration::from_secs(60);
         assert!(all > recent, "hidden churn counts when hidden files are shown");
         assert!(vis < recent, "but not in the visible view: {vis:?}");
@@ -213,6 +221,20 @@ mod tests {
         let mut out = Vec::new();
         let mut budget = 3;
         assert!(!walk(&root, &mut budget, &mut out).1);
+    }
+
+    #[test]
+    fn bytes_add_up_through_subfolders() {
+        let root = std::env::temp_dir().join(format!("tb-bytes-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("a/b")).unwrap();
+        fs::write(root.join("top"), [0; 10]).unwrap();
+        fs::write(root.join("a/mid"), [0; 200]).unwrap();
+        fs::write(root.join("a/b/.deep"), [0; 3000]).unwrap();
+        let mut out = Vec::new();
+        let mut budget = WALK_CAP;
+        assert_eq!(walk(&root, &mut budget, &mut out).3, 3210);
+        assert_eq!(out.iter().find(|e| e.0 == root.join("a")).unwrap().4, 3200);
     }
 
     fn settle(m: &mut Mtime) {

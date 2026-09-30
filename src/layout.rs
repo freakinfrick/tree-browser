@@ -15,6 +15,25 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use crate::tree::Tree;
 
 pub const MAXW: usize = 28;
+
+/// Room in the layout, from the settings.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Spacing {
+    /// Blank rows between entries.
+    pub rows: i32,
+    /// Columns between a column's widest name and the next column. At least
+    /// 3: the cell after a name holds its bud or git marker, and trunks
+    /// start past that.
+    pub gap: i32,
+    /// Names are cut to this many columns.
+    pub maxw: usize,
+}
+
+impl Default for Spacing {
+    fn default() -> Spacing {
+        Spacing { rows: 0, gap: 3, maxw: MAXW }
+    }
+}
 pub const UP: u8 = 1;
 pub const DOWN: u8 = 2;
 pub const LEFT: u8 = 4;
@@ -90,10 +109,6 @@ pub fn cell_glyph(c: &Cell) -> char {
     }
 }
 
-/// Truncate to MAXW display columns with a trailing ellipsis.
-pub fn truncate(s: &str) -> String {
-    truncate_to(s, MAXW)
-}
 
 pub fn truncate_to(s: &str, max: usize) -> String {
     if s.width() <= max {
@@ -126,12 +141,13 @@ pub fn spine(tree: &Tree, cursor: usize) -> Vec<usize> {
     s
 }
 
-pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String) -> Layout {
+pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp: Spacing) -> Layout {
     let spine = spine(tree, cursor);
     let on_spine: HashSet<usize> = spine.iter().copied().collect();
     let mut out = Layout::default();
     // (id, y, label, active) for the current column, sorted by y.
-    let mut level = vec![(tree.root, 0, truncate(&label_of(tree.root)), true)];
+    let cut = |s: String| truncate_to(&s, sp.maxw);
+    let mut level = vec![(tree.root, 0, cut(label_of(tree.root)), true)];
     let mut x = 0i32;
     for depth in 1.. {
         for (id, y, label, active) in &level {
@@ -153,7 +169,7 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String) ->
             break;
         }
         let n = parents.len() as i32;
-        let next_x = x + colw + n + 3;
+        let next_x = x + colw + n + sp.gap.max(3);
         if let Some(&s) = on_line {
             out.cols.push((x - 2, next_x - 2, s));
         }
@@ -189,13 +205,22 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String) ->
             let kids = tree.kids(*pid).to_vec();
             let active = on_spine.contains(pid);
             for (i, &kid) in kids.iter().enumerate() {
-                next.push((kid, y0s[k] + i as i32, truncate(&label_of(kid)), active));
+                next.push((kid, y0s[k] + i as i32, cut(label_of(kid)), active));
             }
             out.blocks.push(Block { parent: *pid, kids, k: k as i32 });
         }
         next.sort_by_key(|n| n.1);
         x = next_x;
         level = next;
+    }
+    // Row spacing: lay out in rows, then spread them. Connectors are drawn
+    // between whatever rows the nodes land on, so they stretch through the gaps.
+    let pitch = 1 + sp.rows.max(0);
+    if pitch > 1 {
+        for p in &mut out.placed {
+            p.y *= pitch;
+        }
+        out.cursor.1 *= pitch;
     }
     out
 }
@@ -326,11 +351,33 @@ mod tests {
     }
 
     #[test]
+    fn spacing_spreads_rows_widens_gaps_and_cuts_names() {
+        let (t, _, one, three) = deep("spacing");
+        let tight = layout(&t, three, &name_of(&t), Spacing::default());
+        let airy = layout(&t, three, &name_of(&t), Spacing { rows: 2, gap: 7, maxw: MAXW });
+        for name in ["1", "2", "3", "a", "b"] {
+            assert_eq!(pos(&airy, &t, name).1, pos(&tight, &t, name).1 * 3, "{name}: every row three apart");
+        }
+        assert_eq!(airy.cursor.1, tight.cursor.1 * 3);
+        assert_eq!(pos(&airy, &t, "1").0 - pos(&tight, &t, "1").0, 8, "4 more gap per column, two columns");
+        let route: HashSet<usize> = t.path_to(one).into_iter().collect();
+        let cells = target_lines(&airy, &route);
+        let (x, y) = pos(&airy, &t, "2");
+        assert!(cells.contains_key(&(x - 1, y - 1)) && cells.contains_key(&(x - 1, y - 2)), "trunk runs through the blank rows");
+        let long = fixture("spacing-long", &["a-very-long-folder-name"]);
+        let mut t = Tree::new(&long);
+        t.load(0);
+        t.nodes[0].expanded = true;
+        let l = layout(&t, t.kids(0)[0], &name_of(&t), Spacing { maxw: 12, ..Spacing::default() });
+        assert_eq!(l.placed[1].label, "a-very-long…", "12 columns, ellipsis included");
+    }
+
+    #[test]
     fn spine_is_one_straight_line() {
         let (mut t, _, one, _) = deep("straight");
         t.load(one);
         t.nodes[one].expanded = true;
-        let l = layout(&t, one, &name_of(&t));
+        let l = layout(&t, one, &name_of(&t), Spacing::default());
         for id in spine(&t, one) {
             let p = l.placed.iter().find(|p| p.id == id).unwrap();
             assert_eq!(p.y, 0, "{} on the line", t.nodes[id].name);
@@ -342,8 +389,8 @@ mod tests {
     #[test]
     fn column_scrolls_about_the_line() {
         let (t, _, one, three) = deep("scroll");
-        let at1 = layout(&t, one, &name_of(&t));
-        let at3 = layout(&t, three, &name_of(&t));
+        let at1 = layout(&t, one, &name_of(&t), Spacing::default());
+        let at3 = layout(&t, three, &name_of(&t), Spacing::default());
         assert_eq!((pos(&at1, &t, "1").1, pos(&at3, &t, "3").1), (0, 0), "selection always on the line");
         assert_eq!(pos(&at1, &t, "1").1 - pos(&at3, &t, "1").1, 2, "column slid up by two rows");
         assert_eq!(pos(&at3, &t, "a").1, 0, "parent column did not move");
@@ -354,7 +401,7 @@ mod tests {
         let (mut t, a, one, _) = deep("bands");
         t.load(one);
         t.nodes[one].expanded = true;
-        let l = layout(&t, one, &name_of(&t));
+        let l = layout(&t, one, &name_of(&t), Spacing::default());
         let ids: Vec<usize> = l.cols.iter().map(|c| c.2).collect();
         assert_eq!(ids, spine(&t, one), "a band per line column, ancestors and descendants");
         assert_eq!(ids[1], a);
@@ -378,7 +425,7 @@ mod tests {
             t.nodes[k].expanded = true;
         }
         let b = t.kids(0)[1];
-        let l = layout(&t, b, &name_of(&t)); // spine through b; a's block sits above it
+        let l = layout(&t, b, &name_of(&t), Spacing::default()); // spine through b; a's block sits above it
         let (y4, y5) = (pos(&l, &t, "4").1, pos(&l, &t, "5").1);
         assert_eq!(y5, 0, "b's first child on the line");
         assert!(y4 <= y5 - 2, "a's block ends above b's with a gap: {y4} vs {y5}");
@@ -394,7 +441,7 @@ mod tests {
             t.load(k);
             t.nodes[k].expanded = true;
         }
-        let l = layout(&t, 0, &name_of(&t));
+        let l = layout(&t, 0, &name_of(&t), Spacing::default());
         let ys: Vec<i32> = ["1", "2", "3", "4", "5", "6", "7", "8"].iter().map(|n| pos(&l, &t, n).1).collect();
         for w in ys.windows(2) {
             assert!(w[1] > w[0], "rows strictly increase: {ys:?}");
@@ -422,7 +469,7 @@ mod tests {
         t.load(a);
         t.nodes[a].expanded = true;
         let three = t.kids(a)[2];
-        let l = layout(&t, three, &name_of(&t));
+        let l = layout(&t, three, &name_of(&t), Spacing::default());
         let route: HashSet<usize> = t.path_to(three).into_iter().collect();
         let ln = target_lines(&l, &route);
         let (x3, y3) = pos(&l, &t, "3");
@@ -437,7 +484,7 @@ mod tests {
         let mut t = Tree::new(&root);
         t.load(0);
         t.nodes[0].expanded = true;
-        let l = layout(&t, 0, &name_of(&t));
+        let l = layout(&t, 0, &name_of(&t), Spacing::default());
         // Kid sitting inside the parent label (mid-animation): no connector.
         let ln = lines(&l.blocks, &|id| Some(if id == 0 { (0, 0, 10) } else { (5, 0, 1) }), &HashSet::new(), &HashSet::new());
         assert!(ln.is_empty());
@@ -463,7 +510,7 @@ mod tests {
             t.load(k);
             t.nodes[k].expanded = true;
         }
-        let l = layout(&t, a, &name_of(&t));
+        let l = layout(&t, a, &name_of(&t), Spacing::default());
         let ln = target_lines(&l, &HashSet::new());
         let (x2, y2) = pos(&l, &t, "2");
         assert_eq!(ln[&(x2 - 1, y2)].owner, b, "tick into b's block belongs to b");
@@ -488,9 +535,9 @@ mod tests {
     #[test]
     fn truncate_adds_ellipsis() {
         let s = "x".repeat(40);
-        let t = truncate(&s);
+        let t = truncate_to(&s, MAXW);
         assert_eq!(t.width(), MAXW);
         assert!(t.ends_with('…'));
-        assert_eq!(truncate("short"), "short");
+        assert_eq!(truncate_to("short", MAXW), "short");
     }
 }

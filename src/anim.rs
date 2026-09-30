@@ -6,8 +6,10 @@
 //! that spring back into their nearest surviving ancestor while fading out.
 //! Connectors are drawn from the animated positions, so they follow along.
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU8, Ordering};
 
 use crate::layout::Layout;
+use crate::settings::Palette;
 
 /// Unity-style SmoothDamp: critically damped, no overshoot, and velocity
 /// carries over when the target moves mid-flight (no restart jerk).
@@ -57,6 +59,20 @@ pub fn approach(cur: &mut f32, target: f32, tau: f32, dt: f32) -> bool {
 
 pub type Rgb = [f32; 3];
 
+/// Live-change ripple brightness `t` seconds after it reaches a node
+/// (negative = not there yet): a quick flash, then an exponential fade.
+pub fn pulse(t: f32) -> f32 {
+    const RISE: f32 = 0.07;
+    const FADE: f32 = 0.45;
+    if t < 0.0 {
+        0.0
+    } else if t < RISE {
+        t / RISE
+    } else {
+        (-(t - RISE) / FADE).exp()
+    }
+}
+
 pub fn mix(a: Rgb, b: Rgb, t: f32) -> Rgb {
     [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
 }
@@ -67,7 +83,10 @@ pub fn to_color(c: Rgb) -> ratatui::style::Color {
 }
 
 /// (age seconds, color) stops; interpolated in log-time.
-pub const HEAT: [(f32, Rgb); 7] = [
+/// Recency gradients: (age in seconds, color) stops, blended in log-time.
+type Stops = [(f32, Rgb); 7];
+
+const EMBER: Stops = [
     (60.0, [255.0, 70.0, 60.0]),
     (3600.0, [255.0, 118.0, 48.0]),
     (86400.0, [255.0, 172.0, 64.0]),
@@ -77,12 +96,49 @@ pub const HEAT: [(f32, Rgb); 7] = [
     (5.0 * 365.0 * 86400.0, [66.0, 80.0, 214.0]),
 ];
 
-pub fn heat(age_secs: f32) -> Rgb {
-    let a = age_secs.max(1.0).ln();
-    if a <= HEAT[0].0.ln() {
-        return HEAT[0].1;
+/// Viridis-like: brightness carries recency, no red-green contrast needed.
+const AURORA: Stops = [
+    (60.0, [253.0, 231.0, 37.0]),
+    (3600.0, [170.0, 220.0, 50.0]),
+    (86400.0, [84.0, 197.0, 104.0]),
+    (7.0 * 86400.0, [34.0, 163.0, 132.0]),
+    (30.0 * 86400.0, [38.0, 128.0, 142.0]),
+    (365.0 * 86400.0, [56.0, 92.0, 142.0]),
+    (5.0 * 365.0 * 86400.0, [72.0, 52.0, 128.0]),
+];
+
+const MONO: Stops = [
+    (60.0, [250.0, 250.0, 250.0]),
+    (3600.0, [218.0, 218.0, 224.0]),
+    (86400.0, [184.0, 184.0, 192.0]),
+    (7.0 * 86400.0, [150.0, 150.0, 160.0]),
+    (30.0 * 86400.0, [118.0, 118.0, 128.0]),
+    (365.0 * 86400.0, [90.0, 90.0, 100.0]),
+    (5.0 * 365.0 * 86400.0, [66.0, 66.0, 76.0]),
+];
+
+static PALETTE: AtomicU8 = AtomicU8::new(0);
+
+pub fn set_palette(p: Palette) {
+    PALETTE.store(p as u8, Ordering::Relaxed);
+}
+
+/// The gradient in use.
+pub fn heat_stops() -> &'static Stops {
+    match PALETTE.load(Ordering::Relaxed) {
+        1 => &AURORA,
+        2 => &MONO,
+        _ => &EMBER,
     }
-    for w in HEAT.windows(2) {
+}
+
+pub fn heat(age_secs: f32) -> Rgb {
+    let stops = heat_stops();
+    let a = age_secs.max(1.0).ln();
+    if a <= stops[0].0.ln() {
+        return stops[0].1;
+    }
+    for w in stops.windows(2) {
         let (t0, t1) = (w[0].0.ln(), w[1].0.ln());
         if a <= t1 {
             let t = (a - t0) / (t1 - t0);
@@ -90,7 +146,7 @@ pub fn heat(age_secs: f32) -> Rgb {
             return mix(w[0].1, w[1].1, t * t * (3.0 - 2.0 * t));
         }
     }
-    HEAT[HEAT.len() - 1].1
+    stops[stops.len() - 1].1
 }
 
 pub struct NodeAnim {
@@ -200,6 +256,15 @@ impl Scene {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pulse_flashes_then_fades_out() {
+        assert_eq!(pulse(-0.1), 0.0);
+        assert!(pulse(0.035) > 0.4 && pulse(0.035) < 0.6);
+        assert!((pulse(0.07) - 1.0).abs() < 1e-4);
+        assert!(pulse(0.5) < pulse(0.2));
+        assert!(pulse(2.2) < 0.01, "gone by the time the ripple is dropped");
+    }
 
     #[test]
     fn damped_settles_without_overshoot() {

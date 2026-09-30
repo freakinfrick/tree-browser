@@ -24,7 +24,9 @@ and color tells you where work happened recently.
 - **Heat colors from recursive mtime.** A folder is colored by the newest change *anywhere* inside it,
   so you can spot where the action is from the top of the tree.
 - **Live.** Open folders update as files come, go and change (about once a second), and the heat
-  climbs the tree as you work. Set `TB_LIVE=off` to turn it off.
+  climbs the tree as you work. Each change flashes where it happened and ripples up the connectors
+  through every folder above it, so a build or an agent working in the tree shows up at a glance.
+  Set `TB_LIVE=off` to turn it off.
 - **A fixed selection line.** Root → cursor is always one straight line through mid-screen.
   Moving up and down scrolls the column through the line; the tree moves, the selector doesn't.
 - **Physics-driven motion.** Every node rides a critically damped spring: folders unfurl and fold back,
@@ -33,6 +35,10 @@ and color tells you where work happened recently.
   over kitty, sixel or iTerm2 graphics, with a half-block fallback for any truecolor terminal.
 - **Sound.** Audio files play the moment you open them, over a waveform with a scrubber you can
   click or drag, and simple keys for pause, seek and volume.
+- **Git aware.** Changed files carry a marker, closed folders show what's changed inside, ignored
+  build output fades back, the status bar names the branch, and `d` in a preview shows the diff.
+- **Yours to tune.** `,` opens settings for row spacing, column gap, name width, accent and heat
+  colors, motion speed and every feature switch, saved to a small config file.
 - **Shell without leaving.** `!` runs a command in the selected folder, `s` opens a shell there, and
   `q` can leave your shell `cd`'d to wherever you ended up.
 
@@ -85,10 +91,14 @@ tb --cwd-file PATH [DIR]  # on q, write the selected folder to PATH
 | `n` `N` | next / previous match of the last find |
 | `-` `Backspace` | re-root one level up |
 | `c` | collapse everything off the cursor path |
+| `e` | explode: open every folder inside the selected one (a file's own folder); `Esc` stops it |
 | `.` | show / hide dotfiles (hidden by default) |
+| `o` | cycle the sort: name → newest → largest → type |
+| `O` | reverse the sort |
 | `r` | reload, re-walking heat deep inside closed folders (open ones update live) |
 | `!` | run a shell command in the selected folder |
 | `s` | open a shell in the selected folder |
+| `,` | settings |
 | `?` | help overlay |
 | `q` | quit (and `cd` there, with the shell integration below) |
 | `Esc` `Ctrl-C` | quit and stay where you were |
@@ -99,7 +109,7 @@ the next ones scroll it.
 
 **In a preview:** `j` `k`, `Space` `PgDn`, `Ctrl-D` `Ctrl-U`, `g` `G` scroll text; for images and PDFs
 `j` `k` `Space` flip pages and `g` `G` jump to the first / last. `i` switches between pixels and
-half-blocks. `q` `Esc` `h` close.
+half-blocks. `d` shows a changed file's git diff (and back). `q` `Esc` `h` close.
 
 **In an audio preview:**
 
@@ -116,6 +126,16 @@ half-blocks. `q` `Esc` `h` close.
 
 Click or drag on the waveform or scrubber to seek there; the wheel seeks 5 s.
 
+### Explode
+
+`e` is the opposite of `c`: it opens every folder inside the selected one, all the way down, and
+they unfurl together. The folders are read on a background thread. While that runs, a spinner turns
+where the folder's `›` bud sits and the status bar counts folders; `Esc` stops it. The walk goes a
+level at a time and stops after 400 folders or 6,000 entries, so a huge tree opens its top levels
+rather than flooding the screen, and the status bar says when it stopped early. Hidden folders
+(unless dotfiles are shown) and folders git ignores, like `node_modules/` and `target/`, are listed
+but left closed. Symlinks are never followed. `c` folds everything back up.
+
 ## Color = recency
 
 Files are colored by when they were last modified. Folders are colored by the newest modification
@@ -130,6 +150,89 @@ Colors cross-fade when heat data lands instead of popping. White marks the curso
 marks branches off it. The line itself is a double "tube" with proper junctions; every other branch
 is tinted by the heat of the folder it grows from, a light sweeps along the line into the cursor on
 each move, and closed folders carry a small `›` bud.
+
+When an open folder changes on disk, the entry that changed flashes with an ember behind its name.
+The flash then climbs its elbow to the folder, and on up a level every 90 ms, dimming as it goes, before
+everything settles back to its heat color. A deleted entry flashes the folder it left.
+
+## Sorting
+
+Folders list their entries by name to start with (case-insensitive, folders and files mixed).
+`o` steps through the other orders, and `O` flips the current one:
+
+| Order | First | Folders count |
+|---|---|---|
+| name | a → z | by their own name |
+| modified | newest | by the newest change anywhere inside, like their color |
+| size | largest | by the total size of everything inside |
+| type | folders, then files by extension | as a group ahead of files |
+
+Ties fall back to the name. The sort applies to every open folder at once, and the status bar shows
+it (`⇅ largest first`) whenever it isn't plain name order. Folder sizes come from the same background
+walk as the heat, so a folder's size can change after it opens, and entries slide into place as
+walks finish. The status bar shows the total too, with a trailing `+` when the walk hit its cap. By
+modified, live updates lift freshly changed files to the top as you work.
+
+To start in a different order, set `TB_SORT` to `name`, `modified`, `size` or `type`, with a leading
+`-` to reverse it (`TB_SORT=-size` puts the smallest first).
+
+## Git
+
+Inside a git repo, each file with changes gets a one-letter marker after its name:
+
+| Marker | Meaning |
+|---|---|
+| `M` (yellow) | modified in the worktree |
+| `+` (green) | staged, nothing more on top |
+| `?` (cyan) | untracked |
+| `!` (pink) | merge conflict |
+
+A closed folder's `›` bud takes the color of the most urgent change anywhere inside it, so you can
+follow a change down from the top. Ignored files and folders (`target/`, `node_modules/`) are dimmed.
+The status bar shows the branch with ahead/behind counts (`⎇ main ↑1`) and the selected entry's
+state. When a changed file is open in the preview, `d` switches between the file and its diff against
+`HEAD`, staged and unstaged changes together.
+
+Status comes from `git status` on a background thread, for the repos that the open folders are in. It
+re-runs when files change, on `r`, and every 3 s to catch commits and `git add`. It runs with
+`--no-optional-locks`, so it never takes the index lock from your own git commands. Set `TB_GIT=off`
+to turn it off.
+
+## Settings
+
+`,` opens the settings on the right, over the tree, so each change shows as you make it. `j` `k` move,
+`h` `l` (or `←` `→`, `Enter`, `Space`) change the value, `r` puts it back to the default, and `Esc` or `,`
+closes the panel.
+
+| Setting | Values | Default |
+|---|---|---|
+| Row spacing | blank rows between entries, 0–3 | 0 |
+| Column gap | space before the next column, 3–12 | 3 |
+| Name width | longer names are cut with `…`, 12–60 | 28 |
+| Sort by, Reverse | same as `o` and `O` | name, off |
+| Dotfiles | same as `.` | hidden |
+| Accent | indigo, teal, violet, amber, mono (lines, selector, highlights) | indigo |
+| Heat colors | ember (red → blue), aurora (yellow → purple, avoids red-green), mono | ember |
+| Legend | the color key in the status bar | on |
+| Motion | slow, normal, fast, instant (no animation) | normal |
+| Live updates, Ripples, Git status, Dim ignored | on / off | on |
+
+Every change is saved immediately to `~/.config/tb/config.toml` (under `$XDG_CONFIG_HOME` if that's
+set, or wherever `TB_CONFIG` points). It's plain `key = value` TOML that you can also edit by hand. tb
+rewrites only the line for the setting you changed, so your comments stay. If a line can't be read,
+tb uses the default for that setting and lists the problem at the bottom of the settings panel.
+
+```toml
+row_spacing = 1
+accent = "teal"
+palette = "aurora"
+sort = "modified"
+```
+
+`TB_SORT`, `TB_LIVE=off` and `TB_GIT=off` override the file for that run.
+
+Text size isn't a setting: a terminal program can't change its font. Use your terminal's zoom
+(usually `Ctrl`/`Cmd` and `+` / `-`) and tb re-lays itself out to fit.
 
 ## Shell integration
 
