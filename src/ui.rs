@@ -20,6 +20,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use crate::anim::{approach, heat, mix, pulse, to_color, Damped, Rgb, HEAT, RECOLOR};
 use crate::layout::{cell_glyph, layout, lines, ACTIVE, DOWN, ROUTE, UP};
 use crate::audio::{self, Audio, State};
+use crate::git::St;
 use crate::media::Media;
 use crate::tree::Sort;
 use crate::App;
@@ -39,6 +40,17 @@ const MATCH_BG: Rgb = [92.0, 70.0, 22.0];
 /// A live change's flash, and the ember behind the name that changed.
 const RIPPLE: Rgb = [255.0, 200.0, 150.0];
 const RIPPLE_BG: Rgb = [110.0, 38.0, 28.0];
+
+/// Git marker colors.
+fn git_color(st: St) -> Rgb {
+    match st {
+        St::Ignored => MUTED,
+        St::Untracked => [110.0, 200.0, 225.0],
+        St::Staged => [120.0, 215.0, 130.0],
+        St::Modified => [240.0, 200.0, 90.0],
+        St::Conflict => [255.0, 90.0, 120.0],
+    }
+}
 
 /// Seconds for the camera to (mostly) arrive; slower than nodes so the eye
 /// sees the tree move before the view recenters.
@@ -300,7 +312,10 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         }
         let node = &app.tree.nodes[id];
         let g = if a.ghost { 0.0 } else { glow.get(&id).copied().unwrap_or(0.0) };
-        let mut style = Style::new().fg(to_color(mix(BG, mix(a.rgb, RIPPLE, g), a.alpha)));
+        let git = if a.ghost { None } else { app.git_state(id) };
+        // Ignored by git: dimmed, unless it's on the cursor path.
+        let dim = if git == Some(St::Ignored) && !route.contains(&id) { 0.45 } else { 1.0 };
+        let mut style = Style::new().fg(to_color(mix(BG, mix(a.rgb, RIPPLE, g), a.alpha * dim)));
         if node.is_dir || route.contains(&id) {
             style = style.add_modifier(Modifier::BOLD);
         }
@@ -315,8 +330,18 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         }
         // Bud: a closed folder that may still hold something.
         let bud = node.is_dir && !node.expanded && node.children.as_ref().is_none_or(|k| !k.is_empty());
+        // Git: a file's marker sits where a folder's bud would; a closed
+        // folder's bud takes the loudest state inside it.
+        let git = git.filter(|&s| s != St::Ignored);
         if bud && !a.ghost {
-            put(buf, canvas, sx + a.w + 1, sy, "›", Style::new().fg(to_color(mix(BG, a.rgb, a.alpha * 0.55))));
+            let c = match git {
+                Some(s) => mix(BG, git_color(s), a.alpha),
+                None => mix(BG, a.rgb, a.alpha * 0.55 * dim),
+            };
+            put(buf, canvas, sx + a.w + 1, sy, "›", Style::new().fg(to_color(c)));
+        } else if let (Some(s), false) = (git, node.is_dir) {
+            let st = Style::new().fg(to_color(mix(BG, git_color(s), a.alpha))).add_modifier(Modifier::BOLD);
+            put(buf, canvas, sx + a.w + 1, sy, s.glyph(), st);
         }
         if !a.ghost {
             app.hits.push((sx, sy, a.w, id));
@@ -419,13 +444,21 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
                 },
                 (Some(m), _) if m.pages > 1 => format!(" {mode}page {}/{} ", m.page + 1, m.pages),
                 (Some(m), _) => m.dims.map(|(w, h)| format!(" {mode}{w}×{h} ")).unwrap_or_default(),
-                (None, None) => format!(" {}/{} ", pv.scroll + 1, pv.text.lines.len().max(1)),
+                (None, None) => {
+                    let d = match (&pv.diff, pv.showing_diff) {
+                        (None, _) => "",
+                        (Some(_), false) => "d diff · ",
+                        (Some(_), true) => "d file · ",
+                    };
+                    format!(" {d}{}/{} ", pv.scroll + 1, pv.text.lines.len().max(1))
+                }
             };
+            let title = if pv.showing_diff { format!(" {} · diff ", pv.title) } else { format!(" {} ", pv.title) };
             let block = Block::bordered()
                 .border_type(BorderType::Rounded)
                 .border_style(Style::new().fg(to_color(mix(POP_BG, LINE_ROUTE, p))))
                 .style(Style::new().bg(to_color(POP_BG)))
-                .title(Span::styled(format!(" {} ", pv.title), Style::new().fg(to_color(ROUTE_TEXT)).add_modifier(Modifier::BOLD)))
+                .title(Span::styled(title, Style::new().fg(to_color(ROUTE_TEXT)).add_modifier(Modifier::BOLD)))
                 .title_bottom(Line::from(Span::styled(pos_label, Style::new().fg(to_color(MUTED)))).right_aligned());
             f.render_widget(Clear, area);
             // Pixels only once the popup has landed: graphics protocols can't follow the grow animation.
@@ -513,9 +546,16 @@ fn status_bar(f: &mut Frame, app: &App, area: Rect) {
         human(cur.size)
     };
 
-    // Right side: sort · meta · age swatch · legend · help key.
+    // Right side: git · sort · meta · age swatch · legend · help key.
     let muted = Style::new().fg(to_color(MUTED));
     let mut right = Vec::new();
+    if let Some((top, repo)) = app.git.as_ref().and_then(|g| g.repo_of(&cur.path)) {
+        right.push(Span::styled("⎇ ", Style::new().fg(to_color(LINE_ROUTE))));
+        right.push(Span::styled(format!("{} · ", repo.branch), Style::new().fg(to_color(ROUTE_TEXT))));
+        if let Some(st) = repo.get(top, &cur.path) {
+            right.push(Span::styled(format!("{} · ", st.describe()), Style::new().fg(to_color(git_color(st)))));
+        }
+    }
     if app.tree.sort != Sort::default() {
         right.push(Span::styled("⇅ ", Style::new().fg(to_color(LINE_ROUTE))));
         right.push(Span::styled(format!("{} · ", app.tree.sort.describe()), Style::new().fg(to_color(ROUTE_TEXT))));
@@ -628,7 +668,7 @@ fn search_bar(f: &mut Frame, app: &App, area: Rect, q: &str) {
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-const KEYS: [(&str, &str); 21] = [
+const KEYS: [(&str, &str); 22] = [
     ("h j k l / arrows", "move"),
     ("l / enter", "open folder · preview file"),
     ("space / tab", "fold / unfold"),
@@ -644,6 +684,7 @@ const KEYS: [(&str, &str); 21] = [
     ("mouse", "click select · click again open"),
     ("wheel", "scroll the column under the pointer"),
     ("preview", "j k · space · ctrl-d/u · g G · q"),
+    ("d in a preview", "git diff ⇄ file · M + ? ! marks"),
     ("image / pdf", "j k page · i pixels ⇄ blocks"),
     ("audio", "space pause · ← → seek · ↑ ↓ volume · 0-9"),
     ("!", "run a command here ($f = selection)"),
@@ -850,6 +891,31 @@ pub struct Preview {
     pub born: Instant,
     /// Spinner caption while pending.
     pub loading: &'static str,
+    pub path: std::path::PathBuf,
+    /// Repo top when git has changes for this file: `d` shows the diff.
+    pub diff: Option<std::path::PathBuf>,
+    pub showing_diff: bool,
+    /// Whichever of file and diff isn't showing, once both exist.
+    alt: Option<Text<'static>>,
+}
+
+/// The file's changes against HEAD (staged and not), colored by git.
+fn diff_text(top: &Path, path: &Path) -> Text<'static> {
+    let git = |args: &[&str]| {
+        run(Command::new("git")
+            .args(["--no-optional-locks", "-c", "color.diff=always", "diff"])
+            .args(args)
+            .arg("--")
+            .arg(path)
+            .current_dir(top)
+            .stdin(Stdio::null())
+            .stderr(Stdio::null()))
+    };
+    // No commits yet: there's no HEAD, so show what's staged.
+    match git(&["HEAD"]).or_else(|| git(&["--cached"])) {
+        Some(out) => out.into_text().unwrap_or_default(),
+        None => Text::from(vec![Line::from(""), Line::from("  (no changes against HEAD)")]),
+    }
 }
 
 fn run(cmd: &mut Command) -> Option<Vec<u8>> {
@@ -944,7 +1010,34 @@ impl Preview {
             pending,
             born: Instant::now(),
             loading: if is_md(path) { "rendering markdown" } else { "loading" },
+            path: path.to_path_buf(),
+            diff: None,
+            showing_diff: false,
+            alt: None,
         }
+    }
+
+    /// `d`: flip between the file and its diff against HEAD.
+    pub fn toggle_diff(&mut self) {
+        let Some(top) = self.diff.clone() else { return };
+        if self.pending.is_some() {
+            return;
+        }
+        match self.alt.take() {
+            Some(other) => self.alt = Some(std::mem::replace(&mut self.text, other)),
+            None => {
+                self.alt = Some(std::mem::take(&mut self.text));
+                let (tx, rx) = mpsc::channel();
+                let path = self.path.clone();
+                std::thread::spawn(move || tx.send(diff_text(&top, &path)));
+                self.pending = Some(rx);
+                self.loading = "diffing";
+                self.born = Instant::now();
+            }
+        }
+        self.showing_diff ^= true;
+        self.scroll = 0;
+        self.sy = Damped::new(0.0);
     }
 
     /// Text files, colored: glow for markdown, bat otherwise, plain text as last resort.

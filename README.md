@@ -35,6 +35,8 @@ and color tells you where work happened recently.
   over kitty, sixel or iTerm2 graphics, with a half-block fallback for any truecolor terminal.
 - **Sound.** Audio files play the moment you open them, over a waveform with a scrubber you can
   click or drag, and simple keys for pause, seek and volume.
+- **Git aware.** Changed files carry a marker, closed folders show what's changed inside, ignored
+  build output fades back, the status bar names the branch, and `d` in a preview shows the diff.
 - **Shell without leaving.** `!` runs a command in the selected folder, `s` opens a shell there, and
   `q` can leave your shell `cd`'d to wherever you ended up.
 
@@ -103,7 +105,7 @@ the next ones scroll it.
 
 **In a preview:** `j` `k`, `Space` `PgDn`, `Ctrl-D` `Ctrl-U`, `g` `G` scroll text; for images and PDFs
 `j` `k` `Space` flip pages and `g` `G` jump to the first / last. `i` switches between pixels and
-half-blocks. `q` `Esc` `h` close.
+half-blocks. `d` shows a changed file's git diff (and back). `q` `Esc` `h` close.
 
 **In an audio preview:**
 
@@ -159,6 +161,28 @@ modified, live updates lift freshly changed files to the top as you work.
 
 To start in a different order, set `TB_SORT` to `name`, `modified`, `size` or `type`, with a leading
 `-` to reverse it (`TB_SORT=-size` puts the smallest first).
+
+## Git
+
+Inside a git repo, each file with changes gets a one-letter marker after its name:
+
+| Marker | Meaning |
+|---|---|
+| `M` (yellow) | modified in the worktree |
+| `+` (green) | staged, nothing more on top |
+| `?` (cyan) | untracked |
+| `!` (pink) | merge conflict |
+
+A closed folder's `›` bud takes the color of the most urgent change anywhere inside it, so you can
+follow a change down from the top. Ignored files and folders (`target/`, `node_modules/`) are dimmed.
+The status bar shows the branch with ahead/behind counts (`⎇ main ↑1`) and the selected entry's
+state. When a changed file is open in the preview, `d` switches between the file and its diff against
+`HEAD`, staged and unstaged changes together.
+
+Status comes from `git status` on a background thread, for the repos that the open folders are in. It
+re-runs when files change, on `r`, and every 3 s to catch commits and `git add`. It runs with
+`--no-optional-locks`, so it never takes the index lock from your own git commands. Set `TB_GIT=off`
+to turn it off.
 
 ## Shell integration
 
