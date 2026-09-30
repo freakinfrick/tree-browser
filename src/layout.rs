@@ -78,9 +78,10 @@ pub struct Layout {
     pub blocks: Vec<Block>,
     /// Cursor (x, y, width) at target position.
     pub cursor: (i32, i32, i32),
-    /// One band per column on the line: world x range [lo, hi) and its
-    /// line node. A band spans the pill margin plus the gap to the next column.
-    pub cols: Vec<(i32, i32, usize)>,
+    /// One band per column: world x range [lo, hi) and its line node, None
+    /// past the line's end (open folders off the line reach further). A band
+    /// spans the pill margin plus the gap to the next column.
+    pub cols: Vec<(i32, i32, Option<usize>)>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -278,16 +279,12 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
             .filter(|(id, ..)| tree.nodes[*id].expanded && !tree.kids(*id).is_empty())
             .collect();
         if parents.is_empty() {
-            if let Some(&s) = on_line {
-                out.cols.push((x - 2, x + colw + 3, s));
-            }
+            out.cols.push((x - 2, x + colw + 3, on_line.copied()));
             break;
         }
         let n = parents.len() as i32;
         let next_x = x + colw + n + sp.gap.max(3) + sp.branch.max(0);
-        if let Some(&s) = on_line {
-            out.cols.push((x - 2, next_x - 2, s));
-        }
+        out.cols.push((x - 2, next_x - 2, on_line.copied()));
 
         // y0 per parent. The spine block is pinned so its spine child sits on
         // the line; blocks above pack upward from it, blocks below downward.
@@ -316,13 +313,19 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
         }
 
         let mut next = Vec::new();
-        for (k, (pid, ..)) in parents.iter().enumerate() {
+        for (k, (pid, py, ..)) in parents.iter().enumerate() {
             let kids = tree.kids(*pid).to_vec();
+            // Trunk slots, counted leftward from the bar. A block hanging below
+            // its parent must sit right of every lower parent's trunk, so lower
+            // parents go further left; a block raised above its parent is the
+            // mirror image. Blocks going opposite ways never share rows.
+            let raised = y0s[k] + kids.len() as i32 - 1 < *py;
+            let slot = if raised { n - 1 - k as i32 } else { k as i32 };
             let active = on_spine.contains(pid);
             for (i, &kid) in kids.iter().enumerate() {
                 next.push((kid, y0s[k] + i as i32, cut(label_of(kid)), active));
             }
-            out.blocks.push(Block { parent: *pid, kids, k: k as i32, off: sp.branch.max(0) });
+            out.blocks.push(Block { parent: *pid, kids, k: slot, off: sp.branch.max(0) });
         }
         next.sort_by_key(|n| n.1);
         x = next_x;
@@ -503,6 +506,63 @@ mod tests {
         assert_eq!(at(3), UP | DOWN | RIGHT, "the join sits back on the trunk");
     }
 
+    /// Cells two blocks both draw: a crossing or an overlap. Blocks never
+    /// share a cell when the wiring is right.
+    fn clashes(l: &Layout, route: &HashSet<usize>) -> Vec<(i32, i32)> {
+        let m: HashMap<usize, (i32, i32, i32)> =
+            l.placed.iter().map(|p| (p.id, (p.x, p.y, p.label.width() as i32))).collect();
+        let mut seen: HashMap<(i32, i32), usize> = HashMap::new();
+        let mut out = Vec::new();
+        for b in &l.blocks {
+            for cell in lines(std::slice::from_ref(b), &|id| m.get(&id).copied(), route, route).into_keys() {
+                if seen.insert(cell, b.parent).is_some() {
+                    out.push(cell);
+                }
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn wires_never_cross_in_a_fully_open_tree() {
+        // Uneven fan-outs so blocks get pushed both above and below their parents.
+        let mut dirs = Vec::new();
+        for (i, n) in [1, 7, 2, 9, 1, 4, 12, 3, 1, 6].iter().enumerate() {
+            for j in 0..*n {
+                for k in 0..(i * j) % 4 {
+                    dirs.push(format!("p{i:02}/c{j:02}/g{k}"));
+                }
+                dirs.push(format!("p{i:02}/c{j:02}"));
+            }
+        }
+        let root = fixture("cross", &dirs.iter().map(String::as_str).collect::<Vec<_>>());
+        let mut t = Tree::new(&root);
+        let mut stack = vec![0];
+        while let Some(id) = stack.pop() {
+            t.load(id);
+            t.nodes[id].expanded = true;
+            stack.extend(t.kids(id));
+        }
+        let spacings = [
+            Spacing::default(),
+            Spacing { rows: 2, gap: 9, ..Spacing::default() },
+            Spacing { branch: 3, ..Spacing::default() },
+            Spacing { columns: Columns::Equal, details: Details::Age, maxw: 12, ..Spacing::default() },
+        ];
+        for sp in spacings {
+            let mut bad = Vec::new();
+            for cursor in 0..t.nodes.len() {
+                let l = layout(&t, cursor, &name_of(&t), sp);
+                let route: HashSet<usize> = t.path_to(cursor).into_iter().collect();
+                let c = clashes(&l, &route);
+                if !c.is_empty() {
+                    bad.push((t.nodes[cursor].name.clone(), c.len()));
+                }
+            }
+            assert!(bad.is_empty(), "{sp:?}: {} of {} cursors cross wires: {:?}", bad.len(), t.nodes.len(), &bad[..bad.len().min(8)]);
+        }
+    }
+
     #[test]
     fn short_ages_and_sizes() {
         let d = 86400;
@@ -583,20 +643,25 @@ mod tests {
 
     #[test]
     fn column_bands_follow_the_line() {
-        let (mut t, a, one, _) = deep("bands");
+        let (mut t, a, one, three) = deep("bands");
         t.load(one);
         t.nodes[one].expanded = true;
         let l = layout(&t, one, &name_of(&t), Spacing::default());
-        let ids: Vec<usize> = l.cols.iter().map(|c| c.2).collect();
+        let ids: Vec<usize> = l.cols.iter().filter_map(|c| c.2).collect();
         assert_eq!(ids, spine(&t, one), "a band per line column, ancestors and descendants");
         assert_eq!(ids[1], a);
         for w in l.cols.windows(2) {
             assert_eq!(w[0].1, w[1].0, "bands tile with no gaps");
         }
-        for (lo, hi, id) in &l.cols {
-            let p = l.placed.iter().find(|p| p.id == *id).unwrap();
-            assert!(*lo < p.x && p.x < *hi, "{} inside its band", t.nodes[*id].name);
+        for (lo, hi, id) in l.cols.iter().filter_map(|c| Some((c.0, c.1, c.2?))) {
+            let p = l.placed.iter().find(|p| p.id == id).unwrap();
+            assert!(lo < p.x && p.x < hi, "{} inside its band", t.nodes[id].name);
         }
+        // The cursor on 3: 1 stays open off the line, so x's column has a band too.
+        let back = layout(&t, three, &name_of(&t), Spacing::default());
+        let last = back.cols.last().unwrap();
+        let (x, _) = pos(&back, &t, "x");
+        assert!(last.2.is_none() && last.0 < x && x < last.1, "a band past the line's end, with no line node");
     }
 
     #[test]

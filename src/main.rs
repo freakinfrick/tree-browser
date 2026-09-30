@@ -31,7 +31,7 @@ use ratatui::crossterm::execute;
 
 use anim::{Damped, Scene};
 use mtime::Mtime;
-use settings::{Settings, ITEMS};
+use settings::{Settings, StepThrough, ITEMS};
 use shell::Run;
 use tree::{Sort, SortKey, Tree};
 use ui::Preview;
@@ -67,8 +67,9 @@ pub struct App {
     pub view: (u16, u16),
     /// Last frame's clickable labels: (screen x, y, width, node).
     pub hits: Vec<(i32, i32, i32, usize)>,
-    /// Last frame's line columns: screen x range [lo, hi) and the line node.
-    pub cols: Vec<(i32, i32, usize)>,
+    /// Last frame's columns: screen x range [lo, hi) and the line node (None
+    /// past the line's end).
+    pub cols: Vec<(i32, i32, Option<usize>)>,
     /// Last known pointer cell, for the hover cue.
     pub mouse: Option<(u16, u16)>,
     /// Camera x target held still after the wheel takes over another column,
@@ -366,11 +367,67 @@ impl App {
         }
     }
 
+    /// Everything in the cursor's column, top to bottom: the lists of every
+    /// open folder one column left, in the order the layout stacks them.
+    fn column(&self) -> Vec<usize> {
+        let depth = self.tree.path_to(self.cursor).len();
+        let mut out = Vec::new();
+        let mut stack = vec![(self.tree.root, 1)];
+        while let Some((id, d)) = stack.pop() {
+            if d == depth {
+                out.push(id);
+            } else if self.tree.nodes[id].expanded {
+                stack.extend(self.tree.kids(id).into_iter().rev().map(|k| (k, d + 1)));
+            }
+        }
+        out
+    }
+
+    /// Every visible node in reading order: a folder, then what's open
+    /// inside it, then its next sibling.
+    fn outline(&self) -> Vec<usize> {
+        let mut out = Vec::new();
+        let mut stack = vec![self.tree.root];
+        while let Some(id) = stack.pop() {
+            out.push(id);
+            if self.tree.nodes[id].expanded {
+                stack.extend(self.tree.kids(id).into_iter().rev());
+            }
+        }
+        out
+    }
+
+    /// j / k / J / K, through whatever Step through says.
     fn step(&mut self, delta: isize) {
+        let list = match self.settings.step {
+            StepThrough::Folder => self.siblings(),
+            StepThrough::Column => self.column(),
+            StepThrough::Tree => self.outline(),
+        };
+        self.step_in(&list, delta);
+    }
+
+    /// The wheel scrolls the column under the pointer, so it never walks the
+    /// tree: a step into a child column would leave the pointer over the
+    /// parent's, and the next tick would take the parent back.
+    fn wheel_step(&mut self, delta: isize) {
+        let list = if self.settings.step == StepThrough::Folder { self.siblings() } else { self.column() };
+        self.step_in(&list, delta);
+    }
+
+    fn step_in(&mut self, list: &[usize], delta: isize) {
+        let i = list.iter().position(|&s| s == self.cursor).unwrap_or(0) as isize;
+        let j = (i + delta).clamp(0, list.len() as isize - 1) as usize;
+        self.set_cursor(list[j]);
+    }
+
+    /// g / G: first or last in the folder, never past it.
+    fn step_end(&mut self, last: bool) {
         let sib = self.siblings();
-        let i = sib.iter().position(|&s| s == self.cursor).unwrap_or(0) as isize;
-        let j = (i + delta).clamp(0, sib.len() as isize - 1) as usize;
-        self.set_cursor(sib[j]);
+        let end = if last { sib.last() } else { sib.first() };
+        if let Some(&id) = end {
+            self.set_cursor(id);
+        }
     }
 
     /// Expand the cursor dir and move into it; open files in the preview.
@@ -916,8 +973,8 @@ impl App {
             KeyCode::Char('k') | KeyCode::Up => self.step(-1),
             KeyCode::Char('J') | KeyCode::PageDown => self.step(10),
             KeyCode::Char('K') | KeyCode::PageUp => self.step(-10),
-            KeyCode::Char('g') | KeyCode::Home => self.step(isize::MIN / 2),
-            KeyCode::Char('G') | KeyCode::End => self.step(isize::MAX / 2),
+            KeyCode::Char('g') | KeyCode::Home => self.step_end(false),
+            KeyCode::Char('G') | KeyCode::End => self.step_end(true),
             KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => self.enter(),
             KeyCode::Char('h') | KeyCode::Left => self.leave(),
             KeyCode::Char(' ') | KeyCode::Tab => self.toggle(),
@@ -993,7 +1050,7 @@ impl App {
                         self.cam_hold.get_or_insert(self.cam_tx);
                         self.set_cursor(id);
                     }
-                    _ => self.step(if kind == MouseEventKind::ScrollDown { 1 } else { -1 }),
+                    _ => self.wheel_step(if kind == MouseEventKind::ScrollDown { 1 } else { -1 }),
                 }
             }
             MouseEventKind::Down(MouseButton::Left) => {
@@ -1011,10 +1068,22 @@ impl App {
         }
     }
 
-    /// Line node whose column band holds the cell, from last frame's bands.
+    /// Node the wheel takes over at the cell: the column's line node, or past
+    /// the line's end the entry nearest the pointer. From last frame's bands.
     pub fn column_at(&self, col: u16, row: u16) -> Option<usize> {
         let c = col as i32;
-        (row < self.view.1).then(|| self.cols.iter().find(|b| c >= b.0 && c < b.1).map(|b| b.2)).flatten()
+        let b = self.cols.iter().find(|b| c >= b.0 && c < b.1).filter(|_| row < self.view.1)?;
+        let mut here = self.hits.iter().filter(|h| h.0 >= b.0 && h.0 < b.1);
+        match b.2 {
+            // Right over another open folder's list in the line's column: that list.
+            Some(line) => {
+                let parent = |id: usize| self.tree.nodes[id].parent;
+                let under = here.find(|h| h.1 == row as i32).map(|h| h.3);
+                Some(under.filter(|&u| parent(u) != parent(line)).unwrap_or(line))
+            }
+            // Past the line's end there's no line node: the entry nearest the pointer.
+            None => here.min_by_key(|h| (h.1 - row as i32).abs()).map(|h| h.3),
+        }
     }
 
     /// Column the wheel would take over: pointer over a line column other than the cursor's.
@@ -1499,7 +1568,7 @@ mod tests {
         fs::write(app.tree.nodes[d].path.join("new.md"), "").unwrap();
         app.apply_changes(vec![change(&app, d, true)]);
         assert_eq!(names(&app, d)[0], "new.md", "a fresh file lands at the top");
-        app.step(isize::MAX / 2);
+        app.step_end(true);
         assert_eq!(at(&app), "big.log");
         fs::remove_file(app.tree.nodes[app.cursor].path.clone()).unwrap();
         app.apply_changes(vec![change(&app, d, true)]);
@@ -1572,6 +1641,84 @@ mod tests {
         assert_eq!((saved.row_spacing, saved.sort.key, saved.show_hidden), (1, SortKey::Modified, false));
         let text = fs::read_to_string(&cfg).unwrap();
         assert!(text.contains("sort_reverse = false"), "a new sort key saves its direction too: {text}");
+    }
+
+    #[test]
+    fn j_and_k_walk_the_folder_the_column_or_the_tree() {
+        let mut app = app_in("cross", &["x"]);
+        let d = app.tree.nodes[app.cursor].path.parent().unwrap().to_path_buf();
+        for f in ["a/1", "a/2/deep", "b/3", "c/4"] {
+            fs::create_dir_all(d.join(f)).unwrap();
+        }
+        app.reload();
+        for dir in ["a", "a/2", "c"] {
+            let id = app.node_at(&d.join(dir)).unwrap();
+            app.tree.load(id);
+            app.tree.nodes[id].expanded = true;
+        }
+        let go = |app: &mut App, path: &str| {
+            let id = app.node_at(&d.join(path)).unwrap();
+            app.set_cursor(id);
+        };
+        let j = |app: &mut App| app.key(KeyCode::Char('j'), KeyModifiers::NONE);
+        let k = |app: &mut App| app.key(KeyCode::Char('k'), KeyModifiers::NONE);
+
+        // Tree (the default): into open folders, back out to the next sibling.
+        go(&mut app, "a");
+        let mut seen = Vec::new();
+        for _ in 0..7 {
+            j(&mut app);
+            seen.push(at(&app).to_string());
+        }
+        assert_eq!(seen, ["1", "2", "deep", "b", "c", "4", "x"]);
+        k(&mut app);
+        k(&mut app);
+        assert_eq!(at(&app), "c", "k walks it backwards");
+        go(&mut app, "a/1");
+        app.key(KeyCode::Char('G'), KeyModifiers::NONE);
+        assert_eq!(at(&app), "2", "G stays in the folder");
+        go(&mut app, "a");
+        app.mouse(MouseEventKind::ScrollDown, 0, 0);
+        assert_eq!(at(&app), "b", "the wheel scrolls the column, it doesn't dive into a");
+        app.mouse(MouseEventKind::ScrollDown, 0, 0);
+        assert_eq!(at(&app), "c");
+        go(&mut app, "a/2");
+
+        // Column: every open list one column over, closed b passed by.
+        app.settings.step = StepThrough::Column;
+        j(&mut app);
+        assert_eq!(at(&app), "4");
+        j(&mut app);
+        assert_eq!(at(&app), "4", "the column's end");
+        app.key(KeyCode::Char('K'), KeyModifiers::NONE);
+        assert_eq!(at(&app), "1");
+
+        // Folder: its own list only.
+        app.settings.step = StepThrough::Folder;
+        go(&mut app, "c/4");
+        k(&mut app);
+        assert_eq!(at(&app), "4");
+    }
+
+    #[test]
+    fn the_wheel_takes_the_list_under_the_pointer() {
+        let mut app = app_in("wheel", &["x"]);
+        let d = app.tree.nodes[app.cursor].path.parent().unwrap().to_path_buf();
+        for f in ["a/1", "a/2", "b/3"] {
+            fs::create_dir_all(d.join(f)).unwrap();
+        }
+        app.reload();
+        let id = |app: &mut App, p: &str| app.node_at(&d.join(p)).unwrap();
+        let (one, two, three) = (id(&mut app, "a/1"), id(&mut app, "a/2"), id(&mut app, "b/3"));
+        app.view = (80, 24);
+        // Column 10..20 on the line (its line node 3, b's), column 20..30 past its end.
+        app.cols = vec![(10, 20, Some(three)), (20, 30, None)];
+        app.hits = vec![(12, 4, 1, one), (12, 5, 1, two), (12, 6, 1, three), (22, 2, 1, one), (22, 9, 1, two)];
+        assert_eq!(app.column_at(14, 4), Some(one), "right over a's list: a's entry");
+        assert_eq!(app.column_at(14, 6), Some(three), "over the line's own list: the line node");
+        assert_eq!(app.column_at(14, 12), Some(three), "on no entry: the line node");
+        assert_eq!(app.column_at(24, 7), Some(two), "past the line's end: nearest the pointer");
+        assert_eq!(app.column_at(5, 7), None, "outside every column");
     }
 
     #[test]

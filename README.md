@@ -37,7 +37,7 @@ and color tells you where work happened recently.
   click or drag, and simple keys for pause, seek and volume.
 - **Git aware.** Changed files carry a marker, closed folders show what's changed inside, ignored
   build output fades back, the status bar names the branch, and `d` in a preview shows the diff.
-- **Yours to tune.** `,` opens 26 settings: spacing, column width, age and size after names, sort
+- **Yours to tune.** `,` opens 27 settings: spacing, column width, age and size after names, sort
   order, accent and heat colors, heat range, line style and branch length, motion, previews, the mouse, reopening
   where you left off, and every feature switch, saved to a small config file.
 - **Shell without leaving.** `!` runs a command in the selected folder, `s` opens a shell there, and
@@ -81,7 +81,7 @@ tb --cwd-file PATH [DIR]  # on q, write the selected folder to PATH
 
 | Key | Action |
 |---|---|
-| `j` `k` / `↓` `↑` | move down / up |
+| `j` `k` / `↓` `↑` | move down / up through the whole open tree: into an open folder, then on to its next sibling |
 | `J` `K` / `PgDn` `PgUp` | jump 10 |
 | `g` `G` / `Home` `End` | first / last |
 | `l` `→` `Enter` | open: expand a folder, preview a file |
@@ -104,9 +104,9 @@ tb --cwd-file PATH [DIR]  # on q, write the selected folder to PATH
 | `q` | quit (and `cd` there, with the shell integration below) |
 | `Esc` `Ctrl-C` | quit and stay where you were |
 
-**Mouse:** click selects, click again opens. The wheel scrolls the column under the pointer: over a parent
-or child column on the line, the first tick takes that column over (a faint pill marks it on hover) and
-the next ones scroll it. Turn **Mouse** off in the settings to select text with it instead.
+**Mouse:** click selects, click again opens. The wheel scrolls the column under the pointer: over any other
+column, or another open folder's list, the first tick takes it over (a faint pill marks it on hover)
+and the next ones scroll it. Turn **Mouse** off in the settings to select text with it instead.
 
 **In a preview:** `j` `k`, `Space` `PgDn`, `Ctrl-D` `Ctrl-U`, `g` `G` scroll text; for images and PDFs
 `j` `k` `Space` flip pages and `g` `G` jump to the first / last. `i` switches between pixels and
@@ -224,6 +224,7 @@ closes the panel.
 | Legend | the color key in the status bar | on |
 | Motion | slow, normal, fast, instant (no animation) | normal |
 | Live updates, Ripples, Git status, Dim ignored | on / off | on |
+| Step through | what `j` `k` `J` `K` and the wheel walk: folder (its own list), column (every open list in the column), tree (the whole open tree in reading order); `g` `G` always stay in the folder, and the wheel always scrolls the column under the pointer | tree |
 | Mouse | off gives the mouse back to the terminal for selecting text | on |
 | Image previews | auto, pixels, blocks (half-blocks), off (captions only) | auto |
 | Text preview | styled (glow for markdown, bat for the rest), bat, plain | styled |
