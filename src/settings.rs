@@ -140,6 +140,7 @@ pub struct Settings {
     pub palette: Palette,
     pub heat_range: HeatRange,
     pub lines: LineStyle,
+    pub branch_offset: u8,
     pub legend: bool,
     pub speed: Speed,
     pub live: bool,
@@ -169,6 +170,7 @@ impl Default for Settings {
             palette: Palette::Ember,
             heat_range: HeatRange::Years5,
             lines: LineStyle::Rounded,
+            branch_offset: 0,
             legend: true,
             speed: Speed::Normal,
             live: true,
@@ -192,7 +194,7 @@ pub struct Item {
     pub help: &'static str,
 }
 
-pub const ITEMS: [Item; 25] = [
+pub const ITEMS: [Item; 26] = [
     Item { key: "row_spacing", label: "Row spacing", section: "Layout", help: "Blank rows between entries. More air, fewer entries on screen." },
     Item { key: "column_gap", label: "Column gap", section: "Layout", help: "Space between a column's longest name and the next column." },
     Item { key: "max_name", label: "Column width", section: "Layout", help: "Widest a column gets. Longer names are cut with a …" },
@@ -207,6 +209,7 @@ pub const ITEMS: [Item; 25] = [
     Item { key: "palette", label: "Heat colors", section: "Look", help: "Recency gradient. Aurora avoids red-green; mono is brightness only." },
     Item { key: "heat_range", label: "Heat range", section: "Look", help: "Age that gets the coldest color. Short ranges tell apart the files of one busy week." },
     Item { key: "lines", label: "Tree lines", section: "Look", help: "Corners and branches: rounded, square, heavy, double or plain ASCII." },
+    Item { key: "branch_offset", label: "Branch offset", section: "Look", help: "Line between each join and its name: 0 touches, 4 is a long reach." },
     Item { key: "legend", label: "Legend", section: "Look", help: "The now ▮▮▮ old color key in the status bar." },
     Item { key: "speed", label: "Motion", section: "Look", help: "How fast folders unfurl and the view glides. Instant turns animation off." },
     Item { key: "live", label: "Live updates", section: "Behavior", help: "Re-list open folders about once a second as files change." },
@@ -352,6 +355,7 @@ impl Settings {
             "palette" => palette_word(self.palette).into(),
             "heat_range" => range_word(self.heat_range).into(),
             "lines" => lines_word(self.lines).into(),
+            "branch_offset" => self.branch_offset.to_string(),
             "legend" => on_off(self.legend),
             "speed" => speed_word(self.speed).into(),
             "live" => on_off(self.live),
@@ -370,7 +374,7 @@ impl Settings {
     /// The value as the config file stores it.
     pub fn store(&self, key: &str) -> String {
         match key {
-            "row_spacing" | "column_gap" | "max_name" => self.show(key),
+            "row_spacing" | "column_gap" | "max_name" | "branch_offset" => self.show(key),
             "sort_reverse" => self.sort.rev.to_string(),
             "show_hidden" => self.show_hidden.to_string(),
             "legend" | "live" | "ripples" | "git" | "dim_ignored" | "folders_first" | "natural_sort" | "mouse" | "wrap"
@@ -397,6 +401,7 @@ impl Settings {
             "palette" => self.palette = cycle(&PALETTES, self.palette, dir),
             "heat_range" => self.heat_range = cycle(&RANGES, self.heat_range, dir),
             "lines" => self.lines = cycle(&LINES, self.lines, dir),
+            "branch_offset" => self.branch_offset = step(self.branch_offset, 0, 4, 1),
             "legend" => self.legend ^= true,
             "speed" => self.speed = cycle(&SPEEDS, self.speed, dir),
             "live" => self.live ^= true,
@@ -430,6 +435,7 @@ impl Settings {
             "palette" => self.palette = d.palette,
             "heat_range" => self.heat_range = d.heat_range,
             "lines" => self.lines = d.lines,
+            "branch_offset" => self.branch_offset = d.branch_offset,
             "legend" => self.legend = d.legend,
             "speed" => self.speed = d.speed,
             "live" => self.live = d.live,
@@ -467,6 +473,7 @@ impl Settings {
             "palette" => self.palette = find(&PALETTES, v, palette_word).ok_or(bad("ember, aurora, mono"))?,
             "heat_range" => self.heat_range = find(&RANGES, v, range_word).ok_or(bad("day, week, month, year, 5y"))?,
             "lines" => self.lines = find(&LINES, v, lines_word).ok_or(bad("rounded, square, heavy, double, ascii"))?,
+            "branch_offset" => self.branch_offset = num(0, 4)?,
             "legend" => self.legend = flag()?,
             "speed" => self.speed = find(&SPEEDS, v, speed_word).ok_or(bad("slow, normal, fast, instant"))?,
             "live" => self.live = flag()?,
