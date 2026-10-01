@@ -20,8 +20,10 @@ The command is `tb`.
 
 ## Highlights
 
-- **Many branches open at once.** Open folders stay open side by side, joined by elbow connectors, like
-  [Conrad Barski's](http://www.lisperati.com/) file browser that inspired it.
+- **Many branches open at once.** Open folders stay open side by side, each level with its own
+  children and joined by a short straight connector, like [Conrad Barski's](http://www.lisperati.com/)
+  file browser that inspired it. When two open folders' children would collide, the folders move apart
+  instead of the lines detouring, so every line leads straight from a folder to what's in it.
 - **Heat colors from recursive mtime.** A folder is colored by the newest change *anywhere* inside it,
   so you can spot where the action is from the top of the tree.
 - **Live.** Open folders update as files come, go and change (about once a second), and the heat
@@ -158,7 +160,7 @@ is tinted by the heat of the folder it grows from, a light sweeps along the line
 each move, and closed folders carry a small `›` bud.
 
 When an open folder changes on disk, the entry that changed flashes with an ember behind its name.
-The flash then climbs its elbow to the folder, and on up a level every 90 ms, dimming as it goes, before
+The flash then climbs its connector to the folder, and on up a level every 90 ms, dimming as it goes, before
 everything settles back to its heat color. A deleted entry flashes the folder it left.
 
 ## Sorting

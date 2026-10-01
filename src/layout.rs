@@ -2,13 +2,15 @@
 //!
 //! 1. `layout`: tree + cursor -> target world positions for every visible node,
 //!    plus the parent->children blocks. Each depth is a column. An expanded
-//!    dir's children form a contiguous block in the next column, centered on
-//!    the parent row and pushed down past the previous block.
+//!    dir's children form a contiguous block in the next column, and the dir
+//!    sits level with it (centered, or on the line's child). When blocks would
+//!    touch, whole subtrees move apart, so folders spread out instead of
+//!    lines detouring.
 //! 2. `lines`: blocks + *any* positions -> connector cells. Taking positions as
 //!    a function lets the renderer feed animated positions, so connectors
 //!    stretch and grow with the motion instead of snapping.
 //!
-//! Each parent's elbow gets its own trunk column so trunks never merge.
+//! Every join is a short straight line: no lanes, a constant column gap.
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::SystemTime;
@@ -66,8 +68,6 @@ pub struct Placed {
 pub struct Block {
     pub parent: usize,
     pub kids: Vec<usize>,
-    /// Trunk index within its column gap; trunk sits at `bar_x - 1 - k`.
-    pub k: i32,
     /// Branch offset: line cells between the joins and the kids' names.
     pub off: i32,
 }
@@ -283,9 +283,48 @@ pub fn spine(tree: &Tree, cursor: usize) -> Vec<usize> {
     s
 }
 
+/// Rows each depth of a subtree spans, relative to its root: (top, bottom).
+type Contour = Vec<(i32, i32)>;
+
+/// Tidy placement, bottom-up: each open folder's kids are stacked as tight as
+/// their own subtrees allow (a row apart in their block, a blank row from any
+/// other block in every column), then the folder sits level with its block:
+/// centered on it, or on its line child. `rel` gets each kid's row relative
+/// to its parent; the returned contour is relative to `id`.
+fn tidy(tree: &Tree, id: usize, depth: usize, spine: &[usize], rel: &mut HashMap<usize, i32>) -> Contour {
+    let kids = if tree.nodes[id].expanded { tree.kids(id) } else { Vec::new() };
+    let mut forest: Contour = Vec::new();
+    let mut at = Vec::with_capacity(kids.len());
+    for &k in &kids {
+        let c = tidy(tree, k, depth + 1, spine, rel);
+        let r = forest.iter().zip(&c).enumerate().map(|(d, (f, s))| f.1 - s.0 + if d == 0 { 1 } else { 2 }).max().unwrap_or(0);
+        for (d, s) in c.iter().enumerate() {
+            let s = (s.0 + r, s.1 + r);
+            match forest.get_mut(d) {
+                Some(f) => *f = (f.0.min(s.0), f.1.max(s.1)),
+                None => forest.push(s),
+            }
+        }
+        at.push(r);
+    }
+    let line = (spine.get(depth) == Some(&id)).then(|| spine.get(depth + 1)).flatten();
+    let shift = match line.and_then(|s| kids.iter().position(|k| k == s)) {
+        Some(i) => at[i],
+        None => at.last().map_or(0, |l| l / 2),
+    };
+    for (k, r) in kids.iter().zip(&at) {
+        rel.insert(*k, r - shift);
+    }
+    let mut out = vec![(0, 0)];
+    out.extend(forest.into_iter().map(|(a, b)| (a - shift, b - shift)));
+    out
+}
+
 pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp: Spacing) -> Layout {
     let spine = spine(tree, cursor);
     let on_spine: HashSet<usize> = spine.iter().copied().collect();
+    let mut rel = HashMap::new();
+    tidy(tree, tree.root, 0, &spine, &mut rel);
     let mut out = Layout::default();
     // (id, y, label, active) for the current column, sorted by y.
     let cut = |s: String| truncate_to(&s, sp.maxw);
@@ -311,64 +350,16 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
             out.cols.push((x - 2, x + colw + 3, on_line.copied()));
             break;
         }
-        let n = parents.len() as i32;
-        let next_x = x + colw + n + sp.gap.max(3) + sp.branch.max(0);
+        let next_x = x + colw + sp.gap.max(3) + sp.branch.max(0);
         out.cols.push((x - 2, next_x - 2, on_line.copied()));
-
-        // y0 per parent. The spine block is pinned so its spine child sits on
-        // the line; blocks above pack upward from it, blocks below downward.
-        let ideal = |py: i32, len: i32| py - (len - 1) / 2;
-        let mut y0s = vec![0i32; parents.len()];
-        let pin = parents.iter().position(|p| on_spine.contains(&p.0) && spine.get(depth).is_some());
-        let (below_from, mut prev_end) = match pin {
-            Some(i) => {
-                let kids = tree.kids(parents[i].0);
-                let idx = kids.iter().position(|k| *k == spine[depth]).unwrap_or(0) as i32;
-                y0s[i] = -idx;
-                let mut next_start = y0s[i];
-                for j in (0..i).rev() {
-                    let len = tree.kids(parents[j].0).len() as i32;
-                    y0s[j] = ideal(parents[j].1, len).min(next_start - 1 - len);
-                    next_start = y0s[j];
-                }
-                (i + 1, y0s[i] + tree.kids(parents[i].0).len() as i32 - 1)
-            }
-            None => (0, i32::MIN / 2),
-        };
-        for j in below_from..parents.len() {
-            let len = tree.kids(parents[j].0).len() as i32;
-            y0s[j] = ideal(parents[j].1, len).max(prev_end + 2);
-            prev_end = y0s[j] + len - 1;
-        }
-
-        // Trunk slots, counted leftward from the bar. A block hanging below its
-        // parent must sit right of every lower parent's trunk, so lower parents
-        // go further left; a block raised above its parent is the mirror image.
-        // Blocks going opposite ways never share rows, so each direction counts
-        // from the bar on its own and every trunk hugs its block.
-        let raised: Vec<bool> =
-            parents.iter().zip(&y0s).map(|((pid, py, ..), y0)| y0 + tree.kids(*pid).len() as i32 - 1 < *py).collect();
-        let ups = raised.iter().filter(|&&r| r).count() as i32;
-        let (mut up, mut down) = (0, 0);
-        let mut slots = Vec::with_capacity(raised.len());
-        for &r in &raised {
-            if r {
-                slots.push(ups - 1 - up);
-                up += 1;
-            } else {
-                slots.push(down);
-                down += 1;
-            }
-        }
         let mut next = Vec::new();
-        for (k, (pid, ..)) in parents.iter().enumerate() {
-            let kids = tree.kids(*pid).to_vec();
-            let slot = slots[k];
+        for (pid, py, ..) in parents {
+            let kids = tree.kids(*pid);
             let active = on_spine.contains(pid);
-            for (i, &kid) in kids.iter().enumerate() {
-                next.push((kid, y0s[k] + i as i32, cut(label_of(kid)), active));
+            for &kid in &kids {
+                next.push((kid, py + rel[&kid], cut(label_of(kid)), active));
             }
-            out.blocks.push(Block { parent: *pid, kids, k: slot, off: sp.branch.max(0) });
+            out.blocks.push(Block { parent: *pid, kids, off: sp.branch.max(0) });
         }
         next.sort_by_key(|n| n.1);
         x = next_x;
@@ -473,20 +464,12 @@ pub fn lines(
             }
         }
         c.thick = block_thick;
-        c.vseg(bar_x, y0, y1, base);
-        // Join the block at its top entry, from above or below; a parent level
-        // with its block joins it straight across.
-        let ty = if py > y1 { y0 } else { py.clamp(y0, y1) };
-        if ty == py {
-            c.hseg(start, bar_x, py, top);
-        } else {
-            let tx = (bar_x - 1 - b.k).max(start);
-            c.hseg(start, tx, py, top);
-            c.vseg(tx, py, ty, top);
-            c.hseg(tx, bar_x, ty, top);
-        }
+        // The layout puts every parent level with its block, so the join runs
+        // straight across; mid-animation the bar stretches to meet it.
+        c.vseg(bar_x, y0.min(py), y1.max(py), base);
+        c.hseg(start, bar_x, py, top);
         if let Some(ry) = routed.filter(|_| top == ROUTE) {
-            c.vseg(bar_x, ty, ry, ROUTE);
+            c.vseg(bar_x, py, ry, ROUTE);
         }
     }
     for (at, cell) in c.cells.iter_mut() {
@@ -542,8 +525,8 @@ mod tests {
         let (t, a, _, three) = deep("equal");
         let fit = layout(&t, three, &name_of(&t), Spacing::default());
         let eq = layout(&t, three, &name_of(&t), Spacing { columns: Columns::Equal, maxw: 12, ..Spacing::default() });
-        assert_eq!(pos(&fit, &t, "1").0 - pos(&fit, &t, "a").0, 1 + 1 + 3, "fit: name, one trunk, gap");
-        assert_eq!(pos(&eq, &t, "1").0 - pos(&eq, &t, "a").0, 12 + 1 + 3, "equal: the column width");
+        assert_eq!(pos(&fit, &t, "1").0 - pos(&fit, &t, "a").0, 1 + 3, "fit: name, gap");
+        assert_eq!(pos(&eq, &t, "1").0 - pos(&eq, &t, "a").0, 12 + 3, "equal: the column width");
 
         let det = layout(&t, three, &name_of(&t), Spacing { details: Details::Age, ..Spacing::default() });
         let row = |name: &str| det.placed.iter().find(|p| t.nodes[p.id].name == name).unwrap();
@@ -618,14 +601,16 @@ mod tests {
                 let route: HashSet<usize> = t.path_to(cursor).into_iter().collect();
                 let c = clashes(&l, &route);
                 let m: HashMap<usize, (i32, i32)> = l.placed.iter().map(|p| (p.id, (p.x, p.y))).collect();
-                let cells = target_lines(&l, &route);
                 for b in &l.blocks {
                     let py = m[&b.parent].1;
-                    let (bx, top) = (m[&b.kids[0]].0 - 1 - b.off, m[&b.kids[0]].1);
-                    let bottom = m[b.kids.last().unwrap()].1;
-                    if py < top || py > bottom {
-                        assert!(cells[&(bx, top)].mask & LEFT != 0, "{sp:?}: {} joins its block at the top", t.nodes[b.parent].name);
-                    }
+                    let (top, bottom) = (m[&b.kids[0]].1, m[b.kids.last().unwrap()].1);
+                    assert!((top..=bottom).contains(&py), "{sp:?}: {} level with its block", t.nodes[b.parent].name);
+                }
+                for b in &l.blocks {
+                    let px = m[&b.parent].0;
+                    let widest = l.placed.iter().filter(|p| p.x == px).map(|p| p.label.width() as i32).max().unwrap();
+                    let colw = if sp.columns == Columns::Equal && sp.details == Details::Off { widest.max(sp.maxw as i32) } else { widest };
+                    assert_eq!(m[&b.kids[0]].0 - px - colw, sp.gap + sp.branch, "{sp:?}: column gap is constant");
                 }
                 if !c.is_empty() {
                     bad.push((t.nodes[cursor].name.clone(), c.len()));
@@ -754,7 +739,7 @@ mod tests {
     }
 
     #[test]
-    fn sibling_blocks_do_not_overlap_and_trunks_differ() {
+    fn sibling_blocks_do_not_overlap_and_joins_run_straight() {
         let root = fixture("overlap", &["a/1", "a/2", "a/3", "a/4", "b/5", "b/6", "b/7", "b/8", "c/9"]);
         let mut t = Tree::new(&root);
         t.load(0);
@@ -769,16 +754,20 @@ mod tests {
             assert!(w[1] > w[0], "rows strictly increase: {ys:?}");
         }
         assert!(ys[4] - ys[3] >= 2, "blank row between blocks");
-        // a's block is level with a (no trunk); b and c route down via
-        // their own trunk columns, which must not merge.
+        // The folders spread apart to sit level with their blocks, so every
+        // join runs straight across and the only verticals are the bars.
+        for (dir, first, last) in [("a", "1", "4"), ("b", "5", "8")] {
+            let y = pos(&l, &t, dir).1;
+            assert!((pos(&l, &t, first).1..=pos(&l, &t, last).1).contains(&y), "{dir} level with its block");
+        }
         let bx = pos(&l, &t, "1").0 - 1;
         let ax = pos(&l, &t, "a").0;
-        let trunk_xs: HashSet<i32> = target_lines(&l, &HashSet::new())
+        let verticals: HashSet<i32> = target_lines(&l, &HashSet::new())
             .iter()
-            .filter(|((x, _), c)| *x > ax && *x < bx && c.mask & (UP | DOWN) != 0)
+            .filter(|((x, _), c)| *x > ax && c.mask & (UP | DOWN) != 0)
             .map(|((x, _), _)| *x)
             .collect();
-        assert_eq!(trunk_xs.len(), 2, "one trunk per displaced parent: {trunk_xs:?}");
+        assert_eq!(verticals, HashSet::from([bx]), "no lanes, just the bar");
     }
 
     #[test]
