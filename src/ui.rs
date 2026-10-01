@@ -226,8 +226,8 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             } else {
                 let age = now.duration_since(app.heat_of(p.id)).unwrap_or_default().as_secs_f32();
                 let h = heat(age);
-                // Off-line dim: 0.08 per step, so 10 leaves a fifth of the color.
-                if p.active { h } else { mix(h, BG, 0.08 * app.settings.focus_dim.min(10) as f32) }
+                // Off-line dim: each step below 10 fades 0.08, so 0 leaves a fifth of the color.
+                if p.active { h } else { mix(h, BG, 0.08 * (10 - app.settings.focus_dim.min(10)) as f32) }
             };
             let Some(a) = app.scene.nodes.get_mut(&p.id) else { continue };
             a.target = target;

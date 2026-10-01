@@ -173,7 +173,7 @@ pub struct Settings {
     pub heat_range: HeatRange,
     /// How light ignored names are: 0 near black, 10 light grey.
     pub dim_floor: u8,
-    /// How far names off the cursor's line fade: 0 not at all, 10 nearly out.
+    /// How bright names off the cursor's line stay: 0 nearly out, 10 full color.
     pub focus_dim: u8,
     pub lines: LineStyle,
     pub branch_offset: u8,
@@ -211,7 +211,7 @@ impl Default for Settings {
             palette: Palette::Ember,
             heat_range: HeatRange::Years5,
             dim_floor: 5,
-            focus_dim: 3,
+            focus_dim: 6,
             lines: LineStyle::Double,
             branch_offset: 1,
             legend: true,
@@ -255,7 +255,7 @@ pub const ITEMS: [Item; 32] = [
     Item { key: "accent", label: "Accent", section: "Look", help: "Color of the lines, the selector and the highlights." },
     Item { key: "palette", label: "Heat colors", section: "Look", help: "Recency gradient. Aurora avoids red-green; mono is brightness only." },
     Item { key: "heat_range", label: "Heat range", section: "Look", help: "Age that gets the coldest color. Short ranges tell apart the files of one busy week." },
-    Item { key: "focus_dim", label: "Off-line dim", section: "Look", help: "How far names off the cursor's line fade: 0 not at all, 10 nearly out. Their colors stay." },
+    Item { key: "focus_dim", label: "Off-line dim", section: "Look", help: "How bright names off the cursor's line stay: 0 nearly out, 10 full color." },
     Item { key: "lines", label: "Tree lines", section: "Look", help: "Corners and branches: double, heavy, rounded, square or plain ASCII. On double and heavy, branches git ignores draw thin." },
     Item { key: "branch_offset", label: "Branch offset", section: "Look", help: "Line between each join and its name: 0 touches, 4 is a long reach." },
     Item { key: "legend", label: "Legend", section: "Look", help: "The now ▮▮▮ old color key in the status bar." },
