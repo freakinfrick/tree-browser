@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicU32, AtomicU8, Ordering};
 use std::time::Instant;
 
 use crate::layout::Layout;
-use crate::settings::Palette;
+use crate::settings::{Palette, PALETTES};
 
 /// Unity-style SmoothDamp: critically damped, no overshoot, and velocity
 /// carries over when the target moves mid-flight (no restart jerk).
@@ -154,7 +154,7 @@ pub fn to_color(c: Rgb) -> ratatui::style::Color {
 
 /// (age seconds, color) stops; interpolated in log-time.
 /// Recency gradients: (age in seconds, color) stops, blended in log-time.
-type Stops = [(f32, Rgb); 7];
+pub type Stops = [(f32, Rgb); 7];
 
 const EMBER: Stops = [
     (60.0, [255.0, 70.0, 60.0]),
@@ -169,29 +169,87 @@ const EMBER: Stops = [
 ];
 
 /// Viridis-like: brightness carries recency, no red-green contrast needed.
+/// The old end is lifted off viridis's near-black so month-old names stay readable.
 const AURORA: Stops = [
     (60.0, [253.0, 231.0, 37.0]),
     (3600.0, [170.0, 220.0, 50.0]),
     (86400.0, [84.0, 197.0, 104.0]),
-    (7.0 * 86400.0, [34.0, 163.0, 132.0]),
-    (30.0 * 86400.0, [38.0, 128.0, 142.0]),
-    (365.0 * 86400.0, [56.0, 92.0, 142.0]),
-    (5.0 * 365.0 * 86400.0, [72.0, 52.0, 128.0]),
+    (7.0 * 86400.0, [36.0, 166.0, 136.0]),
+    (30.0 * 86400.0, [44.0, 136.0, 156.0]),
+    (365.0 * 86400.0, [70.0, 106.0, 170.0]),
+    (5.0 * 365.0 * 86400.0, [96.0, 80.0, 170.0]),
+];
+
+/// Magma-like: brightness and hue both carry recency, red-green safe.
+const MAGMA: Stops = [
+    (60.0, [255.0, 248.0, 180.0]),
+    (3600.0, [255.0, 190.0, 120.0]),
+    (86400.0, [250.0, 120.0, 96.0]),
+    (7.0 * 86400.0, [222.0, 72.0, 120.0]),
+    (30.0 * 86400.0, [184.0, 70.0, 160.0]),
+    (365.0 * 86400.0, [146.0, 86.0, 196.0]),
+    (5.0 * 365.0 * 86400.0, [120.0, 96.0, 210.0]),
+];
+
+/// Hue alone carries recency here: the aqua end would outshine new work if
+/// it kept its natural brightness, so the whole ramp sits at one level.
+const NEON: Stops = [
+    (60.0, [255.0, 140.0, 200.0]),
+    (3600.0, [255.0, 110.0, 225.0]),
+    (86400.0, [215.0, 120.0, 255.0]),
+    (7.0 * 86400.0, [160.0, 135.0, 255.0]),
+    (30.0 * 86400.0, [110.0, 160.0, 250.0]),
+    (365.0 * 86400.0, [70.0, 170.0, 225.0]),
+    (5.0 * 365.0 * 86400.0, [50.0, 165.0, 185.0]),
+];
+
+const GLACIER: Stops = [
+    (60.0, [236.0, 250.0, 255.0]),
+    (3600.0, [160.0, 232.0, 255.0]),
+    (86400.0, [96.0, 206.0, 240.0]),
+    (7.0 * 86400.0, [60.0, 170.0, 228.0]),
+    (30.0 * 86400.0, [70.0, 136.0, 230.0]),
+    (365.0 * 86400.0, [96.0, 112.0, 226.0]),
+    (5.0 * 365.0 * 86400.0, [118.0, 100.0, 214.0]),
+];
+
+/// Brightness only, like mono, but warm, so names never match the ignored grey.
+const SEPIA: Stops = [
+    (60.0, [255.0, 246.0, 228.0]),
+    (3600.0, [248.0, 222.0, 176.0]),
+    (86400.0, [234.0, 194.0, 128.0]),
+    (7.0 * 86400.0, [214.0, 162.0, 92.0]),
+    (30.0 * 86400.0, [192.0, 134.0, 80.0]),
+    (365.0 * 86400.0, [170.0, 114.0, 78.0]),
+    (5.0 * 365.0 * 86400.0, [152.0, 100.0, 80.0]),
 ];
 
 const MONO: Stops = [
     (60.0, [250.0, 250.0, 250.0]),
-    (3600.0, [218.0, 218.0, 224.0]),
-    (86400.0, [184.0, 184.0, 192.0]),
-    (7.0 * 86400.0, [150.0, 150.0, 160.0]),
-    (30.0 * 86400.0, [118.0, 118.0, 128.0]),
-    (365.0 * 86400.0, [90.0, 90.0, 100.0]),
-    (5.0 * 365.0 * 86400.0, [66.0, 66.0, 76.0]),
+    (3600.0, [220.0, 220.0, 226.0]),
+    (86400.0, [190.0, 190.0, 198.0]),
+    (7.0 * 86400.0, [160.0, 160.0, 170.0]),
+    (30.0 * 86400.0, [132.0, 132.0, 142.0]),
+    (365.0 * 86400.0, [108.0, 108.0, 118.0]),
+    (5.0 * 365.0 * 86400.0, [90.0, 90.0, 100.0]),
 ];
+
+pub fn stops_of(p: Palette) -> &'static Stops {
+    match p {
+        Palette::Ember => &EMBER,
+        Palette::Magma => &MAGMA,
+        Palette::Neon => &NEON,
+        Palette::Aurora => &AURORA,
+        Palette::Glacier => &GLACIER,
+        Palette::Sepia => &SEPIA,
+        Palette::Mono => &MONO,
+    }
+}
 
 static PALETTE: AtomicU8 = AtomicU8::new(0);
 
 pub fn set_palette(p: Palette) {
+    // `PALETTES` is in declaration order, so the discriminant indexes it.
     PALETTE.store(p as u8, Ordering::Relaxed);
 }
 
@@ -204,26 +262,21 @@ pub fn set_heat_range(range: f32) {
     HEAT_SCALE.store(range_scale(range).to_bits(), Ordering::Relaxed);
 }
 
-fn range_scale(range: f32) -> f32 {
+pub fn range_scale(range: f32) -> f32 {
     heat_stops()[heat_stops().len() - 1].0 / range
 }
 
 /// The gradient in use.
 pub fn heat_stops() -> &'static Stops {
-    match PALETTE.load(Ordering::Relaxed) {
-        1 => &AURORA,
-        2 => &MONO,
-        _ => &EMBER,
-    }
+    stops_of(PALETTES[PALETTE.load(Ordering::Relaxed) as usize % PALETTES.len()])
 }
 
 pub fn heat(age_secs: f32) -> Rgb {
-    heat_scaled(age_secs, f32::from_bits(HEAT_SCALE.load(Ordering::Relaxed)))
+    heat_scaled(heat_stops(), age_secs, f32::from_bits(HEAT_SCALE.load(Ordering::Relaxed)))
 }
 
-/// `heat` with the age stretched by `scale` (see `set_heat_range`).
-fn heat_scaled(age_secs: f32, scale: f32) -> Rgb {
-    let stops = heat_stops();
+/// `heat` on given stops, with the age stretched by `scale` (see `set_heat_range`).
+pub fn heat_scaled(stops: &Stops, age_secs: f32, scale: f32) -> Rgb {
     let a = (age_secs * scale).max(1.0).ln();
     if a <= stops[0].0.ln() {
         return stops[0].1;
@@ -452,13 +505,20 @@ mod tests {
     fn heat_range_stretches_the_gradient() {
         let coldest = heat_stops()[heat_stops().len() - 1].1;
         // Pure: the global scale is shared with tests running alongside.
-        assert_eq!(heat_scaled(86400.0, range_scale(86400.0)), coldest, "a day range: a day old is as cold as it gets");
-        assert_ne!(heat_scaled(86400.0, range_scale(5.0 * 365.0 * 86400.0)), coldest);
+        assert_eq!(heat_scaled(heat_stops(), 86400.0, range_scale(86400.0)), coldest, "a day range: a day old is as cold as it gets");
+        assert_ne!(heat_scaled(heat_stops(), 86400.0, range_scale(5.0 * 365.0 * 86400.0)), coldest);
     }
 
     #[test]
-    fn heat_is_monotone_hot_to_cold() {
-        let r = |s: f32| heat(s)[0];
+    fn palettes_are_listed_in_declaration_order() {
+        for (i, &p) in PALETTES.iter().enumerate() {
+            assert_eq!(p as usize, i, "{p:?}");
+        }
+    }
+
+    #[test]
+    fn ember_red_never_rises_with_age() {
+        let r = |s: f32| heat_scaled(&EMBER, s, 1.0)[0];
         let mut last = f32::MAX;
         for s in [1.0, 600.0, 7200.0, 2.0 * 86400.0, 20.0 * 86400.0, 200.0 * 86400.0, 3e9] {
             let v = r(s);
