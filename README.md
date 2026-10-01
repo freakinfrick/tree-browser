@@ -214,7 +214,7 @@ closes the panel.
 | Setting | Values | Default |
 |---|---|---|
 | Row spacing | blank rows between entries, 0–3 | 0 |
-| Column gap | space before the next column, 3–12 | 3 |
+| Column gap | space before the next column, 3–12, plus one lane per folder whose lines bend (at most a third of the column's width; past that they share a lane) | 3 |
 | Column width | widest a column gets; longer names are cut with `…`, 12–60 | 28 |
 | Columns | fit (as wide as the longest name), equal (every column the column width) | fit |
 | Name details | off, age, size, both, dimmed after each name | off |

@@ -9,6 +9,7 @@
 //!    stretch and grow with the motion instead of snapping.
 //!
 //! Each parent's elbow gets its own trunk column so trunks never merge.
+use std::cmp::Ordering as Side;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::SystemTime;
@@ -45,6 +46,9 @@ pub const UP: u8 = 1;
 pub const DOWN: u8 = 2;
 pub const LEFT: u8 = 4;
 pub const RIGHT: u8 = 8;
+
+/// A column gets one connector lane per this many cells of its width.
+const LANES_PER_WIDTH: i32 = 3;
 
 /// Line emphasis, highest wins per cell.
 pub const DIM: u8 = 0;
@@ -311,10 +315,6 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
             out.cols.push((x - 2, x + colw + 3, on_line.copied()));
             break;
         }
-        let n = parents.len() as i32;
-        let next_x = x + colw + n + sp.gap.max(3) + sp.branch.max(0);
-        out.cols.push((x - 2, next_x - 2, on_line.copied()));
-
         // y0 per parent. The spine block is pinned so its spine child sits on
         // the line; blocks above pack upward from it, blocks below downward.
         let ideal = |py: i32, len: i32| py - (len - 1) / 2;
@@ -345,21 +345,40 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
         // parent must sit right of every lower parent's trunk, so lower parents
         // go further left; a block raised above its parent is the mirror image.
         // Blocks going opposite ways never share rows, so each direction counts
-        // from the bar on its own and every trunk hugs its block.
-        let raised: Vec<bool> =
-            parents.iter().zip(&y0s).map(|((pid, py, ..), y0)| y0 + tree.kids(*pid).len() as i32 - 1 < *py).collect();
-        let ups = raised.iter().filter(|&&r| r).count() as i32;
+        // from the bar on its own and every trunk hugs its block. Lanes are
+        // capped at a third of the column's width: past that, the longest
+        // elbows share the outermost lane, so the gap never runs away.
+        let cap = (colw / LANES_PER_WIDTH).max(2);
+        // Raised (block above its parent), lowered, or level: a level block
+        // joins straight across and needs no lane.
+        let way: Vec<Side> = parents
+            .iter()
+            .zip(&y0s)
+            .map(|((pid, py, ..), &y0)| {
+                let y1 = y0 + tree.kids(*pid).len() as i32 - 1;
+                if y1 < *py { Side::Less } else if y0 > *py { Side::Greater } else { Side::Equal }
+            })
+            .collect();
+        let ups = way.iter().filter(|&&w| w == Side::Less).count() as i32;
         let (mut up, mut down) = (0, 0);
-        let mut slots = Vec::with_capacity(raised.len());
-        for &r in &raised {
-            if r {
-                slots.push(ups - 1 - up);
-                up += 1;
-            } else {
-                slots.push(down);
-                down += 1;
+        let mut slots = Vec::with_capacity(way.len());
+        for &w in &way {
+            match w {
+                Side::Less => {
+                    slots.push((ups - 1 - up).min(cap - 1));
+                    up += 1;
+                }
+                Side::Greater => {
+                    slots.push(down.min(cap - 1));
+                    down += 1;
+                }
+                Side::Equal => slots.push(0),
             }
         }
+        // At least one, so a lone straight join keeps today's spacing.
+        let lanes = up.max(down).min(cap).max(1);
+        let next_x = x + colw + lanes + sp.gap.max(3) + sp.branch.max(0);
+        out.cols.push((x - 2, next_x - 2, on_line.copied()));
         let mut next = Vec::new();
         for (k, (pid, ..)) in parents.iter().enumerate() {
             let kids = tree.kids(*pid).to_vec();
@@ -570,19 +589,22 @@ mod tests {
 
     /// Cells two blocks both draw: a crossing or an overlap. Blocks never
     /// share a cell when the wiring is right.
+    /// Cells where one block's wire runs straight through another's at a right
+    /// angle. Capped lanes share cells on purpose; those join, they don't cross.
     fn clashes(l: &Layout, route: &HashSet<usize>) -> Vec<(i32, i32)> {
         let m: HashMap<usize, (i32, i32, i32)> =
             l.placed.iter().map(|p| (p.id, (p.x, p.y, p.label.width() as i32))).collect();
-        let mut seen: HashMap<(i32, i32), usize> = HashMap::new();
-        let mut out = Vec::new();
+        let mut seen: HashMap<(i32, i32), Vec<u8>> = HashMap::new();
         for b in &l.blocks {
-            for cell in lines(std::slice::from_ref(b), &|id| m.get(&id).copied(), route, route, &|_| false).into_keys() {
-                if seen.insert(cell, b.parent).is_some() {
-                    out.push(cell);
-                }
+            for (at, c) in lines(std::slice::from_ref(b), &|id| m.get(&id).copied(), route, route, &|_| false) {
+                seen.entry(at).or_default().push(c.mask);
             }
         }
-        out
+        let through = |ms: &[u8], bits: u8| ms.iter().any(|&m| m & bits == bits);
+        seen.into_iter()
+            .filter(|(_, ms)| ms.len() > 1 && through(ms, UP | DOWN) && through(ms, LEFT | RIGHT))
+            .map(|(at, _)| at)
+            .collect()
     }
 
     #[test]
@@ -850,6 +872,28 @@ mod tests {
         assert_eq!(ln[&(xa - 1, ya)].thin, 0);
         let all = lines(&l.blocks, &|id| m.get(&id).copied(), &HashSet::new(), &HashSet::new(), &|id| id != 0);
         assert!(all.values().all(|c| c.thin == c.mask), "a block of only ignored kids is all thin");
+    }
+
+    #[test]
+    fn lanes_are_capped_and_never_cross() {
+        let dirs: Vec<String> = (0..12).flat_map(|i| ["x", "y", "z"].map(|k| format!("folder-{i:02}/{k}"))).collect();
+        let root = fixture("lanes", &dirs.iter().map(String::as_str).collect::<Vec<_>>());
+        let mut t = Tree::new(&root);
+        t.load(0);
+        t.nodes[0].expanded = true;
+        for k in t.kids(0).to_vec() {
+            t.load(k);
+            t.nodes[k].expanded = true;
+        }
+        let sp = Spacing::default();
+        let l = layout(&t, 0, &name_of(&t), sp);
+        let (x1, _) = pos(&l, &t, "folder-00");
+        let (x2, _) = pos(&l, &t, "x");
+        let colw = "folder-00".len() as i32;
+        let lanes = x2 - x1 - colw - sp.gap - sp.branch;
+        assert_eq!(lanes, (colw / LANES_PER_WIDTH).max(2), "12 open folders, lanes held to the cap");
+        let ln = target_lines(&l, &HashSet::new());
+        assert!(ln.values().all(|c| c.mask != UP | DOWN | LEFT | RIGHT), "merged lanes join, they don't cross");
     }
 
     #[test]
