@@ -370,7 +370,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
     let mut visible_dirs = Vec::new();
     // While finding, the matched text lights up in the cursor's column.
     let finding = app.search.as_ref().map(|s| s.query.as_str()).filter(|q| !q.is_empty());
-    let column = app.tree.nodes[app.cursor].parent;
+    let found = finding.map(|q| app.matches(q, &app.siblings())).unwrap_or_default();
     for (&id, a) in order {
         let (x, y) = a.pos();
         let (sx, sy) = (x - ox, y - oy);
@@ -397,9 +397,11 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             let st = Style::new().fg(to_color(mix(BG, rgb, a.alpha * 0.5)));
             put(buf, canvas, sx + name.width() as i32, sy, details, st);
         }
-        if let Some(r) = finding.filter(|_| !a.ghost && node.parent == column).and_then(|q| crate::hit(name, q)) {
+        if let Some((_, spans)) = finding.filter(|_| !a.ghost && found.contains(&id)).and_then(|q| crate::fuzzy(name, q)) {
             let lit = Style::new().fg(to_color(mix(BG, FLASH, a.alpha))).bg(to_color(mix(BG, MATCH_BG, a.alpha)));
-            put(buf, canvas, sx + a.label[..r.start].width() as i32, sy, &a.label[r], lit.add_modifier(Modifier::BOLD));
+            for r in spans {
+                put(buf, canvas, sx + a.label[..r.start].width() as i32, sy, &a.label[r], lit.add_modifier(Modifier::BOLD));
+            }
         }
         // Bud: a closed folder that may still hold something.
         let bud = node.is_dir && !node.expanded && node.children.as_ref().is_none_or(|k| !k.is_empty());
@@ -742,7 +744,7 @@ fn prompt_bar(f: &mut Frame, app: &App, area: Rect, line: &str) {
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-/// `/` query: `/ text█  2/5`, or "no match" when nothing in the column contains it.
+/// `/` query: `/ text█  2/5`, or "no match" when nothing in the column matches it.
 fn search_bar(f: &mut Frame, app: &App, area: Rect, q: &str) {
     let (at, n) = app.match_pos(q);
     let count = match (q.is_empty(), n) {
@@ -750,7 +752,7 @@ fn search_bar(f: &mut Frame, app: &App, area: Rect, q: &str) {
         (false, 0) => "  no match".into(),
         _ => format!("  {at}/{n}"),
     };
-    let hint = if q.is_empty() || n > 0 { "  tab ↑↓ cycle · enter open · esc back " } else { "  esc back " };
+    let hint = if q.is_empty() || n > 0 { "  tab ↑↓ cycle · enter stay · esc back " } else { "  esc back " };
     let spans = vec![
         Span::styled(" / ", Style::new().fg(to_color(acc().route)).add_modifier(Modifier::BOLD)),
         Span::styled(q, Style::new().fg(to_color(ROUTE_TEXT))),
@@ -767,7 +769,7 @@ const KEYS: [(&str, &str); 24] = [
     ("space / tab", "fold / unfold"),
     ("J K / pgup pgdn", "jump 10 (pgup pgdn in the column)"),
     ("g G", "first / last sibling"),
-    ("/ n N", "find in column · next / previous"),
+    ("/ n N", "fuzzy find in column · next / previous"),
     ("tab ↑↓ while /", "cycle matches · Caps = exact case"),
     ("-", "re-root one level up"),
     ("c C", "fold this folder · collapse other branches"),
