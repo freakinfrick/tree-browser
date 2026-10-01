@@ -549,6 +549,14 @@ impl App {
         self.epoch += 1;
     }
 
+    /// Fold the folder under the cursor; nothing on a file.
+    fn collapse(&mut self) {
+        let n = &mut self.tree.nodes[self.cursor];
+        if n.is_dir {
+            n.expanded = false;
+        }
+    }
+
     /// Fold every branch that isn't on the cursor path.
     fn collapse_others(&mut self) {
         let path = self.tree.path_to(self.cursor);
@@ -865,15 +873,19 @@ impl App {
         }
     }
 
-    /// Entries of `col` whose name contains `q` (smart case).
+    /// Entries of `col` matching `q`: the names holding it as typed when any
+    /// do, else the names with its letters in order.
     fn matches(&self, q: &str, col: &[usize]) -> Vec<usize> {
-        col.iter().copied().filter(|&k| hit(&self.tree.nodes[k].name, q).is_some()).collect()
+        let ranked: Vec<(usize, u8)> =
+            col.iter().filter_map(|&k| fuzzy(&self.tree.nodes[k].name, q).map(|(rank, _)| (k, rank))).collect();
+        let loose = ranked.iter().all(|&(_, rank)| rank == LOOSE);
+        ranked.into_iter().filter(|&(_, rank)| loose || rank < LOOSE).map(|(k, _)| k).collect()
     }
 
-    /// Where typing `q` lands: the first name starting with it, else the first containing it.
+    /// Where typing `q` lands: the best-ranked match, the first in the list on a tie.
     pub fn find(&self, q: &str) -> Option<usize> {
-        let m = self.matches(q, &self.siblings());
-        m.iter().copied().find(|&k| hit(&self.tree.nodes[k].name, q).is_some_and(|r| r.start == 0)).or(m.first().copied())
+        let rank = |k: usize| fuzzy(&self.tree.nodes[k].name, q).map_or(u8::MAX, |(rank, _)| rank);
+        self.matches(q, &self.siblings()).into_iter().min_by_key(|&k| rank(k))
     }
 
     /// Cursor's place among the matches of `q` (1-based, 0 when off them) and their count.
@@ -882,8 +894,9 @@ impl App {
         (m.iter().position(|&k| k == self.cursor).map_or(0, |i| i + 1), m.len())
     }
 
-    /// n / N: next or previous match in the searched column, wrapping. Enter moved the
-    /// cursor into the match, so its entry in that column is the cursor's ancestor there.
+    /// n / N: next or previous match in the searched column, wrapping. The cursor
+    /// may have gone into the match since, so its entry in that column is the
+    /// cursor's ancestor there.
     fn find_next(&mut self, dir: isize) {
         let Some((q, col)) = self.last_search.clone() else { return };
         let path = self.tree.path_to(self.cursor);
@@ -927,14 +940,12 @@ impl App {
             return;
         }
         match code {
-            // Open what the query landed on, as Enter would.
+            // Stay where the query landed (or was cycled to); l or Enter opens it from there.
             KeyCode::Enter => {
                 let q = std::mem::take(&mut s.query);
                 self.search = None;
-                // The cursor may have been cycled off find()'s pick, so open the cursor.
                 if self.matches(&q, &self.siblings()).contains(&self.cursor) {
                     self.last_search = Some((q, self.tree.nodes[self.cursor].parent));
-                    self.enter();
                 }
                 return;
             }
@@ -957,6 +968,28 @@ impl App {
         }
         let to = self.search.as_ref().filter(|s| !s.query.is_empty()).and_then(|s| self.find(&s.query));
         self.set_cursor(to.unwrap_or(origin));
+    }
+
+    /// The image viewer's up/down: open the previous or next image or PDF in
+    /// the cursor's folder, in the tree's order, without closing the viewer.
+    /// Stays put at either end.
+    fn flip_file(&mut self, d: i32) {
+        let Some(dir) = self.tree.nodes[self.cursor].parent else { return };
+        let kids = self.tree.kids(dir);
+        let Some(at) = kids.iter().position(|&k| k == self.cursor) else { return };
+        // Empty files open as text, which would end the flipping.
+        let shows = |k: &&usize| {
+            let n = &self.tree.nodes[**k];
+            !n.is_dir && n.size > 0 && media::shows(&n.path)
+        };
+        let next = if d > 0 { kids[at + 1..].iter().find(shows) } else { kids[..at].iter().rev().find(shows) };
+        let Some(&id) = next else { return };
+        let open = self.preview.as_ref().map(|p| p.open);
+        self.set_cursor(id);
+        self.open_file(id);
+        if let (Some(open), Some(pv)) = (open, self.preview.as_mut()) {
+            pv.open = open;
+        }
     }
 
     /// Open preview that is not already closing.
@@ -1012,15 +1045,15 @@ impl App {
                 return true;
             }
             if let Some(m) = &mut pv.media {
-                // Pages instead of lines.
+                // Pages instead of lines; the up/down arrows step through the folder's images.
                 match code {
                     KeyCode::Char('q') | KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => pv.closing = true,
-                    KeyCode::Char('j' | 'l' | 'n' | ' ') | KeyCode::Down | KeyCode::Right | KeyCode::PageDown => {
-                        m.flip(1)
-                    }
-                    KeyCode::Char('k' | 'p') | KeyCode::Up | KeyCode::PageUp => m.flip(-1),
+                    KeyCode::Char('j' | 'l' | 'n' | ' ') | KeyCode::Right | KeyCode::PageDown => m.flip(1),
+                    KeyCode::Char('k' | 'p') | KeyCode::PageUp => m.flip(-1),
                     KeyCode::Char('g') | KeyCode::Home => m.goto(0),
                     KeyCode::Char('G') | KeyCode::End => m.goto(isize::MAX / 2),
+                    KeyCode::Down => self.flip_file(1),
+                    KeyCode::Up => self.flip_file(-1),
                     _ => {}
                 }
                 return true;
@@ -1084,7 +1117,8 @@ impl App {
                 self.menu = Some(0);
                 self.help = false;
             }
-            KeyCode::Char('c') => self.collapse_others(),
+            KeyCode::Char('c') => self.collapse(),
+            KeyCode::Char('C') => self.collapse_others(),
             KeyCode::Char('e') => self.explode(),
             KeyCode::Char('r') => self.reload(),
             KeyCode::Char('?') => self.help ^= true,
@@ -1234,25 +1268,52 @@ impl App {
     }
 }
 
-/// Byte range of `q` in `name`. Smart case: an uppercase letter in `q` makes it exact.
-pub fn hit(name: &str, q: &str) -> Option<std::ops::Range<usize>> {
+/// `fuzzy` rank of a name holding the query's letters only in order, with gaps.
+const LOOSE: u8 = 3;
+
+/// How `name` matches the query `q`, and the byte spans to light up. Rank,
+/// best first: 0 starts with `q`, 1 has it at a word start, 2 has it
+/// anywhere, `LOOSE` has its letters in order (`frend` in `flow-rendering`).
+/// Smart case: an uppercase letter in `q` means exact case.
+pub fn fuzzy(name: &str, q: &str) -> Option<(u8, Vec<std::ops::Range<usize>>)> {
     if q.is_empty() {
         return None;
     }
     let exact = q.chars().any(char::is_uppercase);
     let fold = |c: char| if exact { c } else { c.to_lowercase().next().unwrap_or(c) };
     let want: Vec<char> = q.chars().map(fold).collect();
-    name.char_indices().find_map(|(i, _)| {
-        let mut it = name[i..].char_indices();
-        for &w in &want {
-            match it.next() {
-                Some((_, c)) if fold(c) == w => {}
-                _ => return None,
+    let chars: Vec<(usize, char)> = name.char_indices().collect();
+    // Byte end of the i-th char.
+    let end = |i: usize| chars.get(i + 1).map_or(name.len(), |c| c.0);
+    let word_start = |i: usize| {
+        i == 0 || !chars[i - 1].1.is_alphanumeric() || (chars[i - 1].1.is_lowercase() && chars[i].1.is_uppercase())
+    };
+    let mut best: Option<(u8, usize)> = None;
+    for s in 0..(chars.len() + 1).saturating_sub(want.len()) {
+        if want.iter().enumerate().all(|(j, &w)| fold(chars[s + j].1) == w) {
+            let rank = if s == 0 { 0 } else if word_start(s) { 1 } else { 2 };
+            if best.is_none_or(|(r, _)| rank < r) {
+                best = Some((rank, s));
             }
         }
-        let end = it.next().map_or(name.len(), |(j, _)| i + j);
-        Some(i..end)
-    })
+    }
+    if let Some((rank, s)) = best {
+        let span = chars[s].0..end(s + want.len() - 1);
+        return Some((rank, vec![span]));
+    }
+    // Letters in order: the leftmost of each, neighbors merged into one span.
+    let mut spans: Vec<std::ops::Range<usize>> = Vec::new();
+    let mut got = 0;
+    for (i, &(at, c)) in chars.iter().enumerate() {
+        if got < want.len() && fold(c) == want[got] {
+            match spans.last_mut() {
+                Some(r) if r.end == at => r.end = end(i),
+                _ => spans.push(at..end(i)),
+            }
+            got += 1;
+        }
+    }
+    (got == want.len()).then_some((LOOSE, spans))
 }
 
 fn restore() {
@@ -1274,7 +1335,7 @@ fn main() -> std::io::Result<()> {
     let arg = arg.unwrap_or_else(|| ".".into());
     if arg == "-h" || arg == "--help" {
         println!(
-            "treebeard: horizontal tree file browser\n\nusage: tb [--cwd-file PATH] [DIR]\n\nhjkl/arrows move · enter/l open · space fold · . dotfiles · - reroot up · c collapse others · r reload · ? help\n\
+            "treebeard: horizontal tree file browser\n\nusage: tb [--cwd-file PATH] [DIR]\n\nhjkl/arrows move · enter/l open · space fold · . dotfiles · - reroot up · c fold · C collapse others · r reload · ? help\n\
              ! run a command in the selected folder ($f = selection) · s shell there (exit returns) · q quit · esc quit\n\
              --cwd-file: on q, write the selected folder there (tb.bash turns that into cd)\n\
              image/pdf preview: j/k page · i pixels <-> half-blocks · TB_GRAPHICS=halfblocks|kitty|sixel|iterm2|off\n\
@@ -1472,6 +1533,67 @@ mod tests {
     }
 
     #[test]
+    fn c_folds_the_folder_under_the_cursor_and_shift_c_everything_else() {
+        let mut app = app_in("fold", &["x"]);
+        let d = app.tree.nodes[app.cursor].path.parent().unwrap().to_path_buf();
+        for f in ["a/1", "b/2"] {
+            fs::create_dir_all(d.join(f)).unwrap();
+        }
+        app.reload();
+        let open = |app: &mut App, dir: &str| {
+            let id = app.node_at(&d.join(dir)).unwrap();
+            app.tree.load(id);
+            app.tree.nodes[id].expanded = true;
+            id
+        };
+        let (a, b) = (open(&mut app, "a"), open(&mut app, "b"));
+        let c = |app: &mut App| app.key(KeyCode::Char('c'), KeyModifiers::NONE);
+
+        let id = app.node_at(&d.join("x")).unwrap();
+        app.set_cursor(id);
+        c(&mut app);
+        assert!(app.tree.nodes[a].expanded && app.tree.nodes[b].expanded, "c on a file does nothing");
+        app.set_cursor(a);
+        c(&mut app);
+        assert!(!app.tree.nodes[a].expanded, "c folds the folder under the cursor");
+        assert!(app.tree.nodes[b].expanded, "and only that one");
+
+        open(&mut app, "a");
+        let id = app.node_at(&d.join("a/1")).unwrap();
+        app.set_cursor(id);
+        app.key(KeyCode::Char('C'), KeyModifiers::SHIFT);
+        assert!(app.tree.nodes[a].expanded, "C keeps the cursor path open");
+        assert!(!app.tree.nodes[b].expanded, "C folds everything else");
+    }
+
+    #[test]
+    fn arrows_in_the_image_viewer_flip_through_the_folders_images() {
+        let mut app = app_in("flip", &["1.png", "2.txt", "3.pdf", "4.jpg", "5.png", "6.gif"]);
+        let d = app.tree.nodes[app.cursor].path.parent().unwrap().to_path_buf();
+        for f in ["1.png", "2.txt", "3.pdf", "4.jpg", "6.gif"] {
+            fs::write(d.join(f), "not really a picture").unwrap();
+        }
+        app.reload();
+        let id = app.node_at(&d.join("1.png")).unwrap();
+        app.set_cursor(id);
+        app.key(KeyCode::Enter, KeyModifiers::NONE);
+        let shown = |app: &App| app.preview.as_ref().unwrap().path.file_name().unwrap().to_string_lossy().into_owned();
+        let mut seen = Vec::new();
+        for _ in 0..4 {
+            app.key(KeyCode::Down, KeyModifiers::NONE);
+            seen.push(shown(&app));
+        }
+        // Text and the empty 5.png are passed by; the last image stays put.
+        assert_eq!(seen, ["3.pdf", "4.jpg", "6.gif", "6.gif"]);
+        assert_eq!(at(&app), "6.gif", "the cursor follows");
+        app.key(KeyCode::Up, KeyModifiers::NONE);
+        assert_eq!(shown(&app), "4.jpg");
+        app.key(KeyCode::Char('j'), KeyModifiers::NONE);
+        assert_eq!(shown(&app), "4.jpg", "j turns pages, not files");
+        assert!(app.preview.as_ref().is_some_and(|p| !p.closing));
+    }
+
+    #[test]
     fn search_follows_typing_prefers_prefix_and_cycles() {
         let mut app = app_in("cycle", &["alpha", "beta", "Bravo.txt", "zebra-b"]);
         assert_eq!(at(&app), "alpha");
@@ -1488,7 +1610,7 @@ mod tests {
         typed(&mut app, "/b");
         app.key(KeyCode::Enter, KeyModifiers::NONE);
         assert_eq!(at(&app), "beta");
-        assert!(app.preview.take().is_some(), "enter opens the match");
+        assert!(app.search.is_none() && app.preview.is_none(), "enter stays on the match, opening nothing");
         typed(&mut app, "n");
         assert_eq!(at(&app), "Bravo.txt");
         typed(&mut app, "n");
@@ -1500,15 +1622,44 @@ mod tests {
     }
 
     #[test]
-    fn hit_is_smart_case_and_char_aligned() {
-        assert_eq!(hit("Bravo.txt", "rav"), Some(1..4));
-        assert_eq!(hit("Bravo.txt", "b"), Some(0..1));
-        assert_eq!(hit("Bravo.txt", "B"), Some(0..1));
-        assert_eq!(hit("bravo", "B"), None, "uppercase in the query means exact case");
-        assert_eq!(hit("naïve.md", "ÏV"), None);
-        assert_eq!(hit("naïve.md", "ïv"), Some(2..5));
-        assert_eq!(hit("NAÏVE", "ïv"), Some(2..5));
-        assert_eq!(hit("x", ""), None);
+    #[allow(clippy::single_range_in_vec_init)] // one matched span, not a range to collect
+    fn fuzzy_ranks_and_spans_are_smart_case_and_char_aligned() {
+        assert_eq!(fuzzy("Bravo.txt", "rav"), Some((2, vec![1..4])));
+        assert_eq!(fuzzy("Bravo.txt", "b"), Some((0, vec![0..1])));
+        assert_eq!(fuzzy("Bravo.txt", "B"), Some((0, vec![0..1])));
+        assert_eq!(fuzzy("bravo", "B"), None, "uppercase in the query means exact case");
+        assert_eq!(fuzzy("naïve.md", "ÏV"), None);
+        assert_eq!(fuzzy("naïve.md", "ïv"), Some((2, vec![2..5])));
+        assert_eq!(fuzzy("NAÏVE", "ïv"), Some((2, vec![2..5])));
+        assert_eq!(fuzzy("x", ""), None);
+        assert_eq!(fuzzy("flow-rendering", "rend"), Some((1, vec![5..9])), "word start");
+        assert_eq!(fuzzy("flowRendering", "Rend"), Some((1, vec![4..8])), "camelCase word start");
+        assert_eq!(fuzzy("flow-rendering", "frend"), Some((LOOSE, vec![0..1, 5..9])), "letters in order");
+        assert_eq!(fuzzy("flow-rendering", "fwr"), Some((LOOSE, vec![0..1, 3..4, 5..6])));
+        assert_eq!(fuzzy("flow-rendering", "rf"), None, "order matters");
+        assert_eq!(fuzzy("ab", "abc"), None);
+    }
+
+    #[test]
+    fn search_is_fuzzy_but_exact_hits_come_first() {
+        let mut app = app_in("fuzzy", &["alpha", "fable-wind", "flow-rendering", "frend.txt", "zz"]);
+        typed(&mut app, "/fre");
+        assert_eq!(at(&app), "frend.txt", "starts with it");
+        assert_eq!(app.match_pos("fre"), (1, 1), "letters-in-order names hide while an exact hit exists");
+        typed(&mut app, "nd");
+        assert_eq!(at(&app), "frend.txt");
+        app.key(KeyCode::Esc, KeyModifiers::NONE);
+        assert_eq!(at(&app), "alpha", "esc goes back");
+
+        typed(&mut app, "/fwr");
+        assert_eq!(at(&app), "flow-rendering", "no exact hit, so letters in order");
+        typed(&mut app, "x");
+        assert_eq!(at(&app), "alpha", "no match falls back to where / started");
+        app.key(KeyCode::Backspace, KeyModifiers::NONE);
+        app.key(KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(at(&app), "flow-rendering", "enter keeps it");
+        assert!(app.search.is_none() && app.preview.is_none());
+        assert!(!app.tree.nodes[app.cursor].expanded);
     }
 
     #[test]
@@ -1524,8 +1675,7 @@ mod tests {
         app.key(KeyCode::Up, KeyModifiers::NONE);
         assert_eq!(at(&app), "Bravo.txt");
         app.key(KeyCode::Enter, KeyModifiers::NONE);
-        assert_eq!(at(&app), "Bravo.txt", "enter opens the cycled match, not find()'s first pick");
-        assert!(app.preview.take().is_some());
+        assert_eq!(at(&app), "Bravo.txt", "enter keeps the cycled match, not find()'s first pick");
 
         typed(&mut app, "/B");
         assert_eq!(at(&app), "Bravo.txt", "smart case skips beta");
@@ -1537,12 +1687,14 @@ mod tests {
     }
 
     #[test]
-    fn search_enter_opens_a_folder() {
+    fn search_enter_stays_on_a_folder_and_enter_again_opens_it() {
         let mut app = app_in("open", &["alpha"]);
         let d = app.tree.nodes[app.cursor].path.parent().unwrap().join("sub");
         fs::create_dir_all(d.join("inner")).unwrap();
         app.reload();
         typed(&mut app, "/su");
+        app.key(KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(at(&app), "sub");
         app.key(KeyCode::Enter, KeyModifiers::NONE);
         assert_eq!(at(&app), "inner");
     }
@@ -1557,6 +1709,8 @@ mod tests {
         app.reload();
         typed(&mut app, "/ba");
         app.key(KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(at(&app), "ba-dir");
+        typed(&mut app, "l");
         assert_eq!(at(&app), "ba-one");
         typed(&mut app, "n");
         assert_eq!(at(&app), "bar", "back in the searched column, past ba-dir");

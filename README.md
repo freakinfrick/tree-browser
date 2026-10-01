@@ -92,11 +92,12 @@ tb --cwd-file PATH [DIR]  # on q, write the selected folder to PATH
 | `l` `→` `Enter` | open: expand a folder, preview a file |
 | `h` `←` | back to the parent |
 | `Space` `Tab` | fold / unfold |
-| `/` | find in the current column as you type; `Enter` opens the match, `Esc` goes back |
+| `/` | find in the current column as you type, fuzzy (`frend` finds `flow-rendering`); `Enter` stays there, `Esc` goes back |
 | `Tab` `↓` / `⇧Tab` `↑` | while finding: next / previous match (`↑` on an empty line recalls the last find) |
 | `n` `N` | next / previous match of the last find |
 | `-` `Backspace` | re-root one level up |
-| `c` | collapse everything off the cursor path |
+| `c` | fold the open folder under the cursor |
+| `C` | collapse everything off the cursor path |
 | `e` | explode: open every folder inside the selected one (a file's own folder); `Esc` stops it |
 | `.` | show / hide dotfiles (hidden by default) |
 | `o` | cycle the sort: name → newest → largest → type |
@@ -116,8 +117,9 @@ slow notches stay one step each (**Wheel speed** and **Momentum** in the setting
 in the settings to select text with it instead.
 
 **In a preview:** `j` `k`, `Space` `PgDn`, `Ctrl-D` `Ctrl-U`, `g` `G` scroll text; for images and PDFs
-`j` `k` `Space` flip pages and `g` `G` jump to the first / last. `i` switches between pixels and
-half-blocks. `d` shows a changed file's git diff (and back). `q` `Esc` `h` close.
+`j` `k` `Space` flip pages, `g` `G` jump to the first / last, and `↑` `↓` step to the previous / next
+image or PDF in the folder. `i` switches between pixels and half-blocks. `d` shows a changed file's
+git diff (and back). `q` `Esc` `h` close.
 
 **In an audio preview:**
 
@@ -136,13 +138,13 @@ Click or drag on the waveform or scrubber to seek there; the wheel seeks 5 s.
 
 ### Explode
 
-`e` is the opposite of `c`: it opens every folder inside the selected one, all the way down, and
+`e` is the opposite of `C`: it opens every folder inside the selected one, all the way down, and
 they unfurl together. The folders are read on a background thread. While that runs, a spinner turns
 where the folder's `›` bud sits and the status bar counts folders; `Esc` stops it. The walk goes a
 level at a time and stops after 400 folders or 6,000 entries, so a huge tree opens its top levels
 rather than flooding the screen, and the status bar says when it stopped early. Hidden folders
 (unless dotfiles are shown) and folders git ignores, like `node_modules/` and `target/`, are listed
-but left closed. Symlinks are never followed. `c` folds everything back up.
+but left closed. Symlinks are never followed. `C` folds everything back up.
 
 ## Color = recency
 
@@ -229,7 +231,7 @@ closes the panel.
 | Dotfiles | same as `.` | hidden |
 | Accent | indigo, teal, violet, amber, mono (lines, selector, highlights) | indigo |
 | Heat colors | ember (red → blue), magma (cream → violet), neon (raspberry → aqua), aurora (yellow → purple), glacier (ice → deep blue), sepia (warm brightness), mono; magma and aurora avoid red-green | ember |
-| Heat range | age that gets the coldest color: day, week, month, year, 5y | month |
+| Heat range | age that gets the coldest color: day, week, month, year, 5y | 5y |
 | Off-line dim | how bright names off the cursor's line stay, 0 (nearly out) to 10 (full color) | 6 |
 | Tree lines | double, heavy, rounded, square, ascii (on double and heavy, ignored branches draw thin) | double |
 | Branch offset | line between each join and its name, 0–4 (`├name` → `├──name`) | 1 |

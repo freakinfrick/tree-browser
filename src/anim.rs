@@ -161,15 +161,15 @@ const EMBER: Stops = [
     (3600.0, [255.0, 118.0, 48.0]),
     (86400.0, [255.0, 172.0, 64.0]),
     (7.0 * 86400.0, [240.0, 190.0, 70.0]),
-    // Mauve, not grey: the month range squeezes this stop to hours, and a
-    // grey there reads as a git-ignored name.
+    // Mauve, not grey: short heat ranges squeeze this stop to hours (about
+    // 12 at a month), and a grey there reads as a git-ignored name.
     (30.0 * 86400.0, [196.0, 112.0, 170.0]),
     (365.0 * 86400.0, [108.0, 118.0, 196.0]),
     (5.0 * 365.0 * 86400.0, [66.0, 80.0, 214.0]),
 ];
 
 /// Viridis-like: brightness carries recency, no red-green contrast needed.
-/// The old end is lifted off viridis's near-black so month-old names stay readable.
+/// The old end is lifted off viridis's near-black so the oldest names stay readable.
 const AURORA: Stops = [
     (60.0, [253.0, 231.0, 37.0]),
     (3600.0, [170.0, 220.0, 50.0]),
