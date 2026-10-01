@@ -152,7 +152,7 @@ Files are colored by when they were last modified. Folders are colored by the ne
 
 The gradient is continuous in log-time:
 
-**red** (minutes) → **orange** (hours) → **tan** (days) → **grey** (weeks) → **slate** (a year) → **blue** (5 y+)
+**red** (minutes) → **orange** (hours) → **gold** (days) → **mauve** (weeks) → **slate** (a year) → **blue** (5 y+)
 
 Colors cross-fade when heat data lands instead of popping. White marks the cursor path and dim
 marks branches off it. On rounded and square lines the line itself is a double "tube" with proper

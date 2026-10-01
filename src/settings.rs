@@ -64,7 +64,7 @@ pub enum Accent {
 /// Recency gradient.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Palette {
-    /// Red (now) through orange and grey to blue (years).
+    /// Red (now) through orange, gold and mauve to blue (years).
     Ember,
     /// Yellow through green and teal to purple, readable with red-green color blindness.
     Aurora,
