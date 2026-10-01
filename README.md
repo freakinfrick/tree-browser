@@ -229,7 +229,7 @@ closes the panel.
 | Dotfiles | same as `.` | hidden |
 | Accent | indigo, teal, violet, amber, mono (lines, selector, highlights) | indigo |
 | Heat colors | ember (red → blue), magma (cream → violet), neon (raspberry → aqua), aurora (yellow → purple), glacier (ice → deep blue), sepia (warm brightness), mono; magma and aurora avoid red-green | ember |
-| Heat range | age that gets the coldest color: day, week, month, year, 5y | month |
+| Heat range | age that gets the coldest color: day, week, month, year, 5y | 5y |
 | Off-line dim | how bright names off the cursor's line stay, 0 (nearly out) to 10 (full color) | 6 |
 | Tree lines | double, heavy, rounded, square, ascii (on double and heavy, ignored branches draw thin) | double |
 | Branch offset | line between each join and its name, 0–4 (`├name` → `├──name`) | 1 |
