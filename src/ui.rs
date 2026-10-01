@@ -17,7 +17,7 @@ use ratatui::widgets::{Block, BorderType, Clear, Paragraph, Scrollbar, Scrollbar
 use ratatui::Frame;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-use crate::anim::{approach, greyed, heat, heat_stops, lift, mix, pulse, to_color, Damped, Rgb, RECOLOR};
+use crate::anim::{approach, heat, heat_stops, mix, pulse, to_color, Damped, Rgb, RECOLOR};
 use crate::layout::{cell_glyph, layout, lines, ACTIVE, DOWN, ROUTE, UP};
 use crate::audio::{self, Audio, State};
 use crate::git::St;
@@ -70,9 +70,16 @@ const DOT: Rgb = [255.0, 58.0, 58.0];
 const MUTED: Rgb = [110.0, 118.0, 150.0];
 /// How far names off the cursor's line fade toward the background.
 const OFF_SPINE: f32 = 0.25;
-/// Ignored names: how much color drains to grey, and how far they fade.
-const IGNORED_GREY: f32 = 0.85;
-const IGNORED_FADE: f32 = 0.3;
+/// Ignored names: the grey at dim floor 10, and how much heat tints it.
+const IGNORED_LIGHT: Rgb = [214.0, 216.0, 224.0];
+const IGNORED_TINT: f32 = 0.12;
+
+/// An ignored name's color: a grey from near-black (floor 0) to light grey
+/// (floor 10), with a hint of its heat.
+fn ignored_shade(h: Rgb, floor: u8) -> Rgb {
+    let grey = mix(BG, IGNORED_LIGHT, 0.1 + 0.08 * floor.min(10) as f32);
+    mix(grey, h, IGNORED_TINT)
+}
 const MATCH_BG: Rgb = [92.0, 70.0, 22.0];
 /// A live change's flash, and the ember behind the name that changed.
 const RIPPLE: Rgb = [255.0, 200.0, 150.0];
@@ -213,8 +220,6 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
 
     // Color targets: heat, dimmed off-route, white on route. Recomputed on
     // relayout only; the per-frame loop just cross-fades toward them.
-    // Nothing fades below the dim floor.
-    let floor = app.settings.dim_floor.ratio();
     if fresh {
         let now = SystemTime::now();
         for p in &lay.placed {
@@ -223,7 +228,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             } else {
                 let age = now.duration_since(app.heat_of(p.id)).unwrap_or_default().as_secs_f32();
                 let h = heat(age);
-                lift(if p.active { h } else { mix(h, BG, OFF_SPINE) }, BG, floor)
+                if p.active { h } else { mix(h, BG, OFF_SPINE) }
             };
             let Some(a) = app.scene.nodes.get_mut(&p.id) else { continue };
             a.target = target;
@@ -366,9 +371,9 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         let node = &app.tree.nodes[id];
         let g = if a.ghost { 0.0 } else { glow.get(&id).copied().unwrap_or(0.0) };
         let git = if a.ghost { None } else { app.git_state(id) };
-        // Ignored by git: greyed and a little faded, unless it's on the cursor path.
+        // Ignored by git: grey at the dim floor's lightness, unless it's on the cursor path.
         let quiet = git == Some(St::Ignored) && app.settings.dim_ignored && !route.contains(&id);
-        let rgb = if quiet { lift(mix(greyed(a.rgb, IGNORED_GREY), BG, IGNORED_FADE), BG, floor) } else { a.rgb };
+        let rgb = if quiet { ignored_shade(a.rgb, app.settings.dim_floor) } else { a.rgb };
         let mut style = Style::new().fg(to_color(mix(BG, mix(rgb, RIPPLE, g), a.alpha)));
         if node.is_dir || route.contains(&id) {
             style = style.add_modifier(Modifier::BOLD);
@@ -380,7 +385,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         let (name, details) = a.label.split_at(a.name.min(a.label.len()));
         put(buf, canvas, sx, sy, name, style);
         if !details.is_empty() {
-            let st = Style::new().fg(to_color(mix(BG, lift(mix(rgb, BG, 0.4), BG, floor), a.alpha)));
+            let st = Style::new().fg(to_color(mix(BG, rgb, a.alpha * 0.5)));
             put(buf, canvas, sx + name.width() as i32, sy, details, st);
         }
         if let Some(r) = finding.filter(|_| !a.ghost && node.parent == column).and_then(|q| crate::hit(name, q)) {
@@ -400,7 +405,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         } else if bud && !a.ghost {
             let c = match git {
                 Some(s) => mix(BG, git_color(s), a.alpha),
-                None => mix(BG, lift(mix(rgb, BG, 0.45), BG, floor.min(3.0)), a.alpha),
+                None => mix(BG, rgb, a.alpha * 0.55),
             };
             put(buf, canvas, sx + a.w + 1, sy, "›", Style::new().fg(to_color(c)));
         } else if let (Some(s), false) = (git, node.is_dir) {
