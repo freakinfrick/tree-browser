@@ -171,6 +171,10 @@ pub struct Settings {
     pub accent: Accent,
     pub palette: Palette,
     pub heat_range: HeatRange,
+    /// How light ignored names are: 0 near black, 10 light grey.
+    pub dim_floor: u8,
+    /// How bright names off the cursor's line stay: 0 nearly out, 10 full color.
+    pub focus_dim: u8,
     pub lines: LineStyle,
     pub branch_offset: u8,
     pub legend: bool,
@@ -205,9 +209,11 @@ impl Default for Settings {
             show_hidden: false,
             accent: Accent::Indigo,
             palette: Palette::Ember,
-            heat_range: HeatRange::Years5,
-            lines: LineStyle::Rounded,
-            branch_offset: 0,
+            heat_range: HeatRange::Month,
+            dim_floor: 5,
+            focus_dim: 6,
+            lines: LineStyle::Double,
+            branch_offset: 1,
             legend: true,
             speed: Speed::Normal,
             live: true,
@@ -235,7 +241,7 @@ pub struct Item {
     pub help: &'static str,
 }
 
-pub const ITEMS: [Item; 30] = [
+pub const ITEMS: [Item; 32] = [
     Item { key: "row_spacing", label: "Row spacing", section: "Layout", help: "Blank rows between entries. More air, fewer entries on screen." },
     Item { key: "column_gap", label: "Column gap", section: "Layout", help: "Space between a column's longest name and the next column." },
     Item { key: "max_name", label: "Column width", section: "Layout", help: "Widest a column gets. Longer names are cut with a …" },
@@ -249,14 +255,16 @@ pub const ITEMS: [Item; 30] = [
     Item { key: "accent", label: "Accent", section: "Look", help: "Color of the lines, the selector and the highlights." },
     Item { key: "palette", label: "Heat colors", section: "Look", help: "Recency gradient. Aurora avoids red-green; mono is brightness only." },
     Item { key: "heat_range", label: "Heat range", section: "Look", help: "Age that gets the coldest color. Short ranges tell apart the files of one busy week." },
-    Item { key: "lines", label: "Tree lines", section: "Look", help: "Corners and branches: rounded, square, heavy, double or plain ASCII." },
+    Item { key: "focus_dim", label: "Off-line dim", section: "Look", help: "How bright names off the cursor's line stay: 0 nearly out, 10 full color." },
+    Item { key: "lines", label: "Tree lines", section: "Look", help: "Corners and branches: double, heavy, rounded, square or plain ASCII. On double and heavy, branches git ignores draw thin." },
     Item { key: "branch_offset", label: "Branch offset", section: "Look", help: "Line between each join and its name: 0 touches, 4 is a long reach." },
     Item { key: "legend", label: "Legend", section: "Look", help: "The now ▮▮▮ old color key in the status bar." },
     Item { key: "speed", label: "Motion", section: "Look", help: "How fast folders unfurl and the view glides. Instant turns animation off." },
     Item { key: "live", label: "Live updates", section: "Behavior", help: "Re-list open folders about once a second as files change." },
     Item { key: "ripples", label: "Ripples", section: "Behavior", help: "Flash a live change and let it climb the tree." },
     Item { key: "git", label: "Git status", section: "Behavior", help: "Markers, branch and diffs inside git repos." },
-    Item { key: "dim_ignored", label: "Dim ignored", section: "Behavior", help: "Fade files git ignores, like target/ and node_modules/." },
+    Item { key: "dim_ignored", label: "Dim ignored", section: "Behavior", help: "Grey out files git ignores, like target/ and node_modules/." },
+    Item { key: "dim_floor", label: "Dim floor", section: "Behavior", help: "How light ignored names are: 0 is nearly black, 10 light grey. Nothing else changes." },
     Item { key: "explode_ignored", label: "Explode ignored", section: "Behavior", help: "Let e open folders git ignores too. A folder you explode directly always opens." },
     Item { key: "step", label: "Step through", section: "Behavior", help: "What j and k walk: the folder, the column, or the whole open tree in reading order. Arrows and the wheel stay in the column." },
     Item { key: "mouse", label: "Mouse", section: "Behavior", help: "Off hands the mouse back to the terminal, so you can select text." },
@@ -277,7 +285,7 @@ const PALETTES: [Palette; 3] = [Palette::Ember, Palette::Aurora, Palette::Mono];
 const COLUMNS: [Columns; 2] = [Columns::Fit, Columns::Equal];
 const DETAILS: [Details; 4] = [Details::Off, Details::Age, Details::Size, Details::Both];
 const RANGES: [HeatRange; 5] = [HeatRange::Day, HeatRange::Week, HeatRange::Month, HeatRange::Year, HeatRange::Years5];
-const LINES: [LineStyle; 5] = [LineStyle::Rounded, LineStyle::Square, LineStyle::Heavy, LineStyle::Double, LineStyle::Ascii];
+const LINES: [LineStyle; 5] = [LineStyle::Double, LineStyle::Heavy, LineStyle::Rounded, LineStyle::Square, LineStyle::Ascii];
 const GRAPHICS: [Graphics; 4] = [Graphics::Auto, Graphics::Pixels, Graphics::Blocks, Graphics::Off];
 const STEPS: [StepThrough; 3] = [StepThrough::Folder, StepThrough::Column, StepThrough::Tree];
 const PREVIEWS: [TextPreview; 3] = [TextPreview::Styled, TextPreview::Bat, TextPreview::Plain];
@@ -425,6 +433,8 @@ impl Settings {
             "accent" => accent_word(self.accent).into(),
             "palette" => palette_word(self.palette).into(),
             "heat_range" => range_word(self.heat_range).into(),
+            "dim_floor" => self.dim_floor.to_string(),
+            "focus_dim" => self.focus_dim.to_string(),
             "lines" => lines_word(self.lines).into(),
             "branch_offset" => self.branch_offset.to_string(),
             "legend" => on_off(self.legend),
@@ -449,7 +459,7 @@ impl Settings {
     /// The value as the config file stores it.
     pub fn store(&self, key: &str) -> String {
         match key {
-            "row_spacing" | "column_gap" | "max_name" | "branch_offset" | "wheel_speed" => self.show(key),
+            "row_spacing" | "column_gap" | "max_name" | "branch_offset" | "wheel_speed" | "dim_floor" | "focus_dim" => self.show(key),
             "sort_reverse" => self.sort.rev.to_string(),
             "show_hidden" => self.show_hidden.to_string(),
             "legend" | "live" | "ripples" | "git" | "dim_ignored" | "folders_first" | "natural_sort" | "explode_ignored" | "mouse" | "wrap"
@@ -475,6 +485,8 @@ impl Settings {
             "accent" => self.accent = cycle(&ACCENTS, self.accent, dir),
             "palette" => self.palette = cycle(&PALETTES, self.palette, dir),
             "heat_range" => self.heat_range = cycle(&RANGES, self.heat_range, dir),
+            "dim_floor" => self.dim_floor = step(self.dim_floor, 0, 10, 1),
+            "focus_dim" => self.focus_dim = step(self.focus_dim, 0, 10, 1),
             "lines" => self.lines = cycle(&LINES, self.lines, dir),
             "branch_offset" => self.branch_offset = step(self.branch_offset, 0, 4, 1),
             "legend" => self.legend ^= true,
@@ -513,6 +525,8 @@ impl Settings {
             "accent" => self.accent = d.accent,
             "palette" => self.palette = d.palette,
             "heat_range" => self.heat_range = d.heat_range,
+            "dim_floor" => self.dim_floor = d.dim_floor,
+            "focus_dim" => self.focus_dim = d.focus_dim,
             "lines" => self.lines = d.lines,
             "branch_offset" => self.branch_offset = d.branch_offset,
             "legend" => self.legend = d.legend,
@@ -555,7 +569,9 @@ impl Settings {
             "accent" => self.accent = find(&ACCENTS, v, accent_word).ok_or(bad("indigo, teal, violet, amber, mono"))?,
             "palette" => self.palette = find(&PALETTES, v, palette_word).ok_or(bad("ember, aurora, mono"))?,
             "heat_range" => self.heat_range = find(&RANGES, v, range_word).ok_or(bad("day, week, month, year, 5y"))?,
-            "lines" => self.lines = find(&LINES, v, lines_word).ok_or(bad("rounded, square, heavy, double, ascii"))?,
+            "dim_floor" => self.dim_floor = num(0, 10)?,
+            "focus_dim" => self.focus_dim = num(0, 10)?,
+            "lines" => self.lines = find(&LINES, v, lines_word).ok_or(bad("double, heavy, rounded, square, ascii"))?,
             "branch_offset" => self.branch_offset = num(0, 4)?,
             "legend" => self.legend = flag()?,
             "speed" => self.speed = find(&SPEEDS, v, speed_word).ok_or(bad("slow, normal, fast, instant"))?,

@@ -152,7 +152,8 @@ The gradient is continuous in log-time:
 **red** (minutes) → **orange** (hours) → **tan** (days) → **grey** (weeks) → **slate** (a year) → **blue** (5 y+)
 
 Colors cross-fade when heat data lands instead of popping. White marks the cursor path and dim
-marks branches off it. The line itself is a double "tube" with proper junctions; every other branch
+marks branches off it. On rounded and square lines the line itself is a double "tube" with proper
+junctions; on double and heavy it stands out by color. Every other branch
 is tinted by the heat of the folder it grows from, a light sweeps along the line into the cursor on
 each move, and closed folders carry a small `›` bud.
 
@@ -193,7 +194,8 @@ Inside a git repo, each file with changes gets a one-letter marker after its nam
 | `!` (pink) | merge conflict |
 
 A closed folder's `›` bud takes the color of the most urgent change anywhere inside it, so you can
-follow a change down from the top. Ignored files and folders (`target/`, `node_modules/`) are dimmed.
+follow a change down from the top. Ignored files and folders (`target/`, `node_modules/`) are greyed out, and on double or heavy lines
+their branches draw thin. The dim floor setting sets how light that grey is, from near-black (0) to light grey (10).
 The status bar shows the branch with ahead/behind counts (`⎇ main ↑1`) and the selected entry's
 state. When a changed file is open in the preview, `d` switches between the file and its diff against
 `HEAD`, staged and unstaged changes together.
@@ -212,7 +214,7 @@ closes the panel.
 | Setting | Values | Default |
 |---|---|---|
 | Row spacing | blank rows between entries, 0–3 | 0 |
-| Column gap | space before the next column, 3–12 | 3 |
+| Column gap | space before the next column, 3–12, plus one lane per folder whose lines bend (at most a third of the column's width; past that they share a lane) | 3 |
 | Column width | widest a column gets; longer names are cut with `…`, 12–60 | 28 |
 | Columns | fit (as wide as the longest name), equal (every column the column width) | fit |
 | Name details | off, age, size, both, dimmed after each name | off |
@@ -222,12 +224,14 @@ closes the panel.
 | Dotfiles | same as `.` | hidden |
 | Accent | indigo, teal, violet, amber, mono (lines, selector, highlights) | indigo |
 | Heat colors | ember (red → blue), aurora (yellow → purple, avoids red-green), mono | ember |
-| Heat range | age that gets the coldest color: day, week, month, year, 5y | 5y |
-| Tree lines | rounded, square, heavy, double, ascii | rounded |
-| Branch offset | line between each join and its name, 0–4 (`├name` → `├──name`) | 0 |
+| Heat range | age that gets the coldest color: day, week, month, year, 5y | month |
+| Off-line dim | how bright names off the cursor's line stay, 0 (nearly out) to 10 (full color) | 6 |
+| Tree lines | double, heavy, rounded, square, ascii (on double and heavy, ignored branches draw thin) | double |
+| Branch offset | line between each join and its name, 0–4 (`├name` → `├──name`) | 1 |
 | Legend | the color key in the status bar | on |
 | Motion | slow, normal, fast, instant (no animation) | normal |
 | Live updates, Ripples, Git status, Dim ignored | on / off | on |
+| Dim floor | how light ignored names are, 0 (near-black) to 10 (light grey) | 5 |
 | Explode ignored | let `e` open git-ignored folders too (a folder you explode directly always opens) | off |
 | Step through | what `j` `k` `J` `K` walk: folder (its own list), column (every open list in the column), tree (the whole open tree in reading order); `g` `G` always stay in the folder; arrows and `PgUp` `PgDn` move straight up and down the column, and the wheel scrolls the column under the pointer | tree |
 | Mouse | off gives the mouse back to the terminal for selecting text | on |

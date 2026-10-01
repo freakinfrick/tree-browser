@@ -68,6 +68,16 @@ const FLASH: Rgb = [235.0, 242.0, 255.0];
 const ROUTE_TEXT: Rgb = [238.0, 240.0, 250.0];
 const DOT: Rgb = [255.0, 58.0, 58.0];
 const MUTED: Rgb = [110.0, 118.0, 150.0];
+/// Ignored names: the grey at dim floor 10, and how much heat tints it.
+const IGNORED_LIGHT: Rgb = [214.0, 216.0, 224.0];
+const IGNORED_TINT: f32 = 0.12;
+
+/// An ignored name's color: a grey from near-black (floor 0) to light grey
+/// (floor 10), with a hint of its heat.
+fn ignored_shade(h: Rgb, floor: u8) -> Rgb {
+    let grey = mix(BG, IGNORED_LIGHT, 0.1 + 0.08 * floor.min(10) as f32);
+    mix(grey, h, IGNORED_TINT)
+}
 const MATCH_BG: Rgb = [92.0, 70.0, 22.0];
 /// A live change's flash, and the ember behind the name that changed.
 const RIPPLE: Rgb = [255.0, 200.0, 150.0];
@@ -216,7 +226,8 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             } else {
                 let age = now.duration_since(app.heat_of(p.id)).unwrap_or_default().as_secs_f32();
                 let h = heat(age);
-                if p.active { h } else { mix(h, BG, 0.6) }
+                // Off-line dim: each step below 10 fades 0.08, so 0 leaves a fifth of the color.
+                if p.active { h } else { mix(h, BG, 0.08 * (10 - app.settings.focus_dim.min(10)) as f32) }
             };
             let Some(a) = app.scene.nodes.get_mut(&p.id) else { continue };
             a.target = target;
@@ -316,7 +327,8 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             (g > 0.01).then_some((p, px + pw, cx, py, cy, g))
         })
         .collect();
-    for ((x, y), cell) in lines(&lay.blocks, &pos, &route, &spine) {
+    let ignored = |id: usize| app.settings.dim_ignored && app.git_state(id) == Some(St::Ignored);
+    for ((x, y), cell) in lines(&lay.blocks, &pos, &route, &spine, &ignored) {
         let (sx, sy) = (x - ox, y - oy);
         if sx < 0 || sy < 0 || sx >= canvas.width as i32 || sy >= canvas.height as i32 {
             continue;
@@ -358,9 +370,10 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         let node = &app.tree.nodes[id];
         let g = if a.ghost { 0.0 } else { glow.get(&id).copied().unwrap_or(0.0) };
         let git = if a.ghost { None } else { app.git_state(id) };
-        // Ignored by git: dimmed, unless it's on the cursor path.
-        let dim = if git == Some(St::Ignored) && app.settings.dim_ignored && !route.contains(&id) { 0.45 } else { 1.0 };
-        let mut style = Style::new().fg(to_color(mix(BG, mix(a.rgb, RIPPLE, g), a.alpha * dim)));
+        // Ignored by git: grey at the dim floor's lightness, unless it's on the cursor path.
+        let quiet = git == Some(St::Ignored) && app.settings.dim_ignored && !route.contains(&id);
+        let rgb = if quiet { ignored_shade(a.rgb, app.settings.dim_floor) } else { a.rgb };
+        let mut style = Style::new().fg(to_color(mix(BG, mix(rgb, RIPPLE, g), a.alpha)));
         if node.is_dir || route.contains(&id) {
             style = style.add_modifier(Modifier::BOLD);
         }
@@ -371,7 +384,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         let (name, details) = a.label.split_at(a.name.min(a.label.len()));
         put(buf, canvas, sx, sy, name, style);
         if !details.is_empty() {
-            let st = Style::new().fg(to_color(mix(BG, a.rgb, a.alpha * dim * 0.5)));
+            let st = Style::new().fg(to_color(mix(BG, rgb, a.alpha * 0.5)));
             put(buf, canvas, sx + name.width() as i32, sy, details, st);
         }
         if let Some(r) = finding.filter(|_| !a.ghost && node.parent == column).and_then(|q| crate::hit(name, q)) {
@@ -391,7 +404,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         } else if bud && !a.ghost {
             let c = match git {
                 Some(s) => mix(BG, git_color(s), a.alpha),
-                None => mix(BG, a.rgb, a.alpha * 0.55 * dim),
+                None => mix(BG, rgb, a.alpha * 0.55),
             };
             put(buf, canvas, sx + a.w + 1, sy, "›", Style::new().fg(to_color(c)));
         } else if let (Some(s), false) = (git, node.is_dir) {

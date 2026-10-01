@@ -9,6 +9,7 @@
 //!    stretch and grow with the motion instead of snapping.
 //!
 //! Each parent's elbow gets its own trunk column so trunks never merge.
+use std::cmp::Ordering as Side;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::SystemTime;
@@ -45,6 +46,9 @@ pub const UP: u8 = 1;
 pub const DOWN: u8 = 2;
 pub const LEFT: u8 = 4;
 pub const RIGHT: u8 = 8;
+
+/// A column gets one connector lane per this many cells of its width.
+const LANES_PER_WIDTH: i32 = 3;
 
 /// Line emphasis, highest wins per cell.
 pub const DIM: u8 = 0;
@@ -88,8 +92,12 @@ pub struct Layout {
 pub struct Cell {
     /// Direction bits (UP/DOWN/LEFT/RIGHT).
     pub mask: u8,
-    /// Bits contributed by the route; horizontal ones draw as a double tube.
+    /// Bits contributed by the route; horizontal ones draw as a double tube
+    /// (except on heavy and double lines, where the route is color alone).
     pub route: u8,
+    /// Bits only ignored entries contribute. On heavy and double lines
+    /// these draw light, so ignored branches look thinner.
+    pub thin: u8,
     /// Highest emphasis touching the cell.
     pub emph: u8,
     /// Parent dir of the branch that owns the cell (for its heat tint).
@@ -117,10 +125,35 @@ pub fn cell_glyph(c: &Cell) -> char {
     styled_cell_glyph(STYLE.load(Ordering::Relaxed) as usize, c)
 }
 
+/// Heavy or double lines where a light run crosses: [vertical heavy/double,
+/// horizontal light], then [vertical light, horizontal heavy/double].
+const MIXED: [[[char; 16]; 2]; 2] = [
+    [
+        ['·', '┃', '┃', '┃', '─', '┚', '┒', '┨', '─', '┖', '┎', '┠', '─', '┸', '┰', '╂'],
+        ['·', '│', '│', '│', '━', '┙', '┑', '┥', '━', '┕', '┍', '┝', '━', '┷', '┯', '┿'],
+    ],
+    [
+        ['·', '║', '║', '║', '─', '╜', '╖', '╢', '─', '╙', '╓', '╟', '─', '╨', '╥', '╫'],
+        ['·', '│', '│', '│', '═', '╛', '╕', '╡', '═', '╘', '╒', '╞', '═', '╧', '╤', '╪'],
+    ],
+];
+
 /// Glyph for a cell: the route's horizontal run is a double "tube"
 /// (like the original's hollow cables); crossings keep the light verticals.
+/// On heavy and double lines, runs that only ignored entries use go light.
 fn styled_cell_glyph(style: usize, c: &Cell) -> char {
-    let plain = GLYPHS[style][c.mask as usize & 15];
+    let m = c.mask as usize & 15;
+    if (style == 2 || style == 3) && c.thin != 0 {
+        let axis = |bits: u8| c.mask & bits & !c.thin != 0 || c.mask & bits == 0;
+        let set = &MIXED[style - 2];
+        return match (axis(UP | DOWN), axis(LEFT | RIGHT)) {
+            (true, true) => GLYPHS[style][m],
+            (true, false) => set[0][m],
+            (false, true) => set[1][m],
+            (false, false) => GLYPHS[1][m],
+        };
+    }
+    let plain = GLYPHS[style][m];
     if c.route & (LEFT | RIGHT) == 0 {
         return plain;
     }
@@ -282,10 +315,6 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
             out.cols.push((x - 2, x + colw + 3, on_line.copied()));
             break;
         }
-        let n = parents.len() as i32;
-        let next_x = x + colw + n + sp.gap.max(3) + sp.branch.max(0);
-        out.cols.push((x - 2, next_x - 2, on_line.copied()));
-
         // y0 per parent. The spine block is pinned so its spine child sits on
         // the line; blocks above pack upward from it, blocks below downward.
         let ideal = |py: i32, len: i32| py - (len - 1) / 2;
@@ -316,21 +345,40 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
         // parent must sit right of every lower parent's trunk, so lower parents
         // go further left; a block raised above its parent is the mirror image.
         // Blocks going opposite ways never share rows, so each direction counts
-        // from the bar on its own and every trunk hugs its block.
-        let raised: Vec<bool> =
-            parents.iter().zip(&y0s).map(|((pid, py, ..), y0)| y0 + tree.kids(*pid).len() as i32 - 1 < *py).collect();
-        let ups = raised.iter().filter(|&&r| r).count() as i32;
+        // from the bar on its own and every trunk hugs its block. Lanes are
+        // capped at a third of the column's width: past that, the longest
+        // elbows share the outermost lane, so the gap never runs away.
+        let cap = (colw / LANES_PER_WIDTH).max(2);
+        // Raised (block above its parent), lowered, or level: a level block
+        // joins straight across and needs no lane.
+        let way: Vec<Side> = parents
+            .iter()
+            .zip(&y0s)
+            .map(|((pid, py, ..), &y0)| {
+                let y1 = y0 + tree.kids(*pid).len() as i32 - 1;
+                if y1 < *py { Side::Less } else if y0 > *py { Side::Greater } else { Side::Equal }
+            })
+            .collect();
+        let ups = way.iter().filter(|&&w| w == Side::Less).count() as i32;
         let (mut up, mut down) = (0, 0);
-        let mut slots = Vec::with_capacity(raised.len());
-        for &r in &raised {
-            if r {
-                slots.push(ups - 1 - up);
-                up += 1;
-            } else {
-                slots.push(down);
-                down += 1;
+        let mut slots = Vec::with_capacity(way.len());
+        for &w in &way {
+            match w {
+                Side::Less => {
+                    slots.push((ups - 1 - up).min(cap - 1));
+                    up += 1;
+                }
+                Side::Greater => {
+                    slots.push(down.min(cap - 1));
+                    down += 1;
+                }
+                Side::Equal => slots.push(0),
             }
         }
+        // At least one, so a lone straight join keeps today's spacing.
+        let lanes = up.max(down).min(cap).max(1);
+        let next_x = x + colw + lanes + sp.gap.max(3) + sp.branch.max(0);
+        out.cols.push((x - 2, next_x - 2, on_line.copied()));
         let mut next = Vec::new();
         for (k, (pid, ..)) in parents.iter().enumerate() {
             let kids = tree.kids(*pid).to_vec();
@@ -360,12 +408,19 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
 struct Canvas {
     cells: Lines,
     owner: usize,
+    /// Whether what's drawn now leads to an entry git doesn't ignore.
+    thick: bool,
+    /// Per cell, the bits drawn while `thick`.
+    thick_bits: HashMap<(i32, i32), u8>,
 }
 
 impl Canvas {
     fn add(&mut self, x: i32, y: i32, bits: u8, emph: u8) {
         let e = self.cells.entry((x, y)).or_insert(Cell { owner: self.owner, ..Cell::default() });
         e.mask |= bits;
+        if self.thick {
+            *self.thick_bits.entry((x, y)).or_default() |= bits;
+        }
         if emph == ROUTE {
             e.route |= bits;
         }
@@ -392,14 +447,16 @@ impl Canvas {
 
 /// Connector cells for every block, from the given positions.
 /// `pos(id)` -> (x, y, label width); None = node not drawn, block skipped.
-/// `route` = root..cursor (brightest); `spine` = the whole line (active).
+/// `route` = root..cursor (brightest); `spine` = the whole line (active);
+/// `ignored(id)` = git ignores it, so its branch may draw thinner.
 pub fn lines(
     blocks: &[Block],
     pos: &dyn Fn(usize) -> Option<(i32, i32, i32)>,
     route: &HashSet<usize>,
     spine: &HashSet<usize>,
+    ignored: &dyn Fn(usize) -> bool,
 ) -> Lines {
-    let mut c = Canvas { cells: HashMap::new(), owner: 0 };
+    let mut c = Canvas { cells: HashMap::new(), owner: 0, thick: true, thick_bits: HashMap::new() };
     for b in blocks {
         c.owner = b.parent;
         let Some((px, py, pw)) = pos(b.parent) else { continue };
@@ -420,7 +477,11 @@ pub fn lines(
         let routed = kids.iter().find(|k| route.contains(&k.0)).map(|k| k.2);
         let top = if on && routed.is_some() { ROUTE } else { base };
 
-        for &(_, x, y) in &kids {
+        // A kid's own tick is thin if it's ignored; the bar and the join
+        // into it stay thick while anything in the block isn't.
+        let block_thick = kids.iter().any(|k| !ignored(k.0));
+        for &(k, x, y) in &kids {
+            c.thick = !ignored(k);
             let emph = if Some(y) == routed { top } else { base };
             // Offset 0 keeps the join on the name, even while kids slide in.
             if b.off > 0 && x - 1 > bar_x {
@@ -430,6 +491,7 @@ pub fn lines(
                 c.add(bar_x, y, RIGHT, emph);
             }
         }
+        c.thick = block_thick;
         c.vseg(bar_x, y0, y1, base);
         // Join the block at its top entry, from above or below; a parent level
         // with its block joins it straight across.
@@ -445,6 +507,9 @@ pub fn lines(
         if let Some(ry) = routed.filter(|_| top == ROUTE) {
             c.vseg(bar_x, ty, ry, ROUTE);
         }
+    }
+    for (at, cell) in c.cells.iter_mut() {
+        cell.thin = cell.mask & !c.thick_bits.get(at).copied().unwrap_or(0);
     }
     c.cells
 }
@@ -475,7 +540,7 @@ mod tests {
     fn target_lines(l: &Layout, route: &HashSet<usize>) -> Lines {
         let m: HashMap<usize, (i32, i32, i32)> =
             l.placed.iter().map(|p| (p.id, (p.x, p.y, p.label.width() as i32))).collect();
-        lines(&l.blocks, &|id| m.get(&id).copied(), route, route)
+        lines(&l.blocks, &|id| m.get(&id).copied(), route, route, &|_| false)
     }
 
     fn deep(name: &str) -> (Tree, usize, usize, usize) {
@@ -524,19 +589,22 @@ mod tests {
 
     /// Cells two blocks both draw: a crossing or an overlap. Blocks never
     /// share a cell when the wiring is right.
+    /// Cells where one block's wire runs straight through another's at a right
+    /// angle. Capped lanes share cells on purpose; those join, they don't cross.
     fn clashes(l: &Layout, route: &HashSet<usize>) -> Vec<(i32, i32)> {
         let m: HashMap<usize, (i32, i32, i32)> =
             l.placed.iter().map(|p| (p.id, (p.x, p.y, p.label.width() as i32))).collect();
-        let mut seen: HashMap<(i32, i32), usize> = HashMap::new();
-        let mut out = Vec::new();
+        let mut seen: HashMap<(i32, i32), Vec<u8>> = HashMap::new();
         for b in &l.blocks {
-            for cell in lines(std::slice::from_ref(b), &|id| m.get(&id).copied(), route, route).into_keys() {
-                if seen.insert(cell, b.parent).is_some() {
-                    out.push(cell);
-                }
+            for (at, c) in lines(std::slice::from_ref(b), &|id| m.get(&id).copied(), route, route, &|_| false) {
+                seen.entry(at).or_default().push(c.mask);
             }
         }
-        out
+        let through = |ms: &[u8], bits: u8| ms.iter().any(|&m| m & bits == bits);
+        seen.into_iter()
+            .filter(|(_, ms)| ms.len() > 1 && through(ms, UP | DOWN) && through(ms, LEFT | RIGHT))
+            .map(|(at, _)| at)
+            .collect()
     }
 
     #[test]
@@ -762,17 +830,70 @@ mod tests {
         t.nodes[0].expanded = true;
         let l = layout(&t, 0, &name_of(&t), Spacing::default());
         // Kid sitting inside the parent label (mid-animation): no connector.
-        let ln = lines(&l.blocks, &|id| Some(if id == 0 { (0, 0, 10) } else { (5, 0, 1) }), &HashSet::new(), &HashSet::new());
+        let ln = lines(&l.blocks, &|id| Some(if id == 0 { (0, 0, 10) } else { (5, 0, 1) }), &HashSet::new(), &HashSet::new(), &|_| false);
         assert!(ln.is_empty());
     }
 
     #[test]
     fn route_is_a_tube_and_crossings_join() {
-        let c = |mask, route| Cell { mask, route, emph: ROUTE, owner: 0 };
+        let c = |mask, route| Cell { mask, route, emph: ROUTE, ..Cell::default() };
         assert_eq!(cell_glyph(&c(LEFT | RIGHT, LEFT | RIGHT)), '═');
         assert_eq!(cell_glyph(&c(UP | DOWN | LEFT | RIGHT, LEFT | RIGHT)), '╪', "light bar through the tube");
         assert_eq!(cell_glyph(&c(DOWN | RIGHT, RIGHT)), '╒');
         assert_eq!(cell_glyph(&c(UP | DOWN, 0)), '│', "no route bits: light");
+    }
+
+    #[test]
+    fn ignored_branches_draw_thin_on_double_and_heavy() {
+        let c = |mask, thin| Cell { mask, thin, ..Cell::default() };
+        let tick = c(UP | DOWN | RIGHT, RIGHT);
+        assert_eq!(styled_cell_glyph(3, &tick), '╟', "double bar, light tick");
+        assert_eq!(styled_cell_glyph(2, &tick), '┠', "heavy bar, light tick");
+        assert_eq!(styled_cell_glyph(3, &c(UP | RIGHT, RIGHT)), '╙', "last kid ignored");
+        assert_eq!(styled_cell_glyph(3, &c(LEFT | RIGHT, LEFT | RIGHT)), '─');
+        assert_eq!(styled_cell_glyph(3, &c(UP | DOWN | RIGHT, UP | DOWN | RIGHT)), '├', "all ignored: all light");
+        assert_eq!(styled_cell_glyph(3, &c(UP | DOWN | RIGHT, 0)), '╠');
+        assert_eq!(styled_cell_glyph(0, &tick), '├', "rounded has no thinner line");
+    }
+
+    #[test]
+    fn ignored_kid_gets_a_thin_tick_on_a_thick_bar() {
+        let root = fixture("thin", &["a", "b", "c"]);
+        let mut t = Tree::new(&root);
+        t.load(0);
+        t.nodes[0].expanded = true;
+        let l = layout(&t, 0, &name_of(&t), Spacing::default());
+        let m: HashMap<usize, (i32, i32, i32)> = l.placed.iter().map(|p| (p.id, (p.x, p.y, p.label.width() as i32))).collect();
+        let b = t.kids(0)[1];
+        let ln = lines(&l.blocks, &|id| m.get(&id).copied(), &HashSet::new(), &HashSet::new(), &|id| id == b);
+        let (xb, yb) = pos(&l, &t, "b");
+        let (xa, ya) = pos(&l, &t, "a");
+        assert_eq!(ln[&(xb - 1, yb)].thin, RIGHT, "b's tick is thin, the bar through it isn't");
+        assert_eq!(ln[&(xa - 1, ya)].thin, 0);
+        let all = lines(&l.blocks, &|id| m.get(&id).copied(), &HashSet::new(), &HashSet::new(), &|id| id != 0);
+        assert!(all.values().all(|c| c.thin == c.mask), "a block of only ignored kids is all thin");
+    }
+
+    #[test]
+    fn lanes_are_capped_and_never_cross() {
+        let dirs: Vec<String> = (0..12).flat_map(|i| ["x", "y", "z"].map(|k| format!("folder-{i:02}/{k}"))).collect();
+        let root = fixture("lanes", &dirs.iter().map(String::as_str).collect::<Vec<_>>());
+        let mut t = Tree::new(&root);
+        t.load(0);
+        t.nodes[0].expanded = true;
+        for k in t.kids(0).to_vec() {
+            t.load(k);
+            t.nodes[k].expanded = true;
+        }
+        let sp = Spacing::default();
+        let l = layout(&t, 0, &name_of(&t), sp);
+        let (x1, _) = pos(&l, &t, "folder-00");
+        let (x2, _) = pos(&l, &t, "x");
+        let colw = "folder-00".len() as i32;
+        let lanes = x2 - x1 - colw - sp.gap - sp.branch;
+        assert_eq!(lanes, (colw / LANES_PER_WIDTH).max(2), "12 open folders, lanes held to the cap");
+        let ln = target_lines(&l, &HashSet::new());
+        assert!(ln.values().all(|c| c.mask != UP | DOWN | LEFT | RIGHT), "merged lanes join, they don't cross");
     }
 
     #[test]
