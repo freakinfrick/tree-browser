@@ -770,7 +770,7 @@ const KEYS: [(&str, &str); 24] = [
     ("/ n N", "find in column · next / previous"),
     ("tab ↑↓ while /", "cycle matches · Caps = exact case"),
     ("-", "re-root one level up"),
-    ("c", "collapse other branches"),
+    ("c C", "fold this folder · collapse other branches"),
     ("e", "explode: open every folder inside · esc stops"),
     (".", "show / hide dotfiles"),
     ("o O", "sort: name · newest · largest · type · reverse"),

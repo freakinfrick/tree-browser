@@ -549,6 +549,14 @@ impl App {
         self.epoch += 1;
     }
 
+    /// Fold the folder under the cursor; nothing on a file.
+    fn collapse(&mut self) {
+        let n = &mut self.tree.nodes[self.cursor];
+        if n.is_dir {
+            n.expanded = false;
+        }
+    }
+
     /// Fold every branch that isn't on the cursor path.
     fn collapse_others(&mut self) {
         let path = self.tree.path_to(self.cursor);
@@ -1106,7 +1114,8 @@ impl App {
                 self.menu = Some(0);
                 self.help = false;
             }
-            KeyCode::Char('c') => self.collapse_others(),
+            KeyCode::Char('c') => self.collapse(),
+            KeyCode::Char('C') => self.collapse_others(),
             KeyCode::Char('e') => self.explode(),
             KeyCode::Char('r') => self.reload(),
             KeyCode::Char('?') => self.help ^= true,
@@ -1296,7 +1305,7 @@ fn main() -> std::io::Result<()> {
     let arg = arg.unwrap_or_else(|| ".".into());
     if arg == "-h" || arg == "--help" {
         println!(
-            "treebeard: horizontal tree file browser\n\nusage: tb [--cwd-file PATH] [DIR]\n\nhjkl/arrows move · enter/l open · space fold · . dotfiles · - reroot up · c collapse others · r reload · ? help\n\
+            "treebeard: horizontal tree file browser\n\nusage: tb [--cwd-file PATH] [DIR]\n\nhjkl/arrows move · enter/l open · space fold · . dotfiles · - reroot up · c fold · C collapse others · r reload · ? help\n\
              ! run a command in the selected folder ($f = selection) · s shell there (exit returns) · q quit · esc quit\n\
              --cwd-file: on q, write the selected folder there (tb.bash turns that into cd)\n\
              image/pdf preview: j/k page · i pixels <-> half-blocks · TB_GRAPHICS=halfblocks|kitty|sixel|iterm2|off\n\
@@ -1491,6 +1500,40 @@ mod tests {
         for c in keys.chars() {
             app.key(KeyCode::Char(c), KeyModifiers::NONE);
         }
+    }
+
+    #[test]
+    fn c_folds_the_folder_under_the_cursor_and_shift_c_everything_else() {
+        let mut app = app_in("fold", &["x"]);
+        let d = app.tree.nodes[app.cursor].path.parent().unwrap().to_path_buf();
+        for f in ["a/1", "b/2"] {
+            fs::create_dir_all(d.join(f)).unwrap();
+        }
+        app.reload();
+        let open = |app: &mut App, dir: &str| {
+            let id = app.node_at(&d.join(dir)).unwrap();
+            app.tree.load(id);
+            app.tree.nodes[id].expanded = true;
+            id
+        };
+        let (a, b) = (open(&mut app, "a"), open(&mut app, "b"));
+        let c = |app: &mut App| app.key(KeyCode::Char('c'), KeyModifiers::NONE);
+
+        let id = app.node_at(&d.join("x")).unwrap();
+        app.set_cursor(id);
+        c(&mut app);
+        assert!(app.tree.nodes[a].expanded && app.tree.nodes[b].expanded, "c on a file does nothing");
+        app.set_cursor(a);
+        c(&mut app);
+        assert!(!app.tree.nodes[a].expanded, "c folds the folder under the cursor");
+        assert!(app.tree.nodes[b].expanded, "and only that one");
+
+        open(&mut app, "a");
+        let id = app.node_at(&d.join("a/1")).unwrap();
+        app.set_cursor(id);
+        app.key(KeyCode::Char('C'), KeyModifiers::SHIFT);
+        assert!(app.tree.nodes[a].expanded, "C keeps the cursor path open");
+        assert!(!app.tree.nodes[b].expanded, "C folds everything else");
     }
 
     #[test]
