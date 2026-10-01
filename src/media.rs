@@ -97,14 +97,19 @@ pub fn picker() -> Option<(Picker, ProtocolType)> {
     Some((p, detected))
 }
 
+/// Whether the image viewer opens this file: images and PDFs.
+pub fn shows(path: &Path) -> bool {
+    let e = ext(path);
+    e == "pdf" || IMAGE_EXT.contains(&e.as_str())
+}
+
 impl Media {
     /// Media preview for image and PDF files, None for everything else.
     pub fn open(path: &Path) -> Option<Media> {
-        let e = ext(path);
-        let pdf = e == "pdf";
-        if !pdf && !IMAGE_EXT.contains(&e.as_str()) {
+        if !shows(path) {
             return None;
         }
+        let pdf = ext(path) == "pdf";
         let mut m =
             Media { path: path.to_path_buf(), pdf, pages: 1, page: 0, img: None, proto: None, built: Default::default(), dims: None, err: None };
         if pdf {

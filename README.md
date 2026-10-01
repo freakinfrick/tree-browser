@@ -116,8 +116,9 @@ slow notches stay one step each (**Wheel speed** and **Momentum** in the setting
 in the settings to select text with it instead.
 
 **In a preview:** `j` `k`, `Space` `PgDn`, `Ctrl-D` `Ctrl-U`, `g` `G` scroll text; for images and PDFs
-`j` `k` `Space` flip pages and `g` `G` jump to the first / last. `i` switches between pixels and
-half-blocks. `d` shows a changed file's git diff (and back). `q` `Esc` `h` close.
+`j` `k` `Space` flip pages, `g` `G` jump to the first / last, and `↑` `↓` step to the previous / next
+image or PDF in the folder. `i` switches between pixels and half-blocks. `d` shows a changed file's
+git diff (and back). `q` `Esc` `h` close.
 
 **In an audio preview:**
 

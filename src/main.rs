@@ -959,6 +959,28 @@ impl App {
         self.set_cursor(to.unwrap_or(origin));
     }
 
+    /// The image viewer's up/down: open the previous or next image or PDF in
+    /// the cursor's folder, in the tree's order, without closing the viewer.
+    /// Stays put at either end.
+    fn flip_file(&mut self, d: i32) {
+        let Some(dir) = self.tree.nodes[self.cursor].parent else { return };
+        let kids = self.tree.kids(dir);
+        let Some(at) = kids.iter().position(|&k| k == self.cursor) else { return };
+        // Empty files open as text, which would end the flipping.
+        let shows = |k: &&usize| {
+            let n = &self.tree.nodes[**k];
+            !n.is_dir && n.size > 0 && media::shows(&n.path)
+        };
+        let next = if d > 0 { kids[at + 1..].iter().find(shows) } else { kids[..at].iter().rev().find(shows) };
+        let Some(&id) = next else { return };
+        let open = self.preview.as_ref().map(|p| p.open);
+        self.set_cursor(id);
+        self.open_file(id);
+        if let (Some(open), Some(pv)) = (open, self.preview.as_mut()) {
+            pv.open = open;
+        }
+    }
+
     /// Open preview that is not already closing.
     fn open_preview(&mut self) -> Option<&mut Preview> {
         self.preview.as_mut().filter(|p| !p.closing)
@@ -1012,15 +1034,15 @@ impl App {
                 return true;
             }
             if let Some(m) = &mut pv.media {
-                // Pages instead of lines.
+                // Pages instead of lines; the up/down arrows step through the folder's images.
                 match code {
                     KeyCode::Char('q') | KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => pv.closing = true,
-                    KeyCode::Char('j' | 'l' | 'n' | ' ') | KeyCode::Down | KeyCode::Right | KeyCode::PageDown => {
-                        m.flip(1)
-                    }
-                    KeyCode::Char('k' | 'p') | KeyCode::Up | KeyCode::PageUp => m.flip(-1),
+                    KeyCode::Char('j' | 'l' | 'n' | ' ') | KeyCode::Right | KeyCode::PageDown => m.flip(1),
+                    KeyCode::Char('k' | 'p') | KeyCode::PageUp => m.flip(-1),
                     KeyCode::Char('g') | KeyCode::Home => m.goto(0),
                     KeyCode::Char('G') | KeyCode::End => m.goto(isize::MAX / 2),
+                    KeyCode::Down => self.flip_file(1),
+                    KeyCode::Up => self.flip_file(-1),
                     _ => {}
                 }
                 return true;
@@ -1469,6 +1491,33 @@ mod tests {
         for c in keys.chars() {
             app.key(KeyCode::Char(c), KeyModifiers::NONE);
         }
+    }
+
+    #[test]
+    fn arrows_in_the_image_viewer_flip_through_the_folders_images() {
+        let mut app = app_in("flip", &["1.png", "2.txt", "3.pdf", "4.jpg", "5.png", "6.gif"]);
+        let d = app.tree.nodes[app.cursor].path.parent().unwrap().to_path_buf();
+        for f in ["1.png", "2.txt", "3.pdf", "4.jpg", "6.gif"] {
+            fs::write(d.join(f), "not really a picture").unwrap();
+        }
+        app.reload();
+        let id = app.node_at(&d.join("1.png")).unwrap();
+        app.set_cursor(id);
+        app.key(KeyCode::Enter, KeyModifiers::NONE);
+        let shown = |app: &App| app.preview.as_ref().unwrap().path.file_name().unwrap().to_string_lossy().into_owned();
+        let mut seen = Vec::new();
+        for _ in 0..4 {
+            app.key(KeyCode::Down, KeyModifiers::NONE);
+            seen.push(shown(&app));
+        }
+        // Text and the empty 5.png are passed by; the last image stays put.
+        assert_eq!(seen, ["3.pdf", "4.jpg", "6.gif", "6.gif"]);
+        assert_eq!(at(&app), "6.gif", "the cursor follows");
+        app.key(KeyCode::Up, KeyModifiers::NONE);
+        assert_eq!(shown(&app), "4.jpg");
+        app.key(KeyCode::Char('j'), KeyModifiers::NONE);
+        assert_eq!(shown(&app), "4.jpg", "j turns pages, not files");
+        assert!(app.preview.as_ref().is_some_and(|p| !p.closing));
     }
 
     #[test]

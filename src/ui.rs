@@ -779,7 +779,7 @@ const KEYS: [(&str, &str); 24] = [
     ("wheel", "scroll the column under the pointer"),
     ("preview", "j k · space · ctrl-d/u · g G · q"),
     ("d in a preview", "git diff ⇄ file · M + ? ! marks"),
-    ("image / pdf", "j k page · i pixels ⇄ blocks"),
+    ("image / pdf", "j k page · ↑ ↓ image · i pixels ⇄ blocks"),
     ("audio", "space pause · ← → seek · ↑ ↓ volume · 0-9"),
     ("!", "run a command here ($f = selection)"),
     ("s", "shell here · exit / ctrl-d returns"),
