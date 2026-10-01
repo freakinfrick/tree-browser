@@ -228,7 +228,7 @@ impl Default for Settings {
         Settings {
             row_spacing: 0,
             column_gap: 3,
-            pipes: Pipes::River,
+            pipes: Pipes::Capped,
             tracks: 3,
             max_name: 28,
             columns: Columns::Fit,
