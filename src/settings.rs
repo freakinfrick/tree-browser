@@ -113,6 +113,23 @@ impl HeatRange {
     }
 }
 
+/// How a folder's line reaches its contents in the next column.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Pipes {
+    /// Reactive river routing: tracks only for the pipes on screen, nested so
+    /// they never cross; pipes off screen share and split before they show.
+    River,
+    /// One track per open folder, nested so pipes never cross.
+    Nested,
+    /// One track per open folder, in folder order; pipes may cross. The first design.
+    Crossing,
+    /// One track per open folder up to a third of the column's width; past
+    /// that the longest pipes share the outermost track.
+    Capped,
+    /// No tracks: folders move beside their contents and join straight across.
+    Tidy,
+}
+
 /// Box-drawing set for the tree's lines.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum LineStyle {
@@ -161,6 +178,9 @@ pub enum TextPreview {
 pub struct Settings {
     pub row_spacing: u8,
     pub column_gap: u8,
+    pub pipes: Pipes,
+    /// River pipes: tracks between columns before the gap widens.
+    pub tracks: u8,
     pub max_name: u8,
     pub columns: Columns,
     pub details: Details,
@@ -200,6 +220,8 @@ impl Default for Settings {
         Settings {
             row_spacing: 0,
             column_gap: 3,
+            pipes: Pipes::River,
+            tracks: 3,
             max_name: 28,
             columns: Columns::Fit,
             details: Details::Off,
@@ -241,9 +263,11 @@ pub struct Item {
     pub help: &'static str,
 }
 
-pub const ITEMS: [Item; 32] = [
+pub const ITEMS: [Item; 34] = [
     Item { key: "row_spacing", label: "Row spacing", section: "Layout", help: "Blank rows between entries. More air, fewer entries on screen." },
     Item { key: "column_gap", label: "Column gap", section: "Layout", help: "Space between a column's longest name and the next column." },
+    Item { key: "pipes", label: "Pipes", section: "Layout", help: "How lines reach a folder's contents. River: tracks only for what's on screen, nested, never crossing. Nested: one per open folder. Crossing: the first design. Capped: shared past a third of the width. Tidy: no tracks, folders move." },
+    Item { key: "tracks", label: "River tracks", section: "Layout", help: "River pipes: tracks between columns before the gap widens. A fully opened tree widens to fit its busiest screen." },
     Item { key: "max_name", label: "Column width", section: "Layout", help: "Widest a column gets. Longer names are cut with a …" },
     Item { key: "columns", label: "Columns", section: "Layout", help: "Fit: as wide as the longest name. Equal: all the column width, a grid that holds still." },
     Item { key: "details", label: "Name details", section: "Layout", help: "Age and/or size after each name, dimmed. Folders count everything inside." },
@@ -285,6 +309,7 @@ const PALETTES: [Palette; 3] = [Palette::Ember, Palette::Aurora, Palette::Mono];
 const COLUMNS: [Columns; 2] = [Columns::Fit, Columns::Equal];
 const DETAILS: [Details; 4] = [Details::Off, Details::Age, Details::Size, Details::Both];
 const RANGES: [HeatRange; 5] = [HeatRange::Day, HeatRange::Week, HeatRange::Month, HeatRange::Year, HeatRange::Years5];
+const PIPES: [Pipes; 5] = [Pipes::River, Pipes::Nested, Pipes::Crossing, Pipes::Capped, Pipes::Tidy];
 const LINES: [LineStyle; 5] = [LineStyle::Double, LineStyle::Heavy, LineStyle::Rounded, LineStyle::Square, LineStyle::Ascii];
 const GRAPHICS: [Graphics; 4] = [Graphics::Auto, Graphics::Pixels, Graphics::Blocks, Graphics::Off];
 const STEPS: [StepThrough; 3] = [StepThrough::Folder, StepThrough::Column, StepThrough::Tree];
@@ -373,6 +398,16 @@ fn range_word(r: HeatRange) -> &'static str {
     }
 }
 
+fn pipes_word(p: Pipes) -> &'static str {
+    match p {
+        Pipes::River => "river",
+        Pipes::Nested => "nested",
+        Pipes::Crossing => "crossing",
+        Pipes::Capped => "capped",
+        Pipes::Tidy => "tidy",
+    }
+}
+
 fn lines_word(l: LineStyle) -> &'static str {
     match l {
         LineStyle::Rounded => "rounded",
@@ -422,6 +457,8 @@ impl Settings {
         match key {
             "row_spacing" => self.row_spacing.to_string(),
             "column_gap" => self.column_gap.to_string(),
+            "pipes" => pipes_word(self.pipes).into(),
+            "tracks" => self.tracks.to_string(),
             "max_name" => self.max_name.to_string(),
             "columns" => columns_word(self.columns).into(),
             "details" => details_word(self.details).into(),
@@ -459,7 +496,7 @@ impl Settings {
     /// The value as the config file stores it.
     pub fn store(&self, key: &str) -> String {
         match key {
-            "row_spacing" | "column_gap" | "max_name" | "branch_offset" | "wheel_speed" | "dim_floor" | "focus_dim" => self.show(key),
+            "row_spacing" | "column_gap" | "tracks" | "max_name" | "branch_offset" | "wheel_speed" | "dim_floor" | "focus_dim" => self.show(key),
             "sort_reverse" => self.sort.rev.to_string(),
             "show_hidden" => self.show_hidden.to_string(),
             "legend" | "live" | "ripples" | "git" | "dim_ignored" | "folders_first" | "natural_sort" | "explode_ignored" | "mouse" | "wrap"
@@ -474,6 +511,8 @@ impl Settings {
         match key {
             "row_spacing" => self.row_spacing = step(self.row_spacing, 0, 3, 1),
             "column_gap" => self.column_gap = step(self.column_gap, 3, 12, 1),
+            "pipes" => self.pipes = cycle(&PIPES, self.pipes, dir),
+            "tracks" => self.tracks = step(self.tracks, 1, 6, 1),
             "max_name" => self.max_name = step(self.max_name, 12, 60, 2),
             "columns" => self.columns = cycle(&COLUMNS, self.columns, dir),
             "details" => self.details = cycle(&DETAILS, self.details, dir),
@@ -514,6 +553,8 @@ impl Settings {
         match key {
             "row_spacing" => self.row_spacing = d.row_spacing,
             "column_gap" => self.column_gap = d.column_gap,
+            "pipes" => self.pipes = d.pipes,
+            "tracks" => self.tracks = d.tracks,
             "max_name" => self.max_name = d.max_name,
             "columns" => self.columns = d.columns,
             "details" => self.details = d.details,
@@ -558,6 +599,8 @@ impl Settings {
         match key {
             "row_spacing" => self.row_spacing = num(0, 3)?,
             "column_gap" => self.column_gap = num(3, 12)?,
+            "pipes" => self.pipes = find(&PIPES, v, pipes_word).ok_or(bad("river, nested, crossing, capped, tidy"))?,
+            "tracks" => self.tracks = num(1, 6)?,
             "max_name" => self.max_name = num(12, 60)?,
             "columns" => self.columns = find(&COLUMNS, v, columns_word).ok_or(bad("fit, equal"))?,
             "details" => self.details = find(&DETAILS, v, details_word).ok_or(bad("off, age, size, both"))?,

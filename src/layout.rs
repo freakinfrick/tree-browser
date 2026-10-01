@@ -8,13 +8,16 @@
 //!    a function lets the renderer feed animated positions, so connectors
 //!    stretch and grow with the motion instead of snapping.
 //!
-//! Each parent's elbow gets its own trunk column so trunks never merge.
+//! How a parent's line reaches its block is the `Pipes` setting: every design
+//! tb has had, from one trunk column per open folder to reactive river routing,
+//! where only the pipes on screen get their own tracks.
+use std::cmp::Ordering as Side;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::SystemTime;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-use crate::settings::{Columns, Details, LineStyle};
+use crate::settings::{Columns, Details, LineStyle, Pipes};
 use crate::tree::Tree;
 
 pub const MAXW: usize = 28;
@@ -34,13 +37,35 @@ pub struct Spacing {
     pub details: Details,
     /// Line cells between each join and the name it leads to.
     pub branch: i32,
+    pub pipes: Pipes,
+    /// River pipes: tracks in every column gap, at least.
+    pub tracks: i32,
+    /// Rows on screen, for river pipes. 0: unknown, every pipe gets a track.
+    pub view: i32,
 }
 
 impl Default for Spacing {
     fn default() -> Spacing {
-        Spacing { rows: 0, gap: 3, maxw: MAXW, columns: Columns::Fit, details: Details::Off, branch: 0 }
+        Spacing {
+            rows: 0,
+            gap: 3,
+            maxw: MAXW,
+            columns: Columns::Fit,
+            details: Details::Off,
+            branch: 0,
+            pipes: Pipes::River,
+            tracks: 3,
+            view: 0,
+        }
     }
 }
+
+/// A column gets one connector lane per this many cells of its width (capped pipes).
+const LANES_PER_WIDTH: i32 = 3;
+
+/// River pipes: rows past each edge of the screen whose pipes already have
+/// their own tracks, so pipes split before they scroll into view.
+const MARGIN: i32 = 10;
 pub const UP: u8 = 1;
 pub const DOWN: u8 = 2;
 pub const LEFT: u8 = 4;
@@ -66,10 +91,28 @@ pub struct Placed {
 pub struct Block {
     pub parent: usize,
     pub kids: Vec<usize>,
-    /// Trunk index within its column gap; trunk sits at `bar_x - 1 - k`.
-    pub k: i32,
+    /// Trunk index within its column gap; trunk sits at `bar_x - 1 - k`, so
+    /// -1 runs down the block's own bar. None: no trunk, the parent sits level
+    /// with its block and the bar stretches to meet it (tidy pipes).
+    pub k: Option<i32>,
     /// Branch offset: line cells between the joins and the kids' names.
     pub off: i32,
+    /// A raised block is joined at its top entry; the first design joined it
+    /// at the bottom.
+    pub top_entry: bool,
+}
+
+/// River pipe state carried from one layout to the next, so tracks hold
+/// still as the view moves.
+#[derive(Default)]
+pub struct PipeMemory {
+    /// The track each folder's pipe had last time.
+    k: HashMap<usize, i32>,
+    /// Tracks per column gap, grown to the busiest screen seen so far. Starts
+    /// over when `sig` changes.
+    pub need: Vec<i32>,
+    /// The open folders, their sizes and the screen the tracks were sized for.
+    pub sig: u64,
 }
 
 #[derive(Default)]
@@ -82,6 +125,8 @@ pub struct Layout {
     /// past the line's end (open folders off the line reach further). A band
     /// spans the pill margin plus the gap to the next column.
     pub cols: Vec<(i32, i32, Option<usize>)>,
+    /// River pipes: tracks each column gap needs for this screen, root first.
+    pub need: Vec<i32>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -283,7 +328,117 @@ pub fn spine(tree: &Tree, cursor: usize) -> Vec<usize> {
     s
 }
 
+/// Rows each depth of a subtree spans, relative to its root: (top, bottom).
+type Contour = Vec<(i32, i32)>;
+
+/// Tidy placement, bottom-up: each open folder's kids are stacked as tight as
+/// their own subtrees allow (a row apart in their block, a blank row from any
+/// other block in every column), then the folder sits level with its block:
+/// centered on it, or on its line child. `rel` gets each kid's row relative
+/// to its parent; the returned contour is relative to `id`.
+fn tidy(tree: &Tree, id: usize, depth: usize, spine: &[usize], rel: &mut HashMap<usize, i32>) -> Contour {
+    let kids = if tree.nodes[id].expanded { tree.kids(id) } else { Vec::new() };
+    let mut forest: Contour = Vec::new();
+    let mut at = Vec::with_capacity(kids.len());
+    for &k in &kids {
+        let c = tidy(tree, k, depth + 1, spine, rel);
+        let r = forest.iter().zip(&c).enumerate().map(|(d, (f, s))| f.1 - s.0 + if d == 0 { 1 } else { 2 }).max().unwrap_or(0);
+        for (d, s) in c.iter().enumerate() {
+            let s = (s.0 + r, s.1 + r);
+            match forest.get_mut(d) {
+                Some(f) => *f = (f.0.min(s.0), f.1.max(s.1)),
+                None => forest.push(s),
+            }
+        }
+        at.push(r);
+    }
+    let line = (spine.get(depth) == Some(&id)).then(|| spine.get(depth + 1)).flatten();
+    let shift = match line.and_then(|s| kids.iter().position(|k| k == s)) {
+        Some(i) => at[i],
+        None => at.last().map_or(0, |l| l / 2),
+    };
+    for (k, r) in kids.iter().zip(&at) {
+        rel.insert(*k, r - shift);
+    }
+    let mut out = vec![(0, 0)];
+    out.extend(forest.into_iter().map(|(a, b)| (a - shift, b - shift)));
+    out
+}
+
+/// The open folders, their sizes, and what river tracks depend on: when any
+/// of it changes, the tracks are sized afresh.
+fn open_sig(tree: &Tree, sp: Spacing) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    (sp.view, sp.rows, sp.tracks).hash(&mut h);
+    let mut stack = vec![tree.root];
+    while let Some(id) = stack.pop() {
+        if tree.nodes[id].expanded {
+            let kids = tree.kids(id);
+            (id, kids.len()).hash(&mut h);
+            stack.extend(kids);
+        }
+    }
+    h.finish()
+}
+
+/// River routing for one column gap. `b` = (parent, parent row, block top,
+/// block bottom) in column order; rows within `reach` of the line are on
+/// screen or about to be. Gives each pipe there a track, None for the rest
+/// and for parents level with their block.
+///
+/// Pipes nest: of two hanging pipes that share rows, the upper parent's runs
+/// nearer the bar, so neither crosses the other; raised pipes mirror that.
+/// The first hanging pipe after a gap in the bar runs down the bar itself
+/// (track -1). `keep` holds last layout's tracks: a pipe keeps its track
+/// while that still nests and stays under `lanes`, so tracks change on screen
+/// only when a pipe that must nest inside one appears.
+fn river(b: &[(usize, i32, i32, i32)], reach: i32, keep: Option<&HashMap<usize, i32>>, lanes: i32) -> Vec<Option<i32>> {
+    let span = |j: usize| -> Option<(i32, i32)> {
+        let (_, py, y0, y1) = b[j];
+        let (a, z) = if py < y0 {
+            (py, y0)
+        } else if py > y1 {
+            (y0, py)
+        } else {
+            return None;
+        };
+        (z >= -reach && a <= reach).then_some((a.max(-reach), z.min(reach)))
+    };
+    let spans: Vec<_> = (0..b.len()).map(span).collect();
+    let meets = |i: usize, j: usize| matches!((spans[i], spans[j]), (Some(p), Some(q)) if p.0 <= q.1 && q.0 <= p.1);
+    let hangs = |j: usize| b[j].1 < b[j].2 && spans[j].is_some();
+    let rises = |j: usize| b[j].1 > b[j].3 && spans[j].is_some();
+    // Each family in nesting order, innermost first: hanging pipes top down,
+    // raised ones bottom up. A pipe must sit outside every earlier one it meets.
+    let hanging: Vec<usize> = (0..b.len()).filter(|&j| hangs(j)).collect();
+    let raised: Vec<usize> = (0..b.len()).rev().filter(|&j| rises(j)).collect();
+    let mut k: Vec<Option<i32>> = vec![None; b.len()];
+    for order in [hanging, raised] {
+        // Tracks a pipe and the chain nesting outside it need, so a kept
+        // track never leaves the pipes after it without room.
+        let mut tail = vec![1; order.len()];
+        for x in (0..order.len()).rev() {
+            tail[x] = 1 + (x + 1..order.len()).filter(|&y| meets(order[x], order[y])).map(|y| tail[y]).max().unwrap_or(0);
+        }
+        for (x, &j) in order.iter().enumerate() {
+            let bar_free = b[j].1 < b[j].2 && (j == 0 || b[j - 1].3 < b[j].1);
+            let lower = order[..x].iter().filter(|&&i| meets(i, j)).filter_map(|&i| k[i]).map(|ki| ki + 1).fold(if bar_free { -1 } else { 0 }, i32::max);
+            k[j] = Some(match keep.and_then(|m| m.get(&b[j].0)) {
+                Some(&s) => s.min(lanes - tail[x]).max(lower),
+                None => lower,
+            });
+        }
+    }
+    k
+}
+
 pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp: Spacing) -> Layout {
+    layout_with(tree, cursor, label_of, sp, &mut PipeMemory::default())
+}
+
+/// `layout`, carrying river pipe tracks over from the previous layout.
+pub fn layout_with(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp: Spacing, mem: &mut PipeMemory) -> Layout {
     let spine = spine(tree, cursor);
     let on_spine: HashSet<usize> = spine.iter().copied().collect();
     let mut out = Layout::default();
@@ -292,6 +447,21 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
     let mut level = vec![(tree.root, 0, cut(label_of(tree.root)), true)];
     let mut x = 0i32;
     let now = SystemTime::now();
+    let pitch = 1 + sp.rows.max(0);
+    let mut rel = HashMap::new();
+    if sp.pipes == Pipes::Tidy {
+        tidy(tree, tree.root, 0, &spine, &mut rel);
+    }
+    if sp.pipes == Pipes::River {
+        let sig = open_sig(tree, sp);
+        if sig != mem.sig {
+            mem.sig = sig;
+            mem.need.clear();
+        }
+    }
+    // The line sits at row 0, mid-screen.
+    let reach = if sp.view > 0 { (sp.view / 2 + MARGIN + pitch - 1) / pitch } else { i32::MAX / 4 };
+    let mut kept = HashMap::new();
     for depth in 1.. {
         let labels = column_labels(tree, &level, sp, now);
         for ((id, y, _, active), (label, name)) in level.iter().zip(&labels) {
@@ -312,8 +482,7 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
             break;
         }
         let n = parents.len() as i32;
-        let next_x = x + colw + n + sp.gap.max(3) + sp.branch.max(0);
-        out.cols.push((x - 2, next_x - 2, on_line.copied()));
+        let lens: Vec<i32> = parents.iter().map(|p| tree.kids(p.0).len() as i32).collect();
 
         // y0 per parent. The spine block is pinned so its spine child sits on
         // the line; blocks above pack upward from it, blocks below downward.
@@ -327,56 +496,133 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
                 y0s[i] = -idx;
                 let mut next_start = y0s[i];
                 for j in (0..i).rev() {
-                    let len = tree.kids(parents[j].0).len() as i32;
-                    y0s[j] = ideal(parents[j].1, len).min(next_start - 1 - len);
+                    y0s[j] = ideal(parents[j].1, lens[j]).min(next_start - 1 - lens[j]);
                     next_start = y0s[j];
                 }
-                (i + 1, y0s[i] + tree.kids(parents[i].0).len() as i32 - 1)
+                (i + 1, y0s[i] + lens[i] - 1)
             }
             None => (0, i32::MIN / 2),
         };
         for j in below_from..parents.len() {
-            let len = tree.kids(parents[j].0).len() as i32;
-            y0s[j] = ideal(parents[j].1, len).max(prev_end + 2);
-            prev_end = y0s[j] + len - 1;
+            y0s[j] = ideal(parents[j].1, lens[j]).max(prev_end + 2);
+            prev_end = y0s[j] + lens[j] - 1;
         }
+        // Raised (block above its parent), hanging, or level.
+        let way: Vec<Side> = parents
+            .iter()
+            .zip(y0s.iter().zip(&lens))
+            .map(|((_, py, ..), (&y0, len))| {
+                if y0 + len - 1 < *py {
+                    Side::Less
+                } else if y0 > *py {
+                    Side::Greater
+                } else {
+                    Side::Equal
+                }
+            })
+            .collect();
 
-        // Trunk slots, counted leftward from the bar. A block hanging below its
-        // parent must sit right of every lower parent's trunk, so lower parents
-        // go further left; a block raised above its parent is the mirror image.
-        // Blocks going opposite ways never share rows, so each direction counts
-        // from the bar on its own and every trunk hugs its block.
-        let raised: Vec<bool> =
-            parents.iter().zip(&y0s).map(|((pid, py, ..), y0)| y0 + tree.kids(*pid).len() as i32 - 1 < *py).collect();
-        let ups = raised.iter().filter(|&&r| r).count() as i32;
-        let (mut up, mut down) = (0, 0);
-        let mut slots = Vec::with_capacity(raised.len());
-        for &r in &raised {
-            if r {
-                slots.push(ups - 1 - up);
-                up += 1;
-            } else {
-                slots.push(down);
-                down += 1;
+        // Trunk slots, counted leftward from the bar, and the lanes they take.
+        let (slots, lanes): (Vec<Option<i32>>, i32) = match sp.pipes {
+            // A block hanging below its parent must sit right of every lower
+            // parent's trunk, so lower parents go further left; a block raised
+            // above its parent is the mirror image. Blocks going opposite ways
+            // never share rows, so each direction counts from the bar on its
+            // own and every trunk hugs its block.
+            Pipes::Nested => {
+                let ups = way.iter().filter(|&&w| w == Side::Less).count() as i32;
+                let (mut up, mut down) = (0, 0);
+                let slots = way
+                    .iter()
+                    .map(|&w| {
+                        if w == Side::Less {
+                            up += 1;
+                            Some(ups - up)
+                        } else {
+                            down += 1;
+                            Some(down - 1)
+                        }
+                    })
+                    .collect();
+                (slots, n)
             }
-        }
+            // In parent order, so a raised block's run cuts through the
+            // trunks of the parents below it.
+            Pipes::Crossing => ((0..n).map(Some).collect(), n),
+            // Nested, but lanes stop at a third of the column's width; past
+            // that the longest elbows share the outermost lane.
+            Pipes::Capped => {
+                let cap = (colw / LANES_PER_WIDTH).max(2);
+                let ups = way.iter().filter(|&&w| w == Side::Less).count() as i32;
+                let (mut up, mut down) = (0, 0);
+                let slots = way
+                    .iter()
+                    .map(|&w| match w {
+                        Side::Less => {
+                            up += 1;
+                            Some((ups - up).min(cap - 1))
+                        }
+                        Side::Greater => {
+                            down += 1;
+                            Some((down - 1).min(cap - 1))
+                        }
+                        Side::Equal => Some(0),
+                    })
+                    .collect();
+                // At least one, so a lone straight join keeps its spacing.
+                (slots, up.max(down).min(cap).max(1))
+            }
+            Pipes::Tidy => (vec![None; parents.len()], 0),
+            Pipes::River => {
+                let b: Vec<_> =
+                    parents.iter().zip(y0s.iter().zip(&lens)).map(|((pid, py, ..), (&y0, len))| (*pid, *py, y0, y0 + len - 1)).collect();
+                let greedy = river(&b, reach, None, 0);
+                let need = greedy.iter().flatten().map(|k| k + 1).max().unwrap_or(0);
+                out.need.push(need);
+                if mem.need.len() < depth {
+                    mem.need.resize(depth, 0);
+                }
+                let room = &mut mem.need[depth - 1];
+                *room = (*room).max(need);
+                let lanes = sp.tracks.max(1).max(*room);
+                let sticky = river(&b, reach, Some(&mem.k), lanes);
+                let chosen = if sticky.iter().flatten().all(|&k| k < lanes) { sticky } else { greedy };
+                // Pipes off screen keep their track if it still fits (so one
+                // sliding away mid-animation stays put), else hug the bar.
+                let slots = chosen
+                    .into_iter()
+                    .enumerate()
+                    .map(|(j, k)| {
+                        let k = k.unwrap_or_else(|| mem.k.get(&b[j].0).copied().filter(|&k| (0..lanes).contains(&k)).unwrap_or(0));
+                        kept.insert(b[j].0, k);
+                        Some(k)
+                    })
+                    .collect();
+                (slots, lanes)
+            }
+        };
+        let next_x = x + colw + lanes + sp.gap.max(3) + sp.branch.max(0);
+        out.cols.push((x - 2, next_x - 2, on_line.copied()));
+
         let mut next = Vec::new();
-        for (k, (pid, ..)) in parents.iter().enumerate() {
-            let kids = tree.kids(*pid).to_vec();
-            let slot = slots[k];
+        for (j, (pid, py, ..)) in parents.iter().enumerate() {
+            let kids = tree.kids(*pid);
             let active = on_spine.contains(pid);
             for (i, &kid) in kids.iter().enumerate() {
-                next.push((kid, y0s[k] + i as i32, cut(label_of(kid)), active));
+                let y = if sp.pipes == Pipes::Tidy { py + rel[&kid] } else { y0s[j] + i as i32 };
+                next.push((kid, y, cut(label_of(kid)), active));
             }
-            out.blocks.push(Block { parent: *pid, kids, k: slot, off: sp.branch.max(0) });
+            out.blocks.push(Block { parent: *pid, kids, k: slots[j], off: sp.branch.max(0), top_entry: sp.pipes != Pipes::Crossing });
         }
         next.sort_by_key(|n| n.1);
         x = next_x;
         level = next;
     }
+    if sp.pipes == Pipes::River {
+        mem.k = kept;
+    }
     // Row spacing: lay out in rows, then spread them. Connectors are drawn
     // between whatever rows the nodes land on, so they stretch through the gaps.
-    let pitch = 1 + sp.rows.max(0);
     if pitch > 1 {
         for p in &mut out.placed {
             p.y *= pitch;
@@ -473,14 +719,25 @@ pub fn lines(
             }
         }
         c.thick = block_thick;
+        let Some(k) = b.k else {
+            // Tidy pipes put every parent level with its block, so the join
+            // runs straight across; mid-animation the bar stretches to meet it.
+            c.vseg(bar_x, y0.min(py), y1.max(py), base);
+            c.hseg(start, bar_x, py, top);
+            if let Some(ry) = routed.filter(|_| top == ROUTE) {
+                c.vseg(bar_x, py, ry, ROUTE);
+            }
+            continue;
+        };
         c.vseg(bar_x, y0, y1, base);
-        // Join the block at its top entry, from above or below; a parent level
-        // with its block joins it straight across.
-        let ty = if py > y1 { y0 } else { py.clamp(y0, y1) };
+        // Join the block at its top entry, from above or below (or, for the
+        // first design, at the end nearest the parent); a parent level with
+        // its block joins it straight across.
+        let ty = if b.top_entry && py > y1 { y0 } else { py.clamp(y0, y1) };
         if ty == py {
             c.hseg(start, bar_x, py, top);
         } else {
-            let tx = (bar_x - 1 - b.k).max(start);
+            let tx = (bar_x - 1 - k).max(start);
             c.hseg(start, tx, py, top);
             c.vseg(tx, py, ty, top);
             c.hseg(tx, bar_x, ty, top);
@@ -540,10 +797,15 @@ mod tests {
     #[test]
     fn equal_columns_and_details_line_up() {
         let (t, a, _, three) = deep("equal");
-        let fit = layout(&t, three, &name_of(&t), Spacing::default());
-        let eq = layout(&t, three, &name_of(&t), Spacing { columns: Columns::Equal, maxw: 12, ..Spacing::default() });
+        let nested = Spacing { pipes: Pipes::Nested, ..Spacing::default() };
+        let fit = layout(&t, three, &name_of(&t), nested);
+        let eq = layout(&t, three, &name_of(&t), Spacing { columns: Columns::Equal, maxw: 12, ..nested });
         assert_eq!(pos(&fit, &t, "1").0 - pos(&fit, &t, "a").0, 1 + 1 + 3, "fit: name, one trunk, gap");
         assert_eq!(pos(&eq, &t, "1").0 - pos(&eq, &t, "a").0, 12 + 1 + 3, "equal: the column width");
+        let river = layout(&t, three, &name_of(&t), Spacing::default());
+        assert_eq!(pos(&river, &t, "1").0 - pos(&river, &t, "a").0, 1 + 3 + 3, "river: name, three tracks, gap");
+        let tidy = layout(&t, three, &name_of(&t), Spacing { pipes: Pipes::Tidy, ..nested });
+        assert_eq!(pos(&tidy, &t, "1").0 - pos(&tidy, &t, "a").0, 1 + 3, "tidy: name, gap");
 
         let det = layout(&t, three, &name_of(&t), Spacing { details: Details::Age, ..Spacing::default() });
         let row = |name: &str| det.placed.iter().find(|p| t.nodes[p.id].name == name).unwrap();
@@ -611,12 +873,16 @@ mod tests {
             Spacing { branch: 3, ..Spacing::default() },
             Spacing { columns: Columns::Equal, details: Details::Age, maxw: 12, ..Spacing::default() },
         ];
-        for sp in spacings {
+        // Crossing and capped pipes cross and share on purpose. River pipes
+        // promise a clean screen; past its edges they share.
+        let modes = [Pipes::Nested, Pipes::Tidy, Pipes::River];
+        let screens = [24, 60].map(|view| Spacing { view, ..Spacing::default() });
+        for sp in modes.iter().flat_map(|&pipes| spacings.map(|s| Spacing { pipes, ..s })).chain(screens) {
             let mut bad = Vec::new();
             for cursor in 0..t.nodes.len() {
                 let l = layout(&t, cursor, &name_of(&t), sp);
                 let route: HashSet<usize> = t.path_to(cursor).into_iter().collect();
-                let c = clashes(&l, &route);
+                let c: Vec<_> = clashes(&l, &route).into_iter().filter(|(_, y)| sp.view == 0 || y.abs() <= sp.view / 2).collect();
                 let m: HashMap<usize, (i32, i32)> = l.placed.iter().map(|p| (p.id, (p.x, p.y))).collect();
                 let cells = target_lines(&l, &route);
                 for b in &l.blocks {
@@ -624,7 +890,9 @@ mod tests {
                     let (bx, top) = (m[&b.kids[0]].0 - 1 - b.off, m[&b.kids[0]].1);
                     let bottom = m[b.kids.last().unwrap()].1;
                     if py < top || py > bottom {
-                        assert!(cells[&(bx, top)].mask & LEFT != 0, "{sp:?}: {} joins its block at the top", t.nodes[b.parent].name);
+                        // A pipe running down the bar comes in from above.
+                        let from = if b.k == Some(-1) { UP } else { LEFT };
+                        assert!(cells[&(bx, top)].mask & from != 0, "{sp:?}: {} joins its block at the top", t.nodes[b.parent].name);
                     }
                 }
                 if !c.is_empty() {
@@ -892,5 +1160,137 @@ mod tests {
         assert_eq!(t.width(), MAXW);
         assert!(t.ends_with('…'));
         assert_eq!(truncate_to("short", MAXW), "short");
+    }
+
+    #[test]
+    fn river_pipes_nest_and_the_first_runs_down_the_bar() {
+        // The user's sketch: three folders, each block further down.
+        let b = [(1, 0, 3, 4), (2, 1, 6, 8), (3, 2, 10, 13)];
+        assert_eq!(river(&b, 100, None, 0), [Some(-1), Some(0), Some(1)], "alpha down the bar, beta next, gamma outside");
+        // Raised blocks mirror it: the lowest parent's pipe hugs the bar.
+        let up = [(1, 10, 0, 1), (2, 11, 3, 5), (3, 12, 7, 8)];
+        assert_eq!(river(&up, 100, None, 0), [Some(2), Some(1), Some(0)]);
+        // A level parent needs no pipe.
+        assert_eq!(river(&[(1, 0, -1, 1)], 100, None, 0), [None]);
+    }
+
+    #[test]
+    fn river_pipes_share_only_off_screen_and_keep_their_tracks() {
+        // Two pipes that share rows only far below the screen.
+        let b = [(1, 0, 3, 4), (2, 1, 30, 31), (3, 2, 40, 41)];
+        assert_eq!(river(&b, 100, None, 0), [Some(-1), Some(0), Some(1)]);
+        let near = river(&b, 2, None, 0);
+        assert_eq!(near, [Some(-1), Some(0), Some(1)], "all three leave rows on screen");
+        assert_eq!(river(&[(1, 50, 60, 61)], 10, None, 0), [None], "wholly off screen: no track");
+        // Last layout's tracks hold while they still nest.
+        let keep: HashMap<usize, i32> = [(2, 3)].into_iter().collect();
+        assert_eq!(river(&b, 100, Some(&keep), 9), [Some(-1), Some(3), Some(4)], "beta keeps 3, gamma nests outside it");
+        let bad: HashMap<usize, i32> = [(3, 0)].into_iter().collect();
+        assert_eq!(river(&b, 100, Some(&bad), 9), [Some(-1), Some(0), Some(1)], "a kept track that would cross gives way");
+    }
+
+    /// A fully open tree with uneven folders, for the river tests.
+    fn open_tree(name: &str) -> Tree {
+        let mut dirs = Vec::new();
+        for (i, n) in [3, 7, 2, 9, 1, 4, 12, 3, 1, 6, 5, 8].iter().enumerate() {
+            for j in 0..*n {
+                dirs.push(format!("p{i:02}/c{j:02}"));
+            }
+        }
+        let root = fixture(name, &dirs.iter().map(String::as_str).collect::<Vec<_>>());
+        let mut t = Tree::new(&root);
+        let mut stack = vec![0];
+        while let Some(id) = stack.pop() {
+            t.load(id);
+            t.nodes[id].expanded = true;
+            stack.extend(t.kids(id));
+        }
+        t
+    }
+
+    #[test]
+    fn river_gap_is_the_tracks_setting_until_a_screen_needs_more() {
+        let t = open_tree("river-gap");
+        let gap = |l: &Layout| pos(l, &t, "c00").0 - pos(l, &t, "p00").0 - "p00".len() as i32 - 3;
+        let roomy = layout(&t, 0, &name_of(&t), Spacing { tracks: 20, view: 8, ..Spacing::default() });
+        assert!(roomy.need[1] < 20);
+        assert_eq!(gap(&roomy), 20, "the setting's tracks when the screen needs fewer");
+        let mut mem = PipeMemory::default();
+        let tight = Spacing { tracks: 1, view: 20, ..Spacing::default() };
+        let first = layout_with(&t, 0, &name_of(&t), tight, &mut mem);
+        assert!(gap(&first) > 1, "this tree's screen needs more than one track");
+        assert_eq!(gap(&first), first.need[1].max(1));
+        // Narrow screens need fewer tracks than the whole tree.
+        let whole = layout(&t, 0, &name_of(&t), Spacing { tracks: 1, ..Spacing::default() });
+        assert!(whole.need[1] >= first.need[1]);
+        // The gap never narrows while the same folders are open.
+        let widest = mem.need[1];
+        for c in 0..t.nodes.len() {
+            let l = layout_with(&t, c, &name_of(&t), tight, &mut mem);
+            assert!(mem.need[1] >= widest && gap(&l) == mem.need[1].max(1));
+        }
+    }
+
+    #[test]
+    fn river_tracks_on_screen_only_move_out_to_make_room() {
+        let t = open_tree("river-still");
+        let sp = Spacing { view: 30, ..Spacing::default() };
+        let half = sp.view / 2;
+        let on_screen = |l: &Layout| -> HashMap<usize, (Option<i32>, bool)> {
+            let m: HashMap<usize, i32> = l.placed.iter().map(|p| (p.id, p.y)).collect();
+            l.blocks
+                .iter()
+                .filter(|b| {
+                    let (py, top, bottom) = (m[&b.parent], m[&b.kids[0]], m[b.kids.last().unwrap()]);
+                    let (a, z) = if py < top { (py, top) } else if py > bottom { (bottom, py) } else { return false };
+                    z >= -half && a <= half
+                })
+                .map(|b| (b.parent, (b.k, m[&b.parent] < m[&b.kids[0]])))
+                .collect()
+        };
+        let mut mem = PipeMemory::default();
+        let order: Vec<usize> = layout(&t, 0, &name_of(&t), sp).placed.iter().map(|p| p.id).collect();
+        let mut prev = on_screen(&layout_with(&t, order[0], &name_of(&t), sp, &mut mem));
+        let (mut moved, mut seen) = (Vec::new(), 0);
+        for &c in &order[1..] {
+            let now = on_screen(&layout_with(&t, c, &name_of(&t), sp, &mut mem));
+            for (p, k) in &now {
+                if let Some(was) = prev.get(p) {
+                    seen += 1;
+                    if was.0 != k.0 {
+                        moved.push((t.nodes[c].name.clone(), t.nodes[*p].name.clone(), *was, *k));
+                    }
+                }
+            }
+            prev = now;
+        }
+        assert!(seen > 50, "the walk keeps pipes on screen ({seen})");
+        // A step re-packs the column about the line, so a pipe can turn round
+        // (its block moves past it) or a new one can appear that must nest
+        // inside it; then it moves out. It never moves for nothing.
+        let inward: Vec<_> = moved.iter().filter(|m| m.2 .1 == m.3 .1 && m.3 .0 < m.2 .0).collect();
+        assert!(inward.is_empty(), "{} of {seen} on-screen pipes moved in: {:?}", inward.len(), &inward[..inward.len().min(6)]);
+        assert!(moved.len() * 10 < seen, "{} of {seen} on-screen pipes moved", moved.len());
+    }
+
+    #[test]
+    fn crossing_and_capped_pipes_keep_their_old_shapes() {
+        let t = open_tree("old-shapes");
+        let p05 = t.nodes.iter().position(|n| n.name == "p05").unwrap();
+        let lanes = |l: &Layout| pos(l, &t, "c00").0 - pos(l, &t, "p00").0 - "p00".len() as i32 - 3;
+        let sp = |pipes| Spacing { pipes, ..Spacing::default() };
+        let crossing = layout(&t, p05, &name_of(&t), sp(Pipes::Crossing));
+        assert_eq!(lanes(&crossing), 12, "one lane per open folder");
+        let col: Vec<&Block> = crossing.blocks.iter().filter(|b| t.nodes[b.parent].name.starts_with('p')).collect();
+        assert!(col.iter().enumerate().all(|(i, b)| b.k == Some(i as i32)), "lanes in folder order");
+        // The first design joined a raised block at its bottom.
+        let m: HashMap<usize, (i32, i32)> = crossing.placed.iter().map(|p| (p.id, (p.x, p.y))).collect();
+        let cells = target_lines(&crossing, &HashSet::new());
+        let raised = col.iter().find(|b| m[&b.parent].1 > m[b.kids.last().unwrap()].1).expect("a raised block above the line");
+        let (bx, bottom) = (m[&raised.kids[0]].0 - 1, m[raised.kids.last().unwrap()].1);
+        assert!(cells[&(bx, bottom)].mask & LEFT != 0, "joined at the bottom");
+        let capped = layout(&t, p05, &name_of(&t), sp(Pipes::Capped));
+        assert_eq!(lanes(&capped), 2, "a third of a three-wide column, at least two");
+        assert_eq!(lanes(&layout(&t, p05, &name_of(&t), sp(Pipes::Nested))), 12);
     }
 }

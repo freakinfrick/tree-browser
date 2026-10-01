@@ -18,7 +18,7 @@ use ratatui::Frame;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::anim::{approach, heat, heat_stops, mix, pulse, to_color, Damped, Rgb, RECOLOR};
-use crate::layout::{cell_glyph, layout, lines, ACTIVE, DOWN, ROUTE, UP};
+use crate::layout::{cell_glyph, layout_with, lines, ACTIVE, DOWN, ROUTE, UP};
 use crate::audio::{self, Audio, State};
 use crate::git::St;
 use crate::media::Media;
@@ -207,10 +207,16 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
     app.view = (canvas.width, canvas.height);
 
     // Relayout only when the model changed; animation frames reuse it.
-    let fresh = app.lay.as_ref().is_none_or(|(g, _)| *g != app.epoch);
+    let fresh = app.lay.as_ref().is_none_or(|(g, _)| *g != app.epoch) || app.lay_rows != canvas.height;
     let (epoch, lay) = match app.lay.take() {
         Some(l) if !fresh => l,
-        _ => (app.epoch, layout(&app.tree, app.cursor, &|i| app.label(i), app.spacing())),
+        _ => {
+            app.lay_rows = canvas.height;
+            let mut pipes = std::mem::take(&mut app.pipes);
+            let l = layout_with(&app.tree, app.cursor, &|i| app.label(i), app.spacing(), &mut pipes);
+            app.pipes = pipes;
+            (app.epoch, l)
+        }
     };
     let tree = &app.tree;
     let mut moving = app.scene.sync(&lay, &|id| tree.nodes[id].parent, dt);

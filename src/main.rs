@@ -38,6 +38,10 @@ use ui::Preview;
 
 /// Frame budget while animating. Idle = no frames at all.
 const FRAME: Duration = Duration::from_micros(16_667);
+/// River pipes: most cursors laid out to size the tracks for the busiest screen.
+const SWEEP: usize = 400;
+/// River pipes: time spent sizing tracks per idle wake-up.
+const SWEEP_SLICE: Duration = Duration::from_millis(15);
 
 /// A live-change ripple waits this long per level before lighting the next folder up.
 pub const RIPPLE_STEP: Duration = Duration::from_millis(90);
@@ -83,6 +87,13 @@ pub struct App {
     /// Bumped whenever tree, cursor, or heat data change; layout is cached per epoch.
     pub epoch: u64,
     pub lay: Option<(u64, layout::Layout)>,
+    /// Screen rows the cached layout was made for (river pipes depend on them).
+    pub lay_rows: u16,
+    /// River pipe tracks carried from one layout to the next.
+    pub pipes: layout::PipeMemory,
+    /// Cursors still to lay out so river tracks fit the busiest screen, and
+    /// the open-folder signature they're for.
+    sweep: (u64, Vec<usize>),
     /// Terminal graphics for image/PDF previews; None = captions only (TB_GRAPHICS=off).
     pub picker: Option<ratatui_image::picker::Picker>,
     /// What the terminal claimed, so `i` can switch back from half-blocks.
@@ -192,6 +203,9 @@ impl App {
             preview: None,
             epoch: 0,
             lay: None,
+            lay_rows: 0,
+            pipes: layout::PipeMemory::default(),
+            sweep: (0, Vec::new()),
             picker: None,
             detected: ratatui_image::picker::ProtocolType::Halfblocks,
             graphics: None,
@@ -275,6 +289,9 @@ impl App {
             columns: s.columns,
             details: s.details,
             branch: s.branch_offset as i32,
+            pipes: s.pipes,
+            tracks: s.tracks as i32,
+            view: self.view.1 as i32,
         }
     }
 
@@ -587,6 +604,51 @@ impl App {
         };
         let rx = explode::spawn(self.tree.nodes[target].path.clone(), self.tree.show_hidden, skip);
         self.exploding = Some(Exploding { target, rx, folders: 0, born: Instant::now() });
+    }
+
+    /// River pipes: lay the open tree out from a sample of cursors, a few
+    /// milliseconds at a time while idle, so every column gap is sized for its
+    /// busiest screen before you scroll there. True when a gap grew.
+    fn pipes_poll(&mut self) -> bool {
+        if self.settings.pipes != settings::Pipes::River {
+            return false;
+        }
+        if self.sweep.0 != self.pipes.sig {
+            let Some((_, lay)) = &self.lay else { return false };
+            let ids: Vec<usize> = lay.placed.iter().map(|p| p.id).collect();
+            let step = ids.len().div_ceil(SWEEP).max(1);
+            self.sweep = (self.pipes.sig, ids.into_iter().step_by(step).collect());
+        }
+        let mut todo = std::mem::take(&mut self.sweep.1);
+        let sp = self.spacing();
+        let start = Instant::now();
+        let mut need: Vec<i32> = Vec::new();
+        while start.elapsed() < SWEEP_SLICE {
+            let Some(c) = todo.pop() else { break };
+            let l = layout::layout(&self.tree, c, &|i| self.label(i), sp);
+            if need.len() < l.need.len() {
+                need.resize(l.need.len(), 0);
+            }
+            for (m, n) in need.iter_mut().zip(&l.need) {
+                *m = (*m).max(*n);
+            }
+        }
+        self.sweep.1 = todo;
+        let room = &mut self.pipes.need;
+        if room.len() < need.len() {
+            room.resize(need.len(), 0);
+        }
+        let mut grew = false;
+        for (r, n) in room.iter_mut().zip(need) {
+            if n > *r {
+                *r = n;
+                grew = true;
+            }
+        }
+        if grew {
+            self.epoch += 1;
+        }
+        grew
     }
 
     /// Take the explode worker's news. Returns true if anything changed.
@@ -1297,7 +1359,7 @@ fn main() -> std::io::Result<()> {
         }
         // Sleep until the next frame is due, or indefinitely-ish when idle
         // (wake periodically to pick up background mtime results).
-        let timeout = match (animating, app.ticking()) {
+        let timeout = match (animating, app.ticking() || !app.sweep.1.is_empty()) {
             (true, _) => FRAME.saturating_sub(last.elapsed()),
             (false, true) => Duration::from_millis(50),
             (false, false) => Duration::from_millis(100),
@@ -1312,6 +1374,7 @@ fn main() -> std::io::Result<()> {
                 dirty |= app.live_poll();
                 dirty |= app.git_poll();
                 dirty |= app.explode_poll();
+                dirty |= app.pipes_poll();
                 dirty |= app.ticking();
                 continue;
             }
