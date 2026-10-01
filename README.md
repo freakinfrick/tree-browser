@@ -152,7 +152,8 @@ The gradient is continuous in log-time:
 **red** (minutes) → **orange** (hours) → **tan** (days) → **grey** (weeks) → **slate** (a year) → **blue** (5 y+)
 
 Colors cross-fade when heat data lands instead of popping. White marks the cursor path and dim
-marks branches off it. The line itself is a double "tube" with proper junctions; every other branch
+marks branches off it. On rounded and square lines the line itself is a double "tube" with proper
+junctions; on double and heavy it stands out by color. Every other branch
 is tinted by the heat of the folder it grows from, a light sweeps along the line into the cursor on
 each move, and closed folders carry a small `›` bud.
 
