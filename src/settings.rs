@@ -173,6 +173,8 @@ pub struct Settings {
     pub heat_range: HeatRange,
     /// How light ignored names are: 0 near black, 10 light grey.
     pub dim_floor: u8,
+    /// How far names off the cursor's line fade: 0 not at all, 10 nearly out.
+    pub focus_dim: u8,
     pub lines: LineStyle,
     pub branch_offset: u8,
     pub legend: bool,
@@ -209,6 +211,7 @@ impl Default for Settings {
             palette: Palette::Ember,
             heat_range: HeatRange::Years5,
             dim_floor: 5,
+            focus_dim: 3,
             lines: LineStyle::Double,
             branch_offset: 1,
             legend: true,
@@ -238,7 +241,7 @@ pub struct Item {
     pub help: &'static str,
 }
 
-pub const ITEMS: [Item; 31] = [
+pub const ITEMS: [Item; 32] = [
     Item { key: "row_spacing", label: "Row spacing", section: "Layout", help: "Blank rows between entries. More air, fewer entries on screen." },
     Item { key: "column_gap", label: "Column gap", section: "Layout", help: "Space between a column's longest name and the next column." },
     Item { key: "max_name", label: "Column width", section: "Layout", help: "Widest a column gets. Longer names are cut with a …" },
@@ -252,6 +255,7 @@ pub const ITEMS: [Item; 31] = [
     Item { key: "accent", label: "Accent", section: "Look", help: "Color of the lines, the selector and the highlights." },
     Item { key: "palette", label: "Heat colors", section: "Look", help: "Recency gradient. Aurora avoids red-green; mono is brightness only." },
     Item { key: "heat_range", label: "Heat range", section: "Look", help: "Age that gets the coldest color. Short ranges tell apart the files of one busy week." },
+    Item { key: "focus_dim", label: "Off-line dim", section: "Look", help: "How far names off the cursor's line fade: 0 not at all, 10 nearly out. Their colors stay." },
     Item { key: "lines", label: "Tree lines", section: "Look", help: "Corners and branches: double, heavy, rounded, square or plain ASCII. On double and heavy, branches git ignores draw thin." },
     Item { key: "branch_offset", label: "Branch offset", section: "Look", help: "Line between each join and its name: 0 touches, 4 is a long reach." },
     Item { key: "legend", label: "Legend", section: "Look", help: "The now ▮▮▮ old color key in the status bar." },
@@ -430,6 +434,7 @@ impl Settings {
             "palette" => palette_word(self.palette).into(),
             "heat_range" => range_word(self.heat_range).into(),
             "dim_floor" => self.dim_floor.to_string(),
+            "focus_dim" => self.focus_dim.to_string(),
             "lines" => lines_word(self.lines).into(),
             "branch_offset" => self.branch_offset.to_string(),
             "legend" => on_off(self.legend),
@@ -454,7 +459,7 @@ impl Settings {
     /// The value as the config file stores it.
     pub fn store(&self, key: &str) -> String {
         match key {
-            "row_spacing" | "column_gap" | "max_name" | "branch_offset" | "wheel_speed" | "dim_floor" => self.show(key),
+            "row_spacing" | "column_gap" | "max_name" | "branch_offset" | "wheel_speed" | "dim_floor" | "focus_dim" => self.show(key),
             "sort_reverse" => self.sort.rev.to_string(),
             "show_hidden" => self.show_hidden.to_string(),
             "legend" | "live" | "ripples" | "git" | "dim_ignored" | "folders_first" | "natural_sort" | "explode_ignored" | "mouse" | "wrap"
@@ -481,6 +486,7 @@ impl Settings {
             "palette" => self.palette = cycle(&PALETTES, self.palette, dir),
             "heat_range" => self.heat_range = cycle(&RANGES, self.heat_range, dir),
             "dim_floor" => self.dim_floor = step(self.dim_floor, 0, 10, 1),
+            "focus_dim" => self.focus_dim = step(self.focus_dim, 0, 10, 1),
             "lines" => self.lines = cycle(&LINES, self.lines, dir),
             "branch_offset" => self.branch_offset = step(self.branch_offset, 0, 4, 1),
             "legend" => self.legend ^= true,
@@ -520,6 +526,7 @@ impl Settings {
             "palette" => self.palette = d.palette,
             "heat_range" => self.heat_range = d.heat_range,
             "dim_floor" => self.dim_floor = d.dim_floor,
+            "focus_dim" => self.focus_dim = d.focus_dim,
             "lines" => self.lines = d.lines,
             "branch_offset" => self.branch_offset = d.branch_offset,
             "legend" => self.legend = d.legend,
@@ -563,6 +570,7 @@ impl Settings {
             "palette" => self.palette = find(&PALETTES, v, palette_word).ok_or(bad("ember, aurora, mono"))?,
             "heat_range" => self.heat_range = find(&RANGES, v, range_word).ok_or(bad("day, week, month, year, 5y"))?,
             "dim_floor" => self.dim_floor = num(0, 10)?,
+            "focus_dim" => self.focus_dim = num(0, 10)?,
             "lines" => self.lines = find(&LINES, v, lines_word).ok_or(bad("double, heavy, rounded, square, ascii"))?,
             "branch_offset" => self.branch_offset = num(0, 4)?,
             "legend" => self.legend = flag()?,

@@ -68,8 +68,6 @@ const FLASH: Rgb = [235.0, 242.0, 255.0];
 const ROUTE_TEXT: Rgb = [238.0, 240.0, 250.0];
 const DOT: Rgb = [255.0, 58.0, 58.0];
 const MUTED: Rgb = [110.0, 118.0, 150.0];
-/// How far names off the cursor's line fade toward the background.
-const OFF_SPINE: f32 = 0.25;
 /// Ignored names: the grey at dim floor 10, and how much heat tints it.
 const IGNORED_LIGHT: Rgb = [214.0, 216.0, 224.0];
 const IGNORED_TINT: f32 = 0.12;
@@ -228,7 +226,8 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             } else {
                 let age = now.duration_since(app.heat_of(p.id)).unwrap_or_default().as_secs_f32();
                 let h = heat(age);
-                if p.active { h } else { mix(h, BG, OFF_SPINE) }
+                // Off-line dim: 0.08 per step, so 10 leaves a fifth of the color.
+                if p.active { h } else { mix(h, BG, 0.08 * app.settings.focus_dim.min(10) as f32) }
             };
             let Some(a) = app.scene.nodes.get_mut(&p.id) else { continue };
             a.target = target;

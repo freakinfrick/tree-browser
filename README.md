@@ -225,6 +225,7 @@ closes the panel.
 | Accent | indigo, teal, violet, amber, mono (lines, selector, highlights) | indigo |
 | Heat colors | ember (red → blue), aurora (yellow → purple, avoids red-green), mono | ember |
 | Heat range | age that gets the coldest color: day, week, month, year, 5y | 5y |
+| Off-line dim | how far names off the cursor's line fade, 0 (not at all) to 10 (nearly out) | 3 |
 | Tree lines | double, heavy, rounded, square, ascii (on double and heavy, ignored branches draw thin) | double |
 | Branch offset | line between each join and its name, 0–4 (`├name` → `├──name`) | 1 |
 | Legend | the color key in the status bar | on |
