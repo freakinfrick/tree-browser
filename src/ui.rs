@@ -78,6 +78,11 @@ fn ignored_shade(h: Rgb, floor: u8) -> Rgb {
     let grey = mix(BG, IGNORED_LIGHT, 0.1 + 0.08 * floor.min(10) as f32);
     mix(grey, h, IGNORED_TINT)
 }
+/// A name off the cursor's line: each off-line dim step below 10 fades 0.08,
+/// so 0 leaves a fifth of the color.
+fn off_line(h: Rgb, focus_dim: u8) -> Rgb {
+    mix(h, BG, 0.08 * (10 - focus_dim.min(10)) as f32)
+}
 const MATCH_BG: Rgb = [92.0, 70.0, 22.0];
 /// A live change's flash, and the ember behind the name that changed.
 const RIPPLE: Rgb = [255.0, 200.0, 150.0];
@@ -232,8 +237,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             } else {
                 let age = now.duration_since(app.heat_of(p.id)).unwrap_or_default().as_secs_f32();
                 let h = heat(age);
-                // Off-line dim: each step below 10 fades 0.08, so 0 leaves a fifth of the color.
-                if p.active { h } else { mix(h, BG, 0.08 * (10 - app.settings.focus_dim.min(10)) as f32) }
+                if p.active { h } else { off_line(h, app.settings.focus_dim) }
             };
             let Some(a) = app.scene.nodes.get_mut(&p.id) else { continue };
             a.target = target;
@@ -1339,5 +1343,65 @@ mod tests {
         let out = run_tty(glow, b"# Title\n\nbody\n".to_vec(), 60);
         let out = String::from_utf8_lossy(&out.unwrap()).into_owned();
         assert!(out.contains("38;5;"), "expected 256-color escapes, got {out:?}");
+    }
+
+    /// sRGB channel (0-255) to linear light.
+    fn linear(v: f32) -> f32 {
+        let v = v / 255.0;
+        if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+    }
+
+    fn luminance(c: Rgb) -> f32 {
+        let [r, g, b] = c.map(linear);
+        0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+
+    /// CIE L*a*b* of an sRGB color.
+    fn lab(c: Rgb) -> [f32; 3] {
+        let [r, g, b] = c.map(linear);
+        let f = |t: f32| if t > 0.008856 { t.cbrt() } else { 7.787 * t + 16.0 / 116.0 };
+        let (x, y, z) = (
+            f((0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047),
+            f(luminance(c)),
+            f((0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883),
+        );
+        [116.0 * y - 16.0, 500.0 * (x - y), 200.0 * (y - z)]
+    }
+
+    fn delta_e(a: Rgb, b: Rgb) -> f32 {
+        let (a, b) = (lab(a), lab(b));
+        ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
+    }
+
+    /// WCAG contrast ratio of a color against the background.
+    fn contrast(c: Rgb) -> f32 {
+        (luminance(c) + 0.05) / (luminance(BG) + 0.05)
+    }
+
+    #[test]
+    fn every_palette_stays_readable_and_apart_from_ignored_and_cursor_colors() {
+        use crate::anim::{heat_scaled, range_scale, stops_of};
+        use crate::settings::{Palette, Settings, PALETTES};
+        let d = Settings::default();
+        let scale = range_scale(d.heat_range.secs());
+        let ages = || std::iter::successors(Some(1.0_f32), |a| Some(a * 1.25)).take_while(|&a| a <= 1.5 * d.heat_range.secs());
+        for p in PALETTES {
+            for age in ages() {
+                let on = heat_scaled(stops_of(p), age, scale);
+                let off = off_line(on, d.focus_dim);
+                assert!(contrast(on) >= 2.8, "{p:?}, {age:.0}s old: on-line name too dark ({:.1}:1)", contrast(on));
+                // Mono is all greys: only the thin lines mark its ignored names, and
+                // only bold marks the cursor path.
+                if p == Palette::Mono {
+                    continue;
+                }
+                for c in [on, off] {
+                    let de = delta_e(c, ignored_shade(c, d.dim_floor));
+                    assert!(de >= 15.0, "{p:?}, {age:.0}s old: reads as ignored (dE {de:.1})");
+                }
+                let de = delta_e(on, ROUTE_TEXT);
+                assert!(de >= 15.0, "{p:?}, {age:.0}s old: reads as the cursor path (dE {de:.1})");
+            }
+        }
     }
 }

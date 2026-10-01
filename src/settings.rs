@@ -64,11 +64,19 @@ pub enum Accent {
 /// Recency gradient.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Palette {
-    /// Red (now) through orange and grey to blue (years).
+    /// Red (now) through orange, gold and mauve to blue (years).
     Ember,
+    /// Cream through coral and magenta to violet, readable with red-green color blindness.
+    Magma,
+    /// Raspberry through violet to aqua, at an even brightness.
+    Neon,
     /// Yellow through green and teal to purple, readable with red-green color blindness.
     Aurora,
-    /// Bright white fading to dark grey.
+    /// Ice white through cyan to deep blue.
+    Glacier,
+    /// Warm paper fading to brown: brightness only, but never the ignored grey.
+    Sepia,
+    /// Bright white fading to grey.
     Mono,
 }
 
@@ -277,7 +285,7 @@ pub const ITEMS: [Item; 34] = [
     Item { key: "natural_sort", label: "Natural sort", section: "Order", help: "Numbers in names count up: file2 before file10." },
     Item { key: "show_hidden", label: "Dotfiles", section: "Order", help: "Same as . in the tree." },
     Item { key: "accent", label: "Accent", section: "Look", help: "Color of the lines, the selector and the highlights." },
-    Item { key: "palette", label: "Heat colors", section: "Look", help: "Recency gradient. Aurora avoids red-green; mono is brightness only." },
+    Item { key: "palette", label: "Heat colors", section: "Look", help: "Recency gradient. Magma and aurora avoid red-green; sepia and mono are brightness only." },
     Item { key: "heat_range", label: "Heat range", section: "Look", help: "Age that gets the coldest color. Short ranges tell apart the files of one busy week." },
     Item { key: "focus_dim", label: "Off-line dim", section: "Look", help: "How bright names off the cursor's line stay: 0 nearly out, 10 full color." },
     Item { key: "lines", label: "Tree lines", section: "Look", help: "Corners and branches: double, heavy, rounded, square or plain ASCII. On double and heavy, branches git ignores draw thin." },
@@ -305,7 +313,9 @@ const SPEEDS: [Speed; 4] = [Speed::Slow, Speed::Normal, Speed::Fast, Speed::Inst
 const WHEEL_SPEEDS: [u8; 4] = [1, 2, 3, 5];
 const MOMENTA: [Momentum; 4] = [Momentum::Off, Momentum::Short, Momentum::Medium, Momentum::Long];
 const ACCENTS: [Accent; 5] = [Accent::Indigo, Accent::Teal, Accent::Violet, Accent::Amber, Accent::Mono];
-const PALETTES: [Palette; 3] = [Palette::Ember, Palette::Aurora, Palette::Mono];
+/// In `Palette`'s declaration order, which `anim` relies on.
+pub const PALETTES: [Palette; 7] =
+    [Palette::Ember, Palette::Magma, Palette::Neon, Palette::Aurora, Palette::Glacier, Palette::Sepia, Palette::Mono];
 const COLUMNS: [Columns; 2] = [Columns::Fit, Columns::Equal];
 const DETAILS: [Details; 4] = [Details::Off, Details::Age, Details::Size, Details::Both];
 const RANGES: [HeatRange; 5] = [HeatRange::Day, HeatRange::Week, HeatRange::Month, HeatRange::Year, HeatRange::Years5];
@@ -367,7 +377,11 @@ fn accent_word(a: Accent) -> &'static str {
 fn palette_word(p: Palette) -> &'static str {
     match p {
         Palette::Ember => "ember",
+        Palette::Magma => "magma",
+        Palette::Neon => "neon",
         Palette::Aurora => "aurora",
+        Palette::Glacier => "glacier",
+        Palette::Sepia => "sepia",
         Palette::Mono => "mono",
     }
 }
@@ -610,7 +624,7 @@ impl Settings {
             "natural_sort" => self.natural_sort = flag()?,
             "show_hidden" => self.show_hidden = flag()?,
             "accent" => self.accent = find(&ACCENTS, v, accent_word).ok_or(bad("indigo, teal, violet, amber, mono"))?,
-            "palette" => self.palette = find(&PALETTES, v, palette_word).ok_or(bad("ember, aurora, mono"))?,
+            "palette" => self.palette = find(&PALETTES, v, palette_word).ok_or(bad("ember, magma, neon, aurora, glacier, sepia, mono"))?,
             "heat_range" => self.heat_range = find(&RANGES, v, range_word).ok_or(bad("day, week, month, year, 5y"))?,
             "dim_floor" => self.dim_floor = num(0, 10)?,
             "focus_dim" => self.focus_dim = num(0, 10)?,
