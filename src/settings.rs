@@ -209,7 +209,7 @@ impl Default for Settings {
             show_hidden: false,
             accent: Accent::Indigo,
             palette: Palette::Ember,
-            heat_range: HeatRange::Years5,
+            heat_range: HeatRange::Month,
             dim_floor: 5,
             focus_dim: 6,
             lines: LineStyle::Double,
