@@ -147,6 +147,44 @@ pub fn mix(a: Rgb, b: Rgb, t: f32) -> Rgb {
     [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
 }
 
+/// Relative luminance (WCAG), 0 = black, 1 = white.
+pub fn luminance(c: Rgb) -> f32 {
+    let lin = |v: f32| {
+        let v = (v / 255.0).clamp(0.0, 1.0);
+        if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+    };
+    0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2])
+}
+
+/// WCAG contrast ratio, 1 (none) to 21 (black on white).
+pub fn contrast(a: Rgb, b: Rgb) -> f32 {
+    let (la, lb) = (luminance(a), luminance(b));
+    (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+}
+
+/// `c` brightened just enough to reach `min` contrast against a dark `bg`:
+/// first scaled up keeping its hue, then toward white. 0 = no floor.
+pub fn lift(c: Rgb, bg: Rgb, min: f32) -> Rgb {
+    if min <= 1.0 || contrast(c, bg) >= min {
+        return c;
+    }
+    let top = c[0].max(c[1]).max(c[2]).max(1.0);
+    let full = c.map(|v| v * 255.0 / top);
+    let (from, to) = if contrast(full, bg) >= min { (c, full) } else { (full, [255.0; 3]) };
+    let (mut lo, mut hi) = (0.0, 1.0);
+    for _ in 0..14 {
+        let t = (lo + hi) / 2.0;
+        if contrast(mix(from, to, t), bg) >= min { hi = t } else { lo = t }
+    }
+    mix(from, to, hi)
+}
+
+/// `c` drained toward the grey of the same lightness.
+pub fn greyed(c: Rgb, t: f32) -> Rgb {
+    let g = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+    mix(c, [g; 3], t)
+}
+
 pub fn to_color(c: Rgb) -> ratatui::style::Color {
     let q = |v: f32| v.clamp(0.0, 255.0).round() as u8;
     ratatui::style::Color::Rgb(q(c[0]), q(c[1]), q(c[2]))
@@ -452,6 +490,25 @@ mod tests {
         // Pure: the global scale is shared with tests running alongside.
         assert_eq!(heat_scaled(86400.0, range_scale(86400.0)), coldest, "a day range: a day old is as cold as it gets");
         assert_ne!(heat_scaled(86400.0, range_scale(5.0 * 365.0 * 86400.0)), coldest);
+    }
+
+    #[test]
+    fn lift_reaches_the_floor_and_keeps_bright_colors() {
+        let bg = [9.0, 10.0, 15.0];
+        for stops in [&EMBER, &AURORA, &MONO] {
+            for &(_, c) in stops.iter() {
+                for fade in [0.0, 0.25, 0.6, 0.9] {
+                    let dim = mix(c, bg, fade);
+                    for min in [3.0, 4.5, 7.0] {
+                        let r = contrast(lift(dim, bg, min), bg);
+                        assert!(r >= min - 0.01, "{dim:?} lifted to {r}, wanted {min}");
+                    }
+                }
+            }
+        }
+        let bright = [255.0, 172.0, 64.0];
+        assert_eq!(lift(bright, bg, 4.5), bright, "already readable: untouched");
+        assert_eq!(lift([20.0; 3], bg, 0.0), [20.0; 3], "no floor");
     }
 
     #[test]

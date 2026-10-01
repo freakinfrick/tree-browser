@@ -88,8 +88,12 @@ pub struct Layout {
 pub struct Cell {
     /// Direction bits (UP/DOWN/LEFT/RIGHT).
     pub mask: u8,
-    /// Bits contributed by the route; horizontal ones draw as a double tube.
+    /// Bits contributed by the route; horizontal ones draw as a double tube
+    /// (except on heavy and double lines, where the route is color alone).
     pub route: u8,
+    /// Bits only ignored entries contribute. On heavy and double lines
+    /// these draw light, so ignored branches look thinner.
+    pub thin: u8,
     /// Highest emphasis touching the cell.
     pub emph: u8,
     /// Parent dir of the branch that owns the cell (for its heat tint).
@@ -117,10 +121,35 @@ pub fn cell_glyph(c: &Cell) -> char {
     styled_cell_glyph(STYLE.load(Ordering::Relaxed) as usize, c)
 }
 
+/// Heavy or double lines where a light run crosses: [vertical heavy/double,
+/// horizontal light], then [vertical light, horizontal heavy/double].
+const MIXED: [[[char; 16]; 2]; 2] = [
+    [
+        ['·', '┃', '┃', '┃', '─', '┚', '┒', '┨', '─', '┖', '┎', '┠', '─', '┸', '┰', '╂'],
+        ['·', '│', '│', '│', '━', '┙', '┑', '┥', '━', '┕', '┍', '┝', '━', '┷', '┯', '┿'],
+    ],
+    [
+        ['·', '║', '║', '║', '─', '╜', '╖', '╢', '─', '╙', '╓', '╟', '─', '╨', '╥', '╫'],
+        ['·', '│', '│', '│', '═', '╛', '╕', '╡', '═', '╘', '╒', '╞', '═', '╧', '╤', '╪'],
+    ],
+];
+
 /// Glyph for a cell: the route's horizontal run is a double "tube"
 /// (like the original's hollow cables); crossings keep the light verticals.
+/// On heavy and double lines, runs that only ignored entries use go light.
 fn styled_cell_glyph(style: usize, c: &Cell) -> char {
-    let plain = GLYPHS[style][c.mask as usize & 15];
+    let m = c.mask as usize & 15;
+    if (style == 2 || style == 3) && c.thin != 0 {
+        let axis = |bits: u8| c.mask & bits & !c.thin != 0 || c.mask & bits == 0;
+        let set = &MIXED[style - 2];
+        return match (axis(UP | DOWN), axis(LEFT | RIGHT)) {
+            (true, true) => GLYPHS[style][m],
+            (true, false) => set[0][m],
+            (false, true) => set[1][m],
+            (false, false) => GLYPHS[1][m],
+        };
+    }
+    let plain = GLYPHS[style][m];
     if c.route & (LEFT | RIGHT) == 0 {
         return plain;
     }
@@ -360,12 +389,19 @@ pub fn layout(tree: &Tree, cursor: usize, label_of: &dyn Fn(usize) -> String, sp
 struct Canvas {
     cells: Lines,
     owner: usize,
+    /// Whether what's drawn now leads to an entry git doesn't ignore.
+    thick: bool,
+    /// Per cell, the bits drawn while `thick`.
+    thick_bits: HashMap<(i32, i32), u8>,
 }
 
 impl Canvas {
     fn add(&mut self, x: i32, y: i32, bits: u8, emph: u8) {
         let e = self.cells.entry((x, y)).or_insert(Cell { owner: self.owner, ..Cell::default() });
         e.mask |= bits;
+        if self.thick {
+            *self.thick_bits.entry((x, y)).or_default() |= bits;
+        }
         if emph == ROUTE {
             e.route |= bits;
         }
@@ -392,14 +428,16 @@ impl Canvas {
 
 /// Connector cells for every block, from the given positions.
 /// `pos(id)` -> (x, y, label width); None = node not drawn, block skipped.
-/// `route` = root..cursor (brightest); `spine` = the whole line (active).
+/// `route` = root..cursor (brightest); `spine` = the whole line (active);
+/// `ignored(id)` = git ignores it, so its branch may draw thinner.
 pub fn lines(
     blocks: &[Block],
     pos: &dyn Fn(usize) -> Option<(i32, i32, i32)>,
     route: &HashSet<usize>,
     spine: &HashSet<usize>,
+    ignored: &dyn Fn(usize) -> bool,
 ) -> Lines {
-    let mut c = Canvas { cells: HashMap::new(), owner: 0 };
+    let mut c = Canvas { cells: HashMap::new(), owner: 0, thick: true, thick_bits: HashMap::new() };
     for b in blocks {
         c.owner = b.parent;
         let Some((px, py, pw)) = pos(b.parent) else { continue };
@@ -420,7 +458,11 @@ pub fn lines(
         let routed = kids.iter().find(|k| route.contains(&k.0)).map(|k| k.2);
         let top = if on && routed.is_some() { ROUTE } else { base };
 
-        for &(_, x, y) in &kids {
+        // A kid's own tick is thin if it's ignored; the bar and the join
+        // into it stay thick while anything in the block isn't.
+        let block_thick = kids.iter().any(|k| !ignored(k.0));
+        for &(k, x, y) in &kids {
+            c.thick = !ignored(k);
             let emph = if Some(y) == routed { top } else { base };
             // Offset 0 keeps the join on the name, even while kids slide in.
             if b.off > 0 && x - 1 > bar_x {
@@ -430,6 +472,7 @@ pub fn lines(
                 c.add(bar_x, y, RIGHT, emph);
             }
         }
+        c.thick = block_thick;
         c.vseg(bar_x, y0, y1, base);
         // Join the block at its top entry, from above or below; a parent level
         // with its block joins it straight across.
@@ -445,6 +488,9 @@ pub fn lines(
         if let Some(ry) = routed.filter(|_| top == ROUTE) {
             c.vseg(bar_x, ty, ry, ROUTE);
         }
+    }
+    for (at, cell) in c.cells.iter_mut() {
+        cell.thin = cell.mask & !c.thick_bits.get(at).copied().unwrap_or(0);
     }
     c.cells
 }
@@ -475,7 +521,7 @@ mod tests {
     fn target_lines(l: &Layout, route: &HashSet<usize>) -> Lines {
         let m: HashMap<usize, (i32, i32, i32)> =
             l.placed.iter().map(|p| (p.id, (p.x, p.y, p.label.width() as i32))).collect();
-        lines(&l.blocks, &|id| m.get(&id).copied(), route, route)
+        lines(&l.blocks, &|id| m.get(&id).copied(), route, route, &|_| false)
     }
 
     fn deep(name: &str) -> (Tree, usize, usize, usize) {
@@ -530,7 +576,7 @@ mod tests {
         let mut seen: HashMap<(i32, i32), usize> = HashMap::new();
         let mut out = Vec::new();
         for b in &l.blocks {
-            for cell in lines(std::slice::from_ref(b), &|id| m.get(&id).copied(), route, route).into_keys() {
+            for cell in lines(std::slice::from_ref(b), &|id| m.get(&id).copied(), route, route, &|_| false).into_keys() {
                 if seen.insert(cell, b.parent).is_some() {
                     out.push(cell);
                 }
@@ -762,17 +808,48 @@ mod tests {
         t.nodes[0].expanded = true;
         let l = layout(&t, 0, &name_of(&t), Spacing::default());
         // Kid sitting inside the parent label (mid-animation): no connector.
-        let ln = lines(&l.blocks, &|id| Some(if id == 0 { (0, 0, 10) } else { (5, 0, 1) }), &HashSet::new(), &HashSet::new());
+        let ln = lines(&l.blocks, &|id| Some(if id == 0 { (0, 0, 10) } else { (5, 0, 1) }), &HashSet::new(), &HashSet::new(), &|_| false);
         assert!(ln.is_empty());
     }
 
     #[test]
     fn route_is_a_tube_and_crossings_join() {
-        let c = |mask, route| Cell { mask, route, emph: ROUTE, owner: 0 };
+        let c = |mask, route| Cell { mask, route, emph: ROUTE, ..Cell::default() };
         assert_eq!(cell_glyph(&c(LEFT | RIGHT, LEFT | RIGHT)), '═');
         assert_eq!(cell_glyph(&c(UP | DOWN | LEFT | RIGHT, LEFT | RIGHT)), '╪', "light bar through the tube");
         assert_eq!(cell_glyph(&c(DOWN | RIGHT, RIGHT)), '╒');
         assert_eq!(cell_glyph(&c(UP | DOWN, 0)), '│', "no route bits: light");
+    }
+
+    #[test]
+    fn ignored_branches_draw_thin_on_double_and_heavy() {
+        let c = |mask, thin| Cell { mask, thin, ..Cell::default() };
+        let tick = c(UP | DOWN | RIGHT, RIGHT);
+        assert_eq!(styled_cell_glyph(3, &tick), '╟', "double bar, light tick");
+        assert_eq!(styled_cell_glyph(2, &tick), '┠', "heavy bar, light tick");
+        assert_eq!(styled_cell_glyph(3, &c(UP | RIGHT, RIGHT)), '╙', "last kid ignored");
+        assert_eq!(styled_cell_glyph(3, &c(LEFT | RIGHT, LEFT | RIGHT)), '─');
+        assert_eq!(styled_cell_glyph(3, &c(UP | DOWN | RIGHT, UP | DOWN | RIGHT)), '├', "all ignored: all light");
+        assert_eq!(styled_cell_glyph(3, &c(UP | DOWN | RIGHT, 0)), '╠');
+        assert_eq!(styled_cell_glyph(0, &tick), '├', "rounded has no thinner line");
+    }
+
+    #[test]
+    fn ignored_kid_gets_a_thin_tick_on_a_thick_bar() {
+        let root = fixture("thin", &["a", "b", "c"]);
+        let mut t = Tree::new(&root);
+        t.load(0);
+        t.nodes[0].expanded = true;
+        let l = layout(&t, 0, &name_of(&t), Spacing::default());
+        let m: HashMap<usize, (i32, i32, i32)> = l.placed.iter().map(|p| (p.id, (p.x, p.y, p.label.width() as i32))).collect();
+        let b = t.kids(0)[1];
+        let ln = lines(&l.blocks, &|id| m.get(&id).copied(), &HashSet::new(), &HashSet::new(), &|id| id == b);
+        let (xb, yb) = pos(&l, &t, "b");
+        let (xa, ya) = pos(&l, &t, "a");
+        assert_eq!(ln[&(xb - 1, yb)].thin, RIGHT, "b's tick is thin, the bar through it isn't");
+        assert_eq!(ln[&(xa - 1, ya)].thin, 0);
+        let all = lines(&l.blocks, &|id| m.get(&id).copied(), &HashSet::new(), &HashSet::new(), &|id| id != 0);
+        assert!(all.values().all(|c| c.thin == c.mask), "a block of only ignored kids is all thin");
     }
 
     #[test]

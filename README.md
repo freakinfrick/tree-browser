@@ -193,7 +193,8 @@ Inside a git repo, each file with changes gets a one-letter marker after its nam
 | `!` (pink) | merge conflict |
 
 A closed folder's `›` bud takes the color of the most urgent change anywhere inside it, so you can
-follow a change down from the top. Ignored files and folders (`target/`, `node_modules/`) are dimmed.
+follow a change down from the top. Ignored files and folders (`target/`, `node_modules/`) are greyed out, and on double or heavy lines
+their branches draw thin. Nothing fades below the dim floor (contrast 4.5 by default), so they stay readable.
 The status bar shows the branch with ahead/behind counts (`⎇ main ↑1`) and the selected entry's
 state. When a changed file is open in the preview, `d` switches between the file and its diff against
 `HEAD`, staged and unstaged changes together.
@@ -223,7 +224,8 @@ closes the panel.
 | Accent | indigo, teal, violet, amber, mono (lines, selector, highlights) | indigo |
 | Heat colors | ember (red → blue), aurora (yellow → purple, avoids red-green), mono | ember |
 | Heat range | age that gets the coldest color: day, week, month, year, 5y | 5y |
-| Tree lines | rounded, square, heavy, double, ascii | rounded |
+| Dim floor | least contrast a faded name keeps: off, 3, 4.5, 7 | 4.5 |
+| Tree lines | double, heavy, rounded, square, ascii (on double and heavy, ignored branches draw thin) | double |
 | Branch offset | line between each join and its name, 0–4 (`├name` → `├──name`) | 0 |
 | Legend | the color key in the status bar | on |
 | Motion | slow, normal, fast, instant (no animation) | normal |
