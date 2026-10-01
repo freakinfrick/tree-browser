@@ -1368,30 +1368,39 @@ mod tests {
         [116.0 * y - 16.0, 500.0 * (x - y), 200.0 * (y - z)]
     }
 
+    fn delta_e(a: Rgb, b: Rgb) -> f32 {
+        let (a, b) = (lab(a), lab(b));
+        ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
+    }
+
     /// WCAG contrast ratio of a color against the background.
     fn contrast(c: Rgb) -> f32 {
         (luminance(c) + 0.05) / (luminance(BG) + 0.05)
     }
 
     #[test]
-    fn every_palette_keeps_names_readable_and_off_the_ignored_grey() {
+    fn every_palette_stays_readable_and_apart_from_ignored_and_cursor_colors() {
         use crate::anim::{heat_scaled, range_scale, stops_of};
         use crate::settings::{Palette, Settings, PALETTES};
         let d = Settings::default();
         let scale = range_scale(d.heat_range.secs());
+        let ages = || std::iter::successors(Some(1.0_f32), |a| Some(a * 1.25)).take_while(|&a| a <= 1.5 * d.heat_range.secs());
         for p in PALETTES {
-            let mut age = 1.0;
-            while age <= 1.5 * d.heat_range.secs() {
+            for age in ages() {
                 let on = heat_scaled(stops_of(p), age, scale);
                 let off = off_line(on, d.focus_dim);
                 assert!(contrast(on) >= 2.8, "{p:?}, {age:.0}s old: on-line name too dark ({:.1}:1)", contrast(on));
-                for c in [on, off] {
-                    let (a, b) = (lab(c), lab(ignored_shade(c, d.dim_floor)));
-                    let de = ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt();
-                    // Mono is all greys; only the thin lines mark its ignored names.
-                    assert!(p == Palette::Mono || de >= 15.0, "{p:?}, {age:.0}s old: reads as ignored (dE {de:.1})");
+                // Mono is all greys: only the thin lines mark its ignored names, and
+                // only bold marks the cursor path.
+                if p == Palette::Mono {
+                    continue;
                 }
-                age *= 1.25;
+                for c in [on, off] {
+                    let de = delta_e(c, ignored_shade(c, d.dim_floor));
+                    assert!(de >= 15.0, "{p:?}, {age:.0}s old: reads as ignored (dE {de:.1})");
+                }
+                let de = delta_e(on, ROUTE_TEXT);
+                assert!(de >= 15.0, "{p:?}, {age:.0}s old: reads as the cursor path (dE {de:.1})");
             }
         }
     }
