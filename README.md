@@ -21,7 +21,10 @@ The command is `tb`.
 ## Highlights
 
 - **Many branches open at once.** Open folders stay open side by side, joined by elbow connectors, like
-  [Conrad Barski's](http://www.lisperati.com/) file browser that inspired it.
+  [Conrad Barski's](http://www.lisperati.com/) file browser that inspired it. By default the connectors
+  use *reactive river routing*: the gap between columns holds a fixed number of tracks, only the pipes
+  on screen get their own, and they nest so none ever crosses. Pipes off screen share tracks and split
+  apart before they scroll into view. Every earlier connector design is still one setting away.
 - **Heat colors from recursive mtime.** A folder is colored by the newest change *anywhere* inside it,
   so you can spot where the action is from the top of the tree.
 - **Live.** Open folders update as files come, go and change (about once a second), and the heat
@@ -215,6 +218,8 @@ closes the panel.
 |---|---|---|
 | Row spacing | blank rows between entries, 0–3 | 0 |
 | Column gap | space before the next column, 3–12 | 3 |
+| Pipes | how a folder's line reaches its contents: river (tracks only for the pipes on screen, nested), nested (one track per open folder, never crossing), crossing (one per open folder, in folder order: the first design), capped (shared past a third of the column's width), tidy (no tracks: folders move beside their contents) | river |
+| River tracks | river pipes: tracks between columns, 1–6. A screen that needs more widens the gap once, to fit the busiest screen of the open tree | 3 |
 | Column width | widest a column gets; longer names are cut with `…`, 12–60 | 28 |
 | Columns | fit (as wide as the longest name), equal (every column the column width) | fit |
 | Name details | off, age, size, both, dimmed after each name | off |
