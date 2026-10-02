@@ -22,7 +22,7 @@ CUTS = [
     ("/ finds", 0.8, 2.4),
     ("Mordor burns", 0.3, 1.6),
     ("o sorts", 0.5, 3.0),
-    (", settings", 1.3, 3.0),
+    (", settings", 2.4, 3.0),         # accent, then the heat palettes cycling
     ("? lists", 0.1, 1.6),
 ]
 FPS, WIDTH = 15, 960

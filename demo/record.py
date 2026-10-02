@@ -137,7 +137,7 @@ key("h", "h", gap=0.4); expect("07_moria")
 key("Down", "Down", "Down", gap=0.25); expect("10_fangorn"); time.sleep(0.5)
 key("l", gap=0.35); key("G", gap=0.35); expect("treebeard")
 key("l", gap=0.35)
-key("/", gap=0.2); type_("rf"); time.sleep(0.2); key("Enter", gap=0.5)  # into rfcs/, on 0000-template.md
+key("/", gap=0.2); type_("rf"); time.sleep(0.2); key("Enter", gap=0.3); key("l", gap=0.5)  # Enter stays on rfcs/; l: 0000-template.md
 key("j", gap=0.35); expect("0001-rename-from-tree-browser.md")
 say("RFC 0001: the rename, read through glow")
 key("Enter", gap=1.9); key("q", gap=0.4)
@@ -163,9 +163,9 @@ say("s opens a shell here  ·  exit comes back")
 key("s", gap=0.9); type_("git status -s"); key("Enter", gap=1.8); type_("exit"); key("Enter", gap=1.0)
 expect("wall-repairs.rs")
 
-say("/ finds in the column  ·  tab cycles matches")
+say("/ finds fuzzily in the column  ·  tab cycles matches")
 key("h", "h", gap=0.4); expect("11_rohan")
-key("/", gap=0.3); type_("mor", gap=0.15); time.sleep(0.9); key("Tab", gap=0.9); key("Enter", gap=0.8)
+key("/", gap=0.3); type_("mor", gap=0.15); time.sleep(0.9); key("Tab", gap=0.9); key("Enter", gap=0.5); key("l", gap=0.6)
 expect("barad-dur")
 say("Mordor burns: one log changed a minute ago")
 key("l", gap=0.5); key("G", gap=1.8); expect("structural-failure.log")
@@ -175,13 +175,13 @@ key("h", "h", gap=0.5); expect("15_mordor")
 key("o", gap=1.7); key("o", gap=1.2); key("o", gap=1.0); key("o", gap=0.9)
 expect("15_mordor")
 
-say(", settings apply as you change them")
-key(",", gap=0.6); key(*"jjjjjjjjjj", gap=0.12)                   # -> Accent
-key("l", gap=0.8); key("l", gap=0.8); key("j", gap=0.4); key("l", gap=1.2)   # teal, violet; heat colors: aurora
-key("h", gap=0.4); key("k", gap=0.2); key("h", "h", gap=0.3); key("Escape", gap=0.6)  # back to the defaults
+say(", settings apply as you change them  ·  seven heat palettes")
+key(",", gap=0.6); key(*"jjjjjjjjjjjj", gap=0.12)                 # -> Accent
+key("l", gap=0.8); key("l", gap=0.8); key("j", gap=0.4); key("l", "l", "l", "l", gap=1.0)   # teal, violet; heat colors: magma, neon, aurora, glacier
+key("h", "h", "h", "h", gap=0.15); key("k", gap=0.2); key("h", "h", gap=0.3); key("Escape", gap=0.6)  # back to the defaults
 
-say("c collapses every other branch")
-key("c", gap=1.6)
+say("C folds every other branch")
+key("C", gap=1.6)
 say("? lists every key")
 key("?", gap=2.2); key("?", gap=0.6)
 say("treebeard  ·  Rust + ratatui", 1.8)

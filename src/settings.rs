@@ -78,6 +78,18 @@ pub enum Palette {
     Sepia,
     /// Bright white fading to grey.
     Mono,
+    /// Parchment only: leaf green through gold and rust to dark bark.
+    Growth,
+    /// Parchment only: fresh black ink browning and fading with age.
+    Ink,
+}
+
+/// What the tree is drawn on.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Ground {
+    Dark,
+    /// Light parchment with ink colors: the Ent look.
+    Parchment,
 }
 
 /// How wide the tree's columns are.
@@ -196,8 +208,12 @@ pub struct Settings {
     pub folders_first: bool,
     pub natural_sort: bool,
     pub show_hidden: bool,
+    pub ground: Ground,
     pub accent: Accent,
+    /// Heat colors on the dark ground.
     pub palette: Palette,
+    /// Heat colors on parchment.
+    pub paper_palette: Palette,
     pub heat_range: HeatRange,
     /// How light ignored names are: 0 near black, 10 light grey.
     pub dim_floor: u8,
@@ -228,7 +244,7 @@ impl Default for Settings {
         Settings {
             row_spacing: 0,
             column_gap: 3,
-            pipes: Pipes::River,
+            pipes: Pipes::Capped,
             tracks: 3,
             max_name: 28,
             columns: Columns::Fit,
@@ -237,8 +253,10 @@ impl Default for Settings {
             folders_first: false,
             natural_sort: true,
             show_hidden: false,
+            ground: Ground::Dark,
             accent: Accent::Indigo,
             palette: Palette::Ember,
+            paper_palette: Palette::Growth,
             heat_range: HeatRange::Years5,
             dim_floor: 5,
             focus_dim: 6,
@@ -271,7 +289,7 @@ pub struct Item {
     pub help: &'static str,
 }
 
-pub const ITEMS: [Item; 34] = [
+pub const ITEMS: [Item; 35] = [
     Item { key: "row_spacing", label: "Row spacing", section: "Layout", help: "Blank rows between entries. More air, fewer entries on screen." },
     Item { key: "column_gap", label: "Column gap", section: "Layout", help: "Space between a column's longest name and the next column." },
     Item { key: "pipes", label: "Pipes", section: "Layout", help: "How lines reach a folder's contents. River: tracks only for what's on screen, nested, never crossing. Nested: one per open folder. Crossing: the first design. Capped: shared past a third of the width. Tidy: no tracks, folders move." },
@@ -284,8 +302,9 @@ pub const ITEMS: [Item; 34] = [
     Item { key: "folders_first", label: "Folders first", section: "Order", help: "Folders above files, whatever the sort." },
     Item { key: "natural_sort", label: "Natural sort", section: "Order", help: "Numbers in names count up: file2 before file10." },
     Item { key: "show_hidden", label: "Dotfiles", section: "Order", help: "Same as . in the tree." },
-    Item { key: "accent", label: "Accent", section: "Look", help: "Color of the lines, the selector and the highlights." },
-    Item { key: "palette", label: "Heat colors", section: "Look", help: "Recency gradient. Magma and aurora avoid red-green; sepia and mono are brightness only." },
+    Item { key: "ground", label: "Ground", section: "Look", help: "Dark, or light parchment in ink colors: the Ent look. Each keeps its own heat colors." },
+    Item { key: "accent", label: "Accent", section: "Look", help: "Color of the lines, the selector and the highlights. Parchment always uses forest green." },
+    Item { key: "palette", label: "Heat colors", section: "Look", help: "Recency gradient. Magma and aurora avoid red-green; sepia and mono are brightness only. On parchment: growth (green to bark) or ink (black fading brown)." },
     Item { key: "heat_range", label: "Heat range", section: "Look", help: "Age that gets the coldest color. Short ranges tell apart the files of one busy week." },
     Item { key: "focus_dim", label: "Off-line dim", section: "Look", help: "How bright names off the cursor's line stay: 0 nearly out, 10 full color." },
     Item { key: "lines", label: "Tree lines", section: "Look", help: "Corners and branches: double, heavy, rounded, square or plain ASCII. On double and heavy, branches git ignores draw thin." },
@@ -296,7 +315,7 @@ pub const ITEMS: [Item; 34] = [
     Item { key: "ripples", label: "Ripples", section: "Behavior", help: "Flash a live change and let it climb the tree." },
     Item { key: "git", label: "Git status", section: "Behavior", help: "Markers, branch and diffs inside git repos." },
     Item { key: "dim_ignored", label: "Dim ignored", section: "Behavior", help: "Grey out files git ignores, like target/ and node_modules/." },
-    Item { key: "dim_floor", label: "Dim floor", section: "Behavior", help: "How light ignored names are: 0 is nearly black, 10 light grey. Nothing else changes." },
+    Item { key: "dim_floor", label: "Dim floor", section: "Behavior", help: "How visible ignored names are: 0 nearly the background, 10 plain grey. Nothing else changes." },
     Item { key: "explode_ignored", label: "Explode ignored", section: "Behavior", help: "Let e open folders git ignores too. A folder you explode directly always opens." },
     Item { key: "step", label: "Step through", section: "Behavior", help: "What j and k walk: the folder, the column, or the whole open tree in reading order. Arrows and the wheel stay in the column." },
     Item { key: "mouse", label: "Mouse", section: "Behavior", help: "Off hands the mouse back to the terminal, so you can select text." },
@@ -313,9 +332,24 @@ const SPEEDS: [Speed; 4] = [Speed::Slow, Speed::Normal, Speed::Fast, Speed::Inst
 const WHEEL_SPEEDS: [u8; 4] = [1, 2, 3, 5];
 const MOMENTA: [Momentum; 4] = [Momentum::Off, Momentum::Short, Momentum::Medium, Momentum::Long];
 const ACCENTS: [Accent; 5] = [Accent::Indigo, Accent::Teal, Accent::Violet, Accent::Amber, Accent::Mono];
-/// In `Palette`'s declaration order, which `anim` relies on.
+/// Heat colors for the dark ground.
 pub const PALETTES: [Palette; 7] =
     [Palette::Ember, Palette::Magma, Palette::Neon, Palette::Aurora, Palette::Glacier, Palette::Sepia, Palette::Mono];
+/// Heat colors for parchment.
+pub const PAPER_PALETTES: [Palette; 2] = [Palette::Growth, Palette::Ink];
+/// Every palette in `Palette`'s declaration order, which `anim` relies on.
+pub const ALL_PALETTES: [Palette; 9] = [
+    Palette::Ember,
+    Palette::Magma,
+    Palette::Neon,
+    Palette::Aurora,
+    Palette::Glacier,
+    Palette::Sepia,
+    Palette::Mono,
+    Palette::Growth,
+    Palette::Ink,
+];
+const GROUNDS: [Ground; 2] = [Ground::Dark, Ground::Parchment];
 const COLUMNS: [Columns; 2] = [Columns::Fit, Columns::Equal];
 const DETAILS: [Details; 4] = [Details::Off, Details::Age, Details::Size, Details::Both];
 const RANGES: [HeatRange; 5] = [HeatRange::Day, HeatRange::Week, HeatRange::Month, HeatRange::Year, HeatRange::Years5];
@@ -383,6 +417,15 @@ fn palette_word(p: Palette) -> &'static str {
         Palette::Glacier => "glacier",
         Palette::Sepia => "sepia",
         Palette::Mono => "mono",
+        Palette::Growth => "growth",
+        Palette::Ink => "ink",
+    }
+}
+
+fn ground_word(g: Ground) -> &'static str {
+    match g {
+        Ground::Dark => "dark",
+        Ground::Parchment => "parchment",
     }
 }
 
@@ -467,6 +510,23 @@ fn on_off(b: bool) -> String {
 
 impl Settings {
     /// The value as the menu shows it.
+    /// The heat colors the current ground uses.
+    pub fn heat_palette(&self) -> Palette {
+        match self.ground {
+            Ground::Dark => self.palette,
+            Ground::Parchment => self.paper_palette,
+        }
+    }
+
+    /// The config-file key a menu row writes: on parchment, Heat colors is
+    /// the paper palette, kept apart so the dark one survives the switch.
+    pub fn file_key<'a>(&self, key: &'a str) -> &'a str {
+        match key {
+            "palette" if self.ground == Ground::Parchment => "paper_palette",
+            k => k,
+        }
+    }
+
     pub fn show(&self, key: &str) -> String {
         match key {
             "row_spacing" => self.row_spacing.to_string(),
@@ -481,8 +541,11 @@ impl Settings {
             "folders_first" => on_off(self.folders_first),
             "natural_sort" => on_off(self.natural_sort),
             "show_hidden" => if self.show_hidden { "shown".into() } else { "hidden".into() },
+            "ground" => ground_word(self.ground).into(),
+            "accent" if self.ground == Ground::Parchment => "forest".into(),
             "accent" => accent_word(self.accent).into(),
-            "palette" => palette_word(self.palette).into(),
+            "palette" => palette_word(self.heat_palette()).into(),
+            "paper_palette" => palette_word(self.paper_palette).into(),
             "heat_range" => range_word(self.heat_range).into(),
             "dim_floor" => self.dim_floor.to_string(),
             "focus_dim" => self.focus_dim.to_string(),
@@ -512,6 +575,8 @@ impl Settings {
         match key {
             "row_spacing" | "column_gap" | "tracks" | "max_name" | "branch_offset" | "wheel_speed" | "dim_floor" | "focus_dim" => self.show(key),
             "sort_reverse" => self.sort.rev.to_string(),
+            "palette" => format!("\"{}\"", palette_word(self.palette)),
+            "accent" => format!("\"{}\"", accent_word(self.accent)),
             "show_hidden" => self.show_hidden.to_string(),
             "legend" | "live" | "ripples" | "git" | "dim_ignored" | "folders_first" | "natural_sort" | "explode_ignored" | "mouse" | "wrap"
             | "remember" => (self.show(key) == "on").to_string(),
@@ -535,7 +600,10 @@ impl Settings {
             "folders_first" => self.folders_first ^= true,
             "natural_sort" => self.natural_sort ^= true,
             "show_hidden" => self.show_hidden ^= true,
+            "ground" => self.ground = cycle(&GROUNDS, self.ground, dir),
+            "accent" if self.ground == Ground::Parchment => {}
             "accent" => self.accent = cycle(&ACCENTS, self.accent, dir),
+            "palette" if self.ground == Ground::Parchment => self.paper_palette = cycle(&PAPER_PALETTES, self.paper_palette, dir),
             "palette" => self.palette = cycle(&PALETTES, self.palette, dir),
             "heat_range" => self.heat_range = cycle(&RANGES, self.heat_range, dir),
             "dim_floor" => self.dim_floor = step(self.dim_floor, 0, 10, 1),
@@ -577,7 +645,9 @@ impl Settings {
             "folders_first" => self.folders_first = d.folders_first,
             "natural_sort" => self.natural_sort = d.natural_sort,
             "show_hidden" => self.show_hidden = d.show_hidden,
+            "ground" => self.ground = d.ground,
             "accent" => self.accent = d.accent,
+            "palette" if self.ground == Ground::Parchment => self.paper_palette = d.paper_palette,
             "palette" => self.palette = d.palette,
             "heat_range" => self.heat_range = d.heat_range,
             "dim_floor" => self.dim_floor = d.dim_floor,
@@ -624,7 +694,9 @@ impl Settings {
             "natural_sort" => self.natural_sort = flag()?,
             "show_hidden" => self.show_hidden = flag()?,
             "accent" => self.accent = find(&ACCENTS, v, accent_word).ok_or(bad("indigo, teal, violet, amber, mono"))?,
+            "ground" => self.ground = find(&GROUNDS, v, ground_word).ok_or(bad("dark, parchment"))?,
             "palette" => self.palette = find(&PALETTES, v, palette_word).ok_or(bad("ember, magma, neon, aurora, glacier, sepia, mono"))?,
+            "paper_palette" => self.paper_palette = find(&PAPER_PALETTES, v, palette_word).ok_or(bad("growth, ink"))?,
             "heat_range" => self.heat_range = find(&RANGES, v, range_word).ok_or(bad("day, week, month, year, 5y"))?,
             "dim_floor" => self.dim_floor = num(0, 10)?,
             "focus_dim" => self.focus_dim = num(0, 10)?,
@@ -747,11 +819,12 @@ mod tests {
         for it in &ITEMS {
             s.adjust(it.key, 1);
         }
-        let text: String = ITEMS.iter().map(|it| format!("{} = {}\n", it.key, s.store(it.key))).collect();
+        let text: String = ITEMS.iter().map(|it| s.file_key(it.key)).map(|k| format!("{k} = {}\n", s.store(k))).collect();
         let (back, errs) = Settings::parse(&text);
         assert!(errs.is_empty(), "{errs:?}");
         assert_eq!(back, s);
-        for it in &ITEMS {
+        // Backwards: Heat colors resets the parchment palette while the ground is still parchment.
+        for it in ITEMS.iter().rev() {
             s.reset(it.key);
         }
         assert_eq!(s, Settings::default());

@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicU32, AtomicU8, Ordering};
 use std::time::Instant;
 
 use crate::layout::Layout;
-use crate::settings::{Palette, PALETTES};
+use crate::settings::{Palette, ALL_PALETTES};
 
 /// Unity-style SmoothDamp: critically damped, no overshoot, and velocity
 /// carries over when the target moves mid-flight (no restart jerk).
@@ -236,6 +236,30 @@ const MONO: Stops = [
     (5.0 * 365.0 * 86400.0, [90.0, 90.0, 100.0]),
 ];
 
+/// Parchment: new growth is leaf green, then gold, rust, and dark bark.
+/// On paper, dark reads loudest, so the oldest names carry the most ink.
+const GROWTH: Stops = [
+    (60.0, [34.0, 128.0, 40.0]),
+    (3600.0, [78.0, 124.0, 18.0]),
+    (86400.0, [140.0, 116.0, 0.0]),
+    (7.0 * 86400.0, [170.0, 104.0, 0.0]),
+    (30.0 * 86400.0, [166.0, 70.0, 28.0]),
+    (365.0 * 86400.0, [120.0, 64.0, 36.0]),
+    (5.0 * 365.0 * 86400.0, [70.0, 44.0, 30.0]),
+];
+
+/// Parchment: fresh ink is near black and browns as it fades, so new work
+/// stays the boldest.
+const INK: Stops = [
+    (60.0, [28.0, 22.0, 18.0]),
+    (3600.0, [56.0, 36.0, 26.0]),
+    (86400.0, [88.0, 50.0, 24.0]),
+    (7.0 * 86400.0, [116.0, 66.0, 22.0]),
+    (30.0 * 86400.0, [136.0, 82.0, 30.0]),
+    (365.0 * 86400.0, [146.0, 94.0, 40.0]),
+    (5.0 * 365.0 * 86400.0, [150.0, 102.0, 50.0]),
+];
+
 pub fn stops_of(p: Palette) -> &'static Stops {
     match p {
         Palette::Ember => &EMBER,
@@ -245,13 +269,15 @@ pub fn stops_of(p: Palette) -> &'static Stops {
         Palette::Glacier => &GLACIER,
         Palette::Sepia => &SEPIA,
         Palette::Mono => &MONO,
+        Palette::Growth => &GROWTH,
+        Palette::Ink => &INK,
     }
 }
 
 static PALETTE: AtomicU8 = AtomicU8::new(0);
 
 pub fn set_palette(p: Palette) {
-    // `PALETTES` is in declaration order, so the discriminant indexes it.
+    // `ALL_PALETTES` is in declaration order, so the discriminant indexes it.
     PALETTE.store(p as u8, Ordering::Relaxed);
 }
 
@@ -270,7 +296,7 @@ pub fn range_scale(range: f32) -> f32 {
 
 /// The gradient in use.
 pub fn heat_stops() -> &'static Stops {
-    stops_of(PALETTES[PALETTE.load(Ordering::Relaxed) as usize % PALETTES.len()])
+    stops_of(ALL_PALETTES[PALETTE.load(Ordering::Relaxed) as usize % ALL_PALETTES.len()])
 }
 
 pub fn heat(age_secs: f32) -> Rgb {
@@ -513,7 +539,7 @@ mod tests {
 
     #[test]
     fn palettes_are_listed_in_declaration_order() {
-        for (i, &p) in PALETTES.iter().enumerate() {
+        for (i, &p) in ALL_PALETTES.iter().enumerate() {
             assert_eq!(p as usize, i, "{p:?}");
         }
     }

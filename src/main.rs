@@ -298,10 +298,11 @@ impl App {
     /// Push the settings into the tree, the colors and the background workers.
     fn apply_settings(&mut self) {
         let s = self.settings;
-        anim::set_palette(s.palette);
+        anim::set_palette(s.heat_palette());
         anim::set_heat_range(s.heat_range.secs());
         layout::set_line_style(s.lines);
         ui::set_accent(s.accent);
+        ui::set_ground(s.ground);
         let heat_changed = self.tree.show_hidden != s.show_hidden;
         self.tree.show_hidden = s.show_hidden;
         let order = (s.sort, s.folders_first, s.natural_sort);
@@ -357,7 +358,7 @@ impl App {
         }
         let Some(p) = &self.config else { return };
         // A new sort key starts unreversed, so the file's reverse must follow.
-        let keys: &[&str] = if key == "sort" { &["sort", "sort_reverse"] } else { &[key] };
+        let keys: &[&str] = if key == "sort" { &["sort", "sort_reverse"] } else { &[self.settings.file_key(key)] };
         self.save_err = keys.iter().find_map(|k| self.settings.save(p, k).err()).map(|e| format!("can't save: {e}"));
     }
 

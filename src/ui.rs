@@ -26,9 +26,83 @@ use crate::tree::Sort;
 use crate::settings::TextPreview;
 use crate::App;
 
-pub const BG: Rgb = [9.0, 10.0, 15.0];
-const BAR_BG: Rgb = [17.0, 19.0, 29.0];
-const POP_BG: Rgb = [13.0, 15.0, 23.0];
+/// The fixed colors of one ground: everything but heat and accent.
+pub struct GroundColors {
+    pub bg: Rgb,
+    bar: Rgb,
+    pop: Rgb,
+    /// Status bar and popup text.
+    text: Rgb,
+    /// Names on the cursor path.
+    route_text: Rgb,
+    flash: Rgb,
+    dot: Rgb,
+    muted: Rgb,
+    /// Ignored names at dim floor 10; floor 0 sits nearly on the background.
+    ignored: Rgb,
+    match_bg: Rgb,
+    /// A live change's flash, and the ember behind the name that changed.
+    ripple: Rgb,
+    ripple_bg: Rgb,
+    /// Untracked, staged, modified, conflict.
+    git: [Rgb; 4],
+    /// Where a cell with the terminal's own foreground fades from.
+    default_fg: Rgb,
+}
+
+const DARK: GroundColors = GroundColors {
+    bg: [9.0, 10.0, 15.0],
+    bar: [17.0, 19.0, 29.0],
+    pop: [13.0, 15.0, 23.0],
+    text: [238.0, 240.0, 250.0],
+    route_text: [238.0, 240.0, 250.0],
+    flash: [235.0, 242.0, 255.0],
+    dot: [255.0, 58.0, 58.0],
+    muted: [110.0, 118.0, 150.0],
+    ignored: [214.0, 216.0, 224.0],
+    match_bg: [92.0, 70.0, 22.0],
+    ripple: [255.0, 200.0, 150.0],
+    ripple_bg: [110.0, 38.0, 28.0],
+    git: [[110.0, 200.0, 225.0], [120.0, 215.0, 130.0], [240.0, 200.0, 90.0], [255.0, 90.0, 120.0]],
+    default_fg: [200.0; 3],
+};
+
+/// The Ent look: ink on parchment.
+const PARCHMENT: GroundColors = GroundColors {
+    bg: [242.0, 232.0, 207.0],
+    bar: [226.0, 212.0, 178.0],
+    pop: [236.0, 224.0, 194.0],
+    text: [40.0, 32.0, 24.0],
+    route_text: [24.0, 76.0, 38.0],
+    flash: [20.0, 16.0, 12.0],
+    dot: [190.0, 30.0, 30.0],
+    muted: [130.0, 118.0, 100.0],
+    ignored: [80.0, 74.0, 66.0],
+    match_bg: [236.0, 204.0, 120.0],
+    ripple: [190.0, 70.0, 20.0],
+    ripple_bg: [240.0, 196.0, 160.0],
+    git: [[30.0, 118.0, 150.0], [40.0, 130.0, 50.0], [176.0, 120.0, 0.0], [180.0, 30.0, 60.0]],
+    default_fg: [40.0, 32.0, 24.0],
+};
+
+static GROUND: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+pub fn set_ground(g: crate::settings::Ground) {
+    GROUND.store(g as u8, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn paper() -> bool {
+    GROUND.load(std::sync::atomic::Ordering::Relaxed) == crate::settings::Ground::Parchment as u8
+}
+
+/// The ground in use.
+pub fn gr() -> &'static GroundColors {
+    if paper() {
+        &PARCHMENT
+    } else {
+        &DARK
+    }
+}
 /// Line and selector colors for one accent.
 pub struct AccentColors {
     /// Branches off the cursor path.
@@ -54,6 +128,10 @@ const ACCENTS: [AccentColors; 5] = [
     AccentColors { dim: [44.0, 44.0, 50.0], active: [100.0, 100.0, 110.0], route: [212.0, 212.0, 222.0], pill: [46.0, 46.0, 54.0] },
 ];
 
+/// Parchment's only accent: bark lines, a forest-green path, a moss selector.
+const FOREST: AccentColors =
+    AccentColors { dim: [176.0, 158.0, 130.0], active: [96.0, 120.0, 70.0], route: [34.0, 92.0, 48.0], pill: [208.0, 222.0, 182.0] };
+
 static ACCENT: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
 
 pub fn set_accent(a: crate::settings::Accent) {
@@ -61,41 +139,36 @@ pub fn set_accent(a: crate::settings::Accent) {
 }
 
 fn acc() -> &'static AccentColors {
+    if paper() {
+        return &FOREST;
+    }
     &ACCENTS[ACCENT.load(std::sync::atomic::Ordering::Relaxed) as usize % ACCENTS.len()]
 }
 
-const FLASH: Rgb = [235.0, 242.0, 255.0];
-const ROUTE_TEXT: Rgb = [238.0, 240.0, 250.0];
-const DOT: Rgb = [255.0, 58.0, 58.0];
-const MUTED: Rgb = [110.0, 118.0, 150.0];
-/// Ignored names: the grey at dim floor 10, and how much heat tints it.
-const IGNORED_LIGHT: Rgb = [214.0, 216.0, 224.0];
+/// How much heat tints an ignored name's grey.
 const IGNORED_TINT: f32 = 0.12;
 
-/// An ignored name's color: a grey from near-black (floor 0) to light grey
-/// (floor 10), with a hint of its heat.
-fn ignored_shade(h: Rgb, floor: u8) -> Rgb {
-    let grey = mix(BG, IGNORED_LIGHT, 0.1 + 0.08 * floor.min(10) as f32);
+/// An ignored name's color: a grey from nearly the background (floor 0) to
+/// the ground's ignored grey (floor 10), with a hint of its heat.
+fn ignored_shade(g: &GroundColors, h: Rgb, floor: u8) -> Rgb {
+    let grey = mix(g.bg, g.ignored, 0.1 + 0.08 * floor.min(10) as f32);
     mix(grey, h, IGNORED_TINT)
 }
 /// A name off the cursor's line: each off-line dim step below 10 fades 0.08,
 /// so 0 leaves a fifth of the color.
-fn off_line(h: Rgb, focus_dim: u8) -> Rgb {
-    mix(h, BG, 0.08 * (10 - focus_dim.min(10)) as f32)
+fn off_line(g: &GroundColors, h: Rgb, focus_dim: u8) -> Rgb {
+    mix(h, g.bg, 0.08 * (10 - focus_dim.min(10)) as f32)
 }
-const MATCH_BG: Rgb = [92.0, 70.0, 22.0];
-/// A live change's flash, and the ember behind the name that changed.
-const RIPPLE: Rgb = [255.0, 200.0, 150.0];
-const RIPPLE_BG: Rgb = [110.0, 38.0, 28.0];
 
 /// Git marker colors.
 fn git_color(st: St) -> Rgb {
+    let g = gr();
     match st {
-        St::Ignored => MUTED,
-        St::Untracked => [110.0, 200.0, 225.0],
-        St::Staged => [120.0, 215.0, 130.0],
-        St::Modified => [240.0, 200.0, 90.0],
-        St::Conflict => [255.0, 90.0, 120.0],
+        St::Ignored => g.muted,
+        St::Untracked => g.git[0],
+        St::Staged => g.git[1],
+        St::Modified => g.git[2],
+        St::Conflict => g.git[3],
     }
 }
 
@@ -187,7 +260,7 @@ fn dim_backdrop(buf: &mut Buffer, keep: Rect, d: f32) {
             Color::Rgb(r, g, b) => [r as f32, g as f32, b as f32],
             _ => dflt,
         };
-        to_color(mix(rgb, BG, d))
+        to_color(mix(rgb, gr().bg, d))
     };
     for y in area.top()..area.bottom() {
         for x in area.left()..area.right() {
@@ -196,7 +269,7 @@ fn dim_backdrop(buf: &mut Buffer, keep: Rect, d: f32) {
             }
             let cell = &mut buf[(x, y)];
             let (fg, bg) = (cell.fg, cell.bg);
-            cell.set_fg(fade(fg, [200.0; 3])).set_bg(fade(bg, BG));
+            cell.set_fg(fade(fg, gr().default_fg)).set_bg(fade(bg, gr().bg));
         }
     }
 }
@@ -233,11 +306,11 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         let now = SystemTime::now();
         for p in &lay.placed {
             let target = if route.contains(&p.id) {
-                ROUTE_TEXT
+                gr().route_text
             } else {
                 let age = now.duration_since(app.heat_of(p.id)).unwrap_or_default().as_secs_f32();
                 let h = heat(age);
-                if p.active { h } else { off_line(h, app.settings.focus_dim) }
+                if p.active { h } else { off_line(gr(), h, app.settings.focus_dim) }
             };
             let Some(a) = app.scene.nodes.get_mut(&p.id) else { continue };
             a.target = target;
@@ -286,7 +359,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
     let (pill_x, pill_y, pill_w) = (cx, cy, cw);
 
     let buf = f.buffer_mut();
-    tint(buf, canvas, BG);
+    tint(buf, canvas, gr().bg);
 
     app.cols = lay.cols.iter().map(|&(lo, hi, id)| (lo - ox, hi - ox, id)).collect();
 
@@ -296,7 +369,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         for x in (p.x - 2)..=(p.x + w) {
             let sx = x - ox;
             if sx >= 0 && sy >= 0 && sx < canvas.width as i32 && sy < canvas.height as i32 {
-                buf[(canvas.x + sx as u16, canvas.y + sy as u16)].set_bg(to_color(mix(acc().pill, BG, 0.55)));
+                buf[(canvas.x + sx as u16, canvas.y + sy as u16)].set_bg(to_color(mix(acc().pill, gr().bg, 0.55)));
             }
         }
     }
@@ -347,7 +420,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         let c = match cell.emph {
             ROUTE => mix(acc().route, h, 0.18),
             ACTIVE => mix(acc().active, h, 0.42),
-            _ => mix(acc().dim, mix(h, BG, 0.55), 0.35),
+            _ => mix(acc().dim, mix(h, gr().bg, 0.55), 0.35),
         };
         // Only this branch's elbow: its two rows, and the trunk between them.
         let lit = wires.iter().filter(|w| {
@@ -357,7 +430,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
                 && (y == w.3 || y == w.4 || cell.mask & (UP | DOWN) != 0)
         });
         let c = match lit.map(|w| w.5).reduce(f32::max) {
-            Some(g) => mix(c, RIPPLE, 0.9 * g),
+            Some(g) => mix(c, gr().ripple, 0.9 * g),
             None => c,
         };
         buf[(canvas.x + sx as u16, canvas.y + sy as u16)].set_char(cell_glyph(&cell)).set_fg(to_color(c));
@@ -382,23 +455,23 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         let git = if a.ghost { None } else { app.git_state(id) };
         // Ignored by git: grey at the dim floor's lightness, unless it's on the cursor path.
         let quiet = git == Some(St::Ignored) && app.settings.dim_ignored && !route.contains(&id);
-        let rgb = if quiet { ignored_shade(a.rgb, app.settings.dim_floor) } else { a.rgb };
-        let mut style = Style::new().fg(to_color(mix(BG, mix(rgb, RIPPLE, g), a.alpha)));
+        let rgb = if quiet { ignored_shade(gr(), a.rgb, app.settings.dim_floor) } else { a.rgb };
+        let mut style = Style::new().fg(to_color(mix(gr().bg, mix(rgb, gr().ripple, g), a.alpha)));
         if node.is_dir || route.contains(&id) {
             style = style.add_modifier(Modifier::BOLD);
         }
         // The pill keeps the cursor's row; everywhere else an ember shows behind the name.
         if g > 0.02 && id != app.cursor {
-            style = style.bg(to_color(mix(BG, RIPPLE_BG, g * a.alpha)));
+            style = style.bg(to_color(mix(gr().bg, gr().ripple_bg, g * a.alpha)));
         }
         let (name, details) = a.label.split_at(a.name.min(a.label.len()));
         put(buf, canvas, sx, sy, name, style);
         if !details.is_empty() {
-            let st = Style::new().fg(to_color(mix(BG, rgb, a.alpha * 0.5)));
+            let st = Style::new().fg(to_color(mix(gr().bg, rgb, a.alpha * 0.5)));
             put(buf, canvas, sx + name.width() as i32, sy, details, st);
         }
         if let Some((_, spans)) = finding.filter(|_| !a.ghost && found.contains(&id)).and_then(|q| crate::fuzzy(name, q)) {
-            let lit = Style::new().fg(to_color(mix(BG, FLASH, a.alpha))).bg(to_color(mix(BG, MATCH_BG, a.alpha)));
+            let lit = Style::new().fg(to_color(mix(gr().bg, gr().flash, a.alpha))).bg(to_color(mix(gr().bg, gr().match_bg, a.alpha)));
             for r in spans {
                 put(buf, canvas, sx + a.label[..r.start].width() as i32, sy, &a.label[r], lit.add_modifier(Modifier::BOLD));
             }
@@ -411,16 +484,16 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
         let spinning = app.exploding.as_ref().filter(|x| x.target == id && !a.ghost);
         if let Some(x) = spinning {
             // `e` at work: the bud turns into a spinner until everything unfurls.
-            let st = Style::new().fg(to_color(mix(BG, acc().route, a.alpha))).add_modifier(Modifier::BOLD);
+            let st = Style::new().fg(to_color(mix(gr().bg, acc().route, a.alpha))).add_modifier(Modifier::BOLD);
             put(buf, canvas, sx + a.w + 1, sy, spinner(x.born), st);
         } else if bud && !a.ghost {
             let c = match git {
-                Some(s) => mix(BG, git_color(s), a.alpha),
-                None => mix(BG, rgb, a.alpha * 0.55),
+                Some(s) => mix(gr().bg, git_color(s), a.alpha),
+                None => mix(gr().bg, rgb, a.alpha * 0.55),
             };
             put(buf, canvas, sx + a.w + 1, sy, "›", Style::new().fg(to_color(c)));
         } else if let (Some(s), false) = (git, node.is_dir) {
-            let st = Style::new().fg(to_color(mix(BG, git_color(s), a.alpha))).add_modifier(Modifier::BOLD);
+            let st = Style::new().fg(to_color(mix(gr().bg, git_color(s), a.alpha))).add_modifier(Modifier::BOLD);
             put(buf, canvas, sx + a.w + 1, sy, s.glyph(), st);
         }
         if !a.ghost {
@@ -457,9 +530,9 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             if cellref.symbol() == " " {
                 continue; // gaps stay dark; the light rides wire and names
             }
-            cellref.set_fg(to_color(mix(acc().route, FLASH, fade)));
+            cellref.set_fg(to_color(mix(acc().route, gr().flash, fade)));
             if i == 0 {
-                cellref.set_bg(to_color(mix(BG, acc().route, 0.35)));
+                cellref.set_bg(to_color(mix(gr().bg, acc().route, 0.35)));
             }
         }
         if !running {
@@ -541,10 +614,10 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             let title = if pv.showing_diff { format!(" {} · diff ", pv.title) } else { format!(" {} ", pv.title) };
             let block = Block::bordered()
                 .border_type(BorderType::Rounded)
-                .border_style(Style::new().fg(to_color(mix(POP_BG, acc().route, p))))
-                .style(Style::new().bg(to_color(POP_BG)))
-                .title(Span::styled(title, Style::new().fg(to_color(ROUTE_TEXT)).add_modifier(Modifier::BOLD)))
-                .title_bottom(Line::from(Span::styled(pos_label, Style::new().fg(to_color(MUTED)))).right_aligned());
+                .border_style(Style::new().fg(to_color(mix(gr().pop, acc().route, p))))
+                .style(Style::new().fg(to_color(gr().text)).bg(to_color(gr().pop)))
+                .title(Span::styled(title, Style::new().fg(to_color(gr().text)).add_modifier(Modifier::BOLD)))
+                .title_bottom(Line::from(Span::styled(pos_label, Style::new().fg(to_color(gr().muted)))).right_aligned());
             f.render_widget(Clear, area);
             // Pixels only once the popup has landed: graphics protocols can't follow the grow animation.
             let settled = p > 0.97 && !pv.closing;
@@ -568,7 +641,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
                     let spin = spinner(pv.born);
                     let row = Line::from(vec![
                         Span::styled(format!("{spin} "), Style::new().fg(to_color(acc().route))),
-                        Span::styled(pv.loading, Style::new().fg(to_color(MUTED))),
+                        Span::styled(pv.loading, Style::new().fg(to_color(gr().muted))),
                     ])
                     .centered();
                     let pad = vec![Line::from(""); (area.height as usize).saturating_sub(3) / 2];
@@ -608,7 +681,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
 
 fn status_bar(f: &mut Frame, app: &App, area: Rect) {
     let buf = f.buffer_mut();
-    tint(buf, area, BAR_BG);
+    tint(buf, area, gr().bar);
     if let Some(line) = &app.prompt {
         return prompt_bar(f, app, area, line);
     }
@@ -632,32 +705,32 @@ fn status_bar(f: &mut Frame, app: &App, area: Rect) {
     };
 
     // Right side: explode · note · git · sort · meta · age swatch · legend · help key.
-    let muted = Style::new().fg(to_color(MUTED));
+    let muted = Style::new().fg(to_color(gr().muted));
     let mut right = Vec::new();
     if let Some(x) = &app.exploding {
         right.push(Span::styled(format!("{} ", spinner(x.born)), Style::new().fg(to_color(acc().route))));
         let n = if x.folders == 0 { "reading".into() } else { format!("{} folders", x.folders) };
-        right.push(Span::styled(format!("exploding · {n} · "), Style::new().fg(to_color(ROUTE_TEXT))));
+        right.push(Span::styled(format!("exploding · {n} · "), Style::new().fg(to_color(gr().text))));
         right.push(Span::styled("esc", Style::new().fg(to_color(acc().route)).add_modifier(Modifier::BOLD)));
         right.push(Span::styled(" stops · ", muted));
     } else if let Some((msg, _)) = app.note.as_ref().filter(|n| n.1.elapsed() < crate::NOTE) {
-        right.push(Span::styled(format!("{msg} · "), Style::new().fg(to_color(ROUTE_TEXT))));
+        right.push(Span::styled(format!("{msg} · "), Style::new().fg(to_color(gr().text))));
     }
     if let Some((top, repo)) = app.git.as_ref().and_then(|g| g.repo_of(&cur.path)) {
         right.push(Span::styled("⎇ ", Style::new().fg(to_color(acc().route))));
-        right.push(Span::styled(format!("{} · ", repo.branch), Style::new().fg(to_color(ROUTE_TEXT))));
+        right.push(Span::styled(format!("{} · ", repo.branch), Style::new().fg(to_color(gr().text))));
         if let Some(st) = repo.get(top, &cur.path) {
             right.push(Span::styled(format!("{} · ", st.describe()), Style::new().fg(to_color(git_color(st)))));
         }
     }
     if app.tree.sort != Sort::default() {
         right.push(Span::styled("⇅ ", Style::new().fg(to_color(acc().route))));
-        right.push(Span::styled(format!("{} · ", app.tree.sort.describe()), Style::new().fg(to_color(ROUTE_TEXT))));
+        right.push(Span::styled(format!("{} · ", app.tree.sort.describe()), Style::new().fg(to_color(gr().text))));
     }
     right.extend([
         Span::styled(format!("{meta} · "), muted),
         Span::styled("● ", Style::new().fg(to_color(heat(age_of(t))))),
-        Span::styled(format!("{}{}", ago(t), if partial { " (partial)" } else { "" }), Style::new().fg(to_color(ROUTE_TEXT))),
+        Span::styled(format!("{}{}", ago(t), if partial { " (partial)" } else { "" }), Style::new().fg(to_color(gr().text))),
         Span::styled("   ", muted),
     ]);
     // Tight bar: the color legend goes first (it's in `?` too), then the shell keys,
@@ -708,7 +781,7 @@ fn status_bar(f: &mut Frame, app: &App, area: Rect) {
             left.push(Span::styled(" › ", Style::new().fg(to_color(acc().active))));
         }
         left.push(if leaf {
-            Span::styled(n.clone(), Style::new().fg(to_color(ROUTE_TEXT)).add_modifier(Modifier::BOLD))
+            Span::styled(n.clone(), Style::new().fg(to_color(gr().text)).add_modifier(Modifier::BOLD))
         } else {
             Span::styled(n.clone(), muted)
         });
@@ -735,11 +808,11 @@ fn prompt_bar(f: &mut Frame, app: &App, area: Rect, line: &str) {
     }
     let mut spans = vec![
         Span::styled(head, Style::new().fg(to_color(acc().route)).add_modifier(Modifier::BOLD)),
-        Span::styled(shown, Style::new().fg(to_color(ROUTE_TEXT))),
+        Span::styled(shown, Style::new().fg(to_color(gr().text))),
         Span::styled(" ", Style::new().add_modifier(Modifier::REVERSED)),
     ];
     if room > 0 {
-        spans.push(Span::styled(hint, Style::new().fg(to_color(MUTED))));
+        spans.push(Span::styled(hint, Style::new().fg(to_color(gr().muted))));
     }
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
@@ -755,10 +828,10 @@ fn search_bar(f: &mut Frame, app: &App, area: Rect, q: &str) {
     let hint = if q.is_empty() || n > 0 { "  tab ↑↓ cycle · enter stay · esc back " } else { "  esc back " };
     let spans = vec![
         Span::styled(" / ", Style::new().fg(to_color(acc().route)).add_modifier(Modifier::BOLD)),
-        Span::styled(q, Style::new().fg(to_color(ROUTE_TEXT))),
+        Span::styled(q, Style::new().fg(to_color(gr().text))),
         Span::styled(" ", Style::new().add_modifier(Modifier::REVERSED)),
-        Span::styled(count, Style::new().fg(to_color(if n > 0 { acc().route } else { DOT }))),
-        Span::styled(hint, Style::new().fg(to_color(MUTED))),
+        Span::styled(count, Style::new().fg(to_color(if n > 0 { acc().route } else { gr().dot }))),
+        Span::styled(hint, Style::new().fg(to_color(gr().muted))),
     ];
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
@@ -800,7 +873,7 @@ fn settings_panel(f: &mut Frame, app: &App, canvas: Rect, t: f32) {
     if r.width < 3 || r.height < 3 {
         return;
     }
-    let fade = |c: Rgb| to_color(mix(POP_BG, c, t));
+    let fade = |c: Rgb| to_color(mix(gr().pop, c, t));
     let inner = (w as usize).saturating_sub(4);
     let sel = app.menu.unwrap_or(0);
 
@@ -813,7 +886,7 @@ fn settings_panel(f: &mut Frame, app: &App, canvas: Rect, t: f32) {
             if !body.is_empty() {
                 body.push(Line::from(""));
             }
-            body.push(Line::from(Span::styled(format!(" {}", section.to_uppercase()), Style::new().fg(fade(MUTED)).add_modifier(Modifier::BOLD))));
+            body.push(Line::from(Span::styled(format!(" {}", section.to_uppercase()), Style::new().fg(fade(gr().muted)).add_modifier(Modifier::BOLD))));
         }
         let on = i == sel;
         if on {
@@ -834,14 +907,14 @@ fn settings_panel(f: &mut Frame, app: &App, canvas: Rect, t: f32) {
         let (l, rr) = if on { ("‹ ", " ›") } else { ("  ", "  ") };
         let vw = value.width() + 4 + sw;
         let pad = inner.saturating_sub(it.label.width() + 2 + vw);
-        let bg = if on { mix(POP_BG, acc().pill, t) } else { POP_BG };
+        let bg = if on { mix(gr().pop, acc().pill, t) } else { gr().pop };
         let base = Style::new().bg(to_color(bg));
-        let label = if on { base.fg(fade(ROUTE_TEXT)).add_modifier(Modifier::BOLD) } else { base.fg(fade(mix(MUTED, ROUTE_TEXT, 0.5))) };
+        let label = if on { base.fg(fade(gr().text)).add_modifier(Modifier::BOLD) } else { base.fg(fade(mix(gr().muted, gr().text, 0.5))) };
         let mut spans = vec![
             Span::styled(format!("  {}", it.label), label),
             Span::styled(" ".repeat(pad), base),
             Span::styled(l, base.fg(fade(acc().route))),
-            Span::styled(value, base.fg(fade(ROUTE_TEXT))),
+            Span::styled(value, base.fg(fade(gr().text))),
         ];
         spans.extend(swatch.into_iter().map(|s| s.patch_style(base)));
         spans.push(Span::styled(rr, base.fg(fade(acc().route))));
@@ -853,7 +926,7 @@ fn settings_panel(f: &mut Frame, app: &App, canvas: Rect, t: f32) {
     let mut words = String::new();
     for word in ITEMS[sel].help.split(' ') {
         if !words.is_empty() && words.width() + 1 + word.width() > inner {
-            foot.push(Line::from(Span::styled(format!("  {words}"), Style::new().fg(fade(ROUTE_TEXT)))));
+            foot.push(Line::from(Span::styled(format!("  {words}"), Style::new().fg(fade(gr().text)))));
             words.clear();
         }
         if !words.is_empty() {
@@ -861,19 +934,19 @@ fn settings_panel(f: &mut Frame, app: &App, canvas: Rect, t: f32) {
         }
         words.push_str(word);
     }
-    foot.push(Line::from(Span::styled(format!("  {words}"), Style::new().fg(fade(ROUTE_TEXT)))));
+    foot.push(Line::from(Span::styled(format!("  {words}"), Style::new().fg(fade(gr().text)))));
     foot.push(Line::from(""));
     let trouble = app.save_err.iter().chain(app.config_errs.iter().take(2));
     for e in trouble {
-        foot.push(Line::from(Span::styled(format!("  {}", crate::layout::truncate_to(e, inner)), Style::new().fg(fade(DOT)))));
+        foot.push(Line::from(Span::styled(format!("  {}", crate::layout::truncate_to(e, inner)), Style::new().fg(fade(gr().dot)))));
     }
     let place = match &app.config {
         Some(p) => tilde(p),
         None => "not saved: no home directory".into(),
     };
-    foot.push(Line::from(Span::styled(format!("  {}", crate::layout::truncate_to(&place, inner)), Style::new().fg(fade(MUTED)))));
+    foot.push(Line::from(Span::styled(format!("  {}", crate::layout::truncate_to(&place, inner)), Style::new().fg(fade(gr().muted)))));
     let key = Style::new().fg(fade(acc().route)).add_modifier(Modifier::BOLD);
-    let m = Style::new().fg(fade(MUTED));
+    let m = Style::new().fg(fade(gr().muted));
     foot.push(Line::from(vec![
         Span::styled("  j k", key),
         Span::styled(" move  ", m),
@@ -901,8 +974,8 @@ fn settings_panel(f: &mut Frame, app: &App, canvas: Rect, t: f32) {
             Block::bordered()
                 .border_type(BorderType::Rounded)
                 .border_style(Style::new().fg(fade(acc().route)))
-                .style(Style::new().bg(to_color(POP_BG)))
-                .title(Span::styled(" settings ", Style::new().fg(fade(ROUTE_TEXT)).add_modifier(Modifier::BOLD))),
+                .style(Style::new().fg(to_color(gr().text)).bg(to_color(gr().pop)))
+                .title(Span::styled(" settings ", Style::new().fg(fade(gr().text)).add_modifier(Modifier::BOLD))),
         ),
         r,
     );
@@ -914,20 +987,20 @@ fn help(f: &mut Frame, t: f32) {
     let h = ((full_h as f32) * t).round().max(1.0) as u16;
     let a = f.area();
     let r = Rect { x: a.x + (a.width - w) / 2, y: a.y + (a.height - full_h) / 2, width: w, height: h };
-    let fade = |c: Rgb| to_color(mix(POP_BG, c, t));
+    let fade = |c: Rgb| to_color(mix(gr().pop, c, t));
     let mut lines = vec![Line::from("")];
     for (k, d) in KEYS {
         lines.push(Line::from(vec![
             Span::styled(format!("  {k:>17}  "), Style::new().fg(fade(acc().route)).add_modifier(Modifier::BOLD)),
-            Span::styled(d, Style::new().fg(fade(ROUTE_TEXT))),
+            Span::styled(d, Style::new().fg(fade(gr().text))),
         ]));
     }
     lines.push(Line::from(""));
-    let mut legend = vec![Span::styled("  color = last change inside  now ", Style::new().fg(fade(MUTED)))];
+    let mut legend = vec![Span::styled("  color = last change inside  now ", Style::new().fg(fade(gr().muted)))];
     for &(_, c) in heat_stops() {
         legend.push(Span::styled("▮", Style::new().fg(fade(c))));
     }
-    legend.push(Span::styled(" 5y", Style::new().fg(fade(MUTED))));
+    legend.push(Span::styled(" 5y", Style::new().fg(fade(gr().muted))));
     lines.push(Line::from(legend));
     f.render_widget(Clear, r);
     f.render_widget(
@@ -935,8 +1008,8 @@ fn help(f: &mut Frame, t: f32) {
             Block::bordered()
                 .border_type(BorderType::Rounded)
                 .border_style(Style::new().fg(fade(acc().route)))
-                .style(Style::new().bg(to_color(POP_BG)))
-                .title(Span::styled(" treebeard ", Style::new().fg(fade(ROUTE_TEXT)).add_modifier(Modifier::BOLD))),
+                .style(Style::new().fg(to_color(gr().text)).bg(to_color(gr().pop)))
+                .title(Span::styled(" treebeard ", Style::new().fg(fade(gr().text)).add_modifier(Modifier::BOLD))),
         ),
         r,
     );
@@ -951,7 +1024,7 @@ fn audio_panel(buf: &mut Buffer, a: &mut Audio, r: Rect) {
     if r.width < 12 || r.height < 3 {
         return;
     }
-    let muted = Style::new().fg(to_color(MUTED));
+    let muted = Style::new().fg(to_color(gr().muted));
     let wave_h = r.height.saturating_sub(9).clamp(1, 10);
     // Header, gap, waveform, scrubber, times, gap, volume, gap, keys.
     let body = wave_h + 8;
@@ -972,9 +1045,9 @@ fn audio_panel(buf: &mut Buffer, a: &mut Audio, r: Rect) {
     let state = a.state();
     let (glyph, word, color) = match state {
         State::Playing => ("▶", "playing", acc().route),
-        State::Paused => ("‖", "paused", ROUTE_TEXT),
-        State::Ended => ("■", "ended · space plays again", MUTED),
-        State::Silent => ("·", "silent", DOT),
+        State::Paused => ("‖", "paused", gr().text),
+        State::Ended => ("■", "ended · space plays again", gr().muted),
+        State::Silent => ("·", "silent", gr().dot),
     };
     let bold = Style::new().fg(to_color(color)).add_modifier(Modifier::BOLD);
     put_line(buf, y, vec![Span::styled(format!("{glyph} "), bold), Span::styled(word, bold)]);
@@ -983,7 +1056,7 @@ fn audio_panel(buf: &mut Buffer, a: &mut Audio, r: Rect) {
     }
     y += 1;
     if let Some(e) = &a.err {
-        put_line(buf, y, vec![Span::styled(e.clone(), Style::new().fg(to_color(DOT)))]);
+        put_line(buf, y, vec![Span::styled(e.clone(), Style::new().fg(to_color(gr().dot)))]);
     }
     y += 1;
 
@@ -996,12 +1069,12 @@ fn audio_panel(buf: &mut Buffer, a: &mut Audio, r: Rect) {
         Some(n) if !a.wave.is_empty() || a.wave_done => {
             let cols = audio::columns(&a.wave, n, w);
             let read = if a.wave_done { w } else { (a.wave.len() * w / n.max(1)).min(w) };
-            let played = to_color(mix(acc().route, FLASH, 0.25));
-            let ahead = to_color(mix(acc().active, POP_BG, 0.2));
+            let played = to_color(mix(acc().route, gr().flash, 0.25));
+            let ahead = to_color(mix(acc().active, gr().pop, 0.2));
             for (x, v) in cols.iter().enumerate() {
                 let level = if x < read { ((v * (wave_h * 8) as f32).round() as usize).max(1) } else { 0 };
                 let fg = if x == head && state != State::Silent {
-                    to_color(FLASH)
+                    to_color(gr().flash)
                 } else if x < head {
                     played
                 } else {
@@ -1033,13 +1106,13 @@ fn audio_panel(buf: &mut Buffer, a: &mut Audio, r: Rect) {
     for x in (0..w).filter(|_| y < r.bottom()) {
         let (ch, c) = match a.total() {
             Some(_) if x < head => ('━', acc().route),
-            Some(_) if x == head => ('●', FLASH),
+            Some(_) if x == head => ('●', gr().flash),
             _ => ('─', acc().dim),
         };
         buf[(r.x + x as u16, y)].set_char(ch).set_fg(to_color(c));
     }
     y += 1;
-    put_line(buf, y, vec![Span::styled(audio::clock(a.pos()), Style::new().fg(to_color(ROUTE_TEXT)))]);
+    put_line(buf, y, vec![Span::styled(audio::clock(a.pos()), Style::new().fg(to_color(gr().text)))]);
     if let Some(t) = a.total() {
         let left = t.saturating_sub(a.pos());
         right(buf, y, &format!("-{} / {}", audio::clock(left), audio::clock(t)), muted);
@@ -1049,7 +1122,7 @@ fn audio_panel(buf: &mut Buffer, a: &mut Audio, r: Rect) {
     // Volume.
     let mut vol = vec![Span::styled("vol ", muted)];
     if a.muted {
-        vol.push(Span::styled("muted", Style::new().fg(to_color(DOT))));
+        vol.push(Span::styled("muted", Style::new().fg(to_color(gr().dot))));
     } else {
         let on = (a.volume * 10.0).round() as usize;
         vol.push(Span::styled("▮".repeat(on), Style::new().fg(to_color(acc().route))));
@@ -1288,12 +1361,17 @@ impl Preview {
             // glow is a snap and can't open paths outside $HOME: feed it stdin.
             let glow = || {
                 let mut cmd = Command::new("glow");
-                cmd.args(["-s", "dark", "-w", &w.to_string(), "-"]);
+                cmd.args(["-s", if paper() { "light" } else { "dark" }, "-w", &w.to_string(), "-"]);
                 run_tty(cmd, head(path), w)
             };
             let bat = || {
                 let wrap = if wrap { "--wrap=character" } else { "--wrap=never" };
-                run(Command::new("bat")
+                let mut cmd = Command::new("bat");
+                // Dark themes paint pale text that vanishes on parchment.
+                if paper() {
+                    cmd.arg("--theme=GitHub");
+                }
+                run(cmd
                     .args(["--color=always", "--style=numbers", "--paging=never", wrap])
                     .args(["--line-range", ":5000", "--terminal-width", &w.to_string()])
                     .arg(path))
@@ -1375,33 +1453,36 @@ mod tests {
         ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
     }
 
-    /// WCAG contrast ratio of a color against the background.
-    fn contrast(c: Rgb) -> f32 {
-        (luminance(c) + 0.05) / (luminance(BG) + 0.05)
+    /// WCAG contrast ratio of two colors, either way round.
+    fn contrast(c: Rgb, bg: Rgb) -> f32 {
+        let (a, b) = (luminance(c) + 0.05, luminance(bg) + 0.05);
+        a.max(b) / a.min(b)
     }
 
     #[test]
     fn every_palette_stays_readable_and_apart_from_ignored_and_cursor_colors() {
         use crate::anim::{heat_scaled, range_scale, stops_of};
-        use crate::settings::{Palette, Settings, PALETTES};
+        use crate::settings::{Palette, Settings, PALETTES, PAPER_PALETTES};
         let d = Settings::default();
         let scale = range_scale(d.heat_range.secs());
         let ages = || std::iter::successors(Some(1.0_f32), |a| Some(a * 1.25)).take_while(|&a| a <= 1.5 * d.heat_range.secs());
-        for p in PALETTES {
+        let grounds = [(&DARK, &PALETTES[..]), (&PARCHMENT, &PAPER_PALETTES[..])];
+        for (g, p) in grounds.into_iter().flat_map(|(g, ps)| ps.iter().map(move |&p| (g, p))) {
             for age in ages() {
                 let on = heat_scaled(stops_of(p), age, scale);
-                let off = off_line(on, d.focus_dim);
-                assert!(contrast(on) >= 2.8, "{p:?}, {age:.0}s old: on-line name too dark ({:.1}:1)", contrast(on));
+                let off = off_line(g, on, d.focus_dim);
+                let c = contrast(on, g.bg);
+                assert!(c >= 2.8, "{p:?}, {age:.0}s old: on-line name too faint ({c:.1}:1)");
                 // Mono is all greys: only the thin lines mark its ignored names, and
                 // only bold marks the cursor path.
                 if p == Palette::Mono {
                     continue;
                 }
                 for c in [on, off] {
-                    let de = delta_e(c, ignored_shade(c, d.dim_floor));
+                    let de = delta_e(c, ignored_shade(g, c, d.dim_floor));
                     assert!(de >= 15.0, "{p:?}, {age:.0}s old: reads as ignored (dE {de:.1})");
                 }
-                let de = delta_e(on, ROUTE_TEXT);
+                let de = delta_e(on, g.route_text);
                 assert!(de >= 15.0, "{p:?}, {age:.0}s old: reads as the cursor path (dE {de:.1})");
             }
         }
