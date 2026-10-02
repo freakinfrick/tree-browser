@@ -192,8 +192,10 @@ impl Media {
     /// Draw the current page scaled to fit `area`, centered. `bg` shows through
     /// transparent pixels in block mode.
     pub fn render(&mut self, f: &mut Frame, area: Rect, picker: &Picker, bg: [f32; 3]) {
-        // ponytail: TB_BLOCKS=half keeps the crate's half-blocks for side-by-side comparison.
-        let quad = picker.protocol_type() == ProtocolType::Halfblocks && std::env::var("TB_BLOCKS").as_deref() != Ok("half");
+        // ponytail: TB_BLOCKS=half|sext picks the renderer for side-by-side comparison.
+        let pick = std::env::var("TB_BLOCKS").unwrap_or_default();
+        let quad = picker.protocol_type() == ProtocolType::Halfblocks && pick != "half";
+        let rows = if pick == "sext" { 3 } else { 2 };
         let built = if quad { self.quads.is_some() } else { self.proto.is_some() };
         if !built || self.built.0 != area {
             let Some(img) = &self.img else { return };
@@ -206,8 +208,8 @@ impl Media {
             let cells = Rect { x: area.x + (area.width - cw) / 2, y: area.y + (area.height - ch) / 2, width: cw, height: ch };
             if quad {
                 let fitted = img.resize_to_fill(cw as u32 * fw as u32, ch as u32 * fh as u32, FilterType::Lanczos3);
-                let sub = fitted.resize_exact(cw as u32 * 2, ch as u32 * 2, FilterType::Lanczos3);
-                self.quads = Some(quadrants(&sub.to_rgba8(), bg));
+                let sub = fitted.resize_exact(cw as u32 * 2, ch as u32 * rows, FilterType::Lanczos3);
+                self.quads = Some(blocks(&sub.to_rgba8(), bg, rows));
             } else {
                 let fitted = img.resize_to_fill(cw as u32 * fw as u32, ch as u32 * fh as u32, FilterType::Triangle);
                 self.proto = Some(picker.new_resize_protocol(fitted));
@@ -240,15 +242,29 @@ struct Quad {
     bg: [u8; 3],
 }
 
-/// Quadrant glyphs by which sub-pixels take the foreground color: bit 0 top-left,
-/// 1 top-right, 2 bottom-left. Bottom-right is always background, which covers
-/// every split of the four into two groups without needing the complements.
+/// Quadrant glyphs by which sub-pixels take the foreground color, bits in reading
+/// order (0 top-left, 1 top-right, 2 bottom-left). The last sub-pixel is always
+/// background, which covers every split into two groups without the complements.
 const QUADS: [char; 8] = [' ', '▘', '▝', '▀', '▖', '▌', '▞', '▛'];
 
-/// `img` at 2x2 pixels per cell -> one glyph and two colors per cell, choosing the
-/// split of the four sub-pixels whose two group averages leave the least error.
-fn quadrants(img: &image::RgbaImage, bg: [f32; 3]) -> Vec<Quad> {
-    let (w, h) = (img.width() / 2, img.height() / 2);
+/// Sextant glyph for a 2x3 mask, bits in reading order. U+1FB00.. holds every
+/// pattern except the four that already exist as block elements.
+fn sextant(m: usize) -> char {
+    match m {
+        0 => ' ',
+        21 => '▌',
+        42 => '▐',
+        63 => '█',
+        _ => char::from_u32(0x1FB00 + m as u32 - 1 - (m > 21) as u32 - (m > 42) as u32).unwrap_or(' '),
+    }
+}
+
+/// `img` at 2 x `rows` pixels per cell (2 = quadrants, 3 = sextants) -> one glyph and
+/// two colors per cell, choosing the split of the sub-pixels whose two group
+/// averages leave the least error.
+fn blocks(img: &image::RgbaImage, bg: [f32; 3], rows: u32) -> Vec<Quad> {
+    let (w, h) = (img.width() / 2, img.height() / rows);
+    let n = 2 * rows as usize;
     let px = |x: u32, y: u32| {
         let p = img.get_pixel(x, y).0;
         let a = p[3] as f32 / 255.0;
@@ -257,19 +273,18 @@ fn quadrants(img: &image::RgbaImage, bg: [f32; 3]) -> Vec<Quad> {
     let mut out = Vec::with_capacity((w * h) as usize);
     for cy in 0..h {
         for cx in 0..w {
-            let (x, y) = (cx * 2, cy * 2);
-            let p = [px(x, y), px(x + 1, y), px(x, y + 1), px(x + 1, y + 1)];
+            let p: Vec<[f32; 3]> = (0..n as u32).map(|i| px(cx * 2 + i % 2, cy * rows + i / 2)).collect();
             let mut best = (f32::MAX, 0, [0.0; 3], [0.0; 3]);
-            for mask in 0..8 {
+            for mask in 0..1usize << (n - 1) {
                 let mean = |on: bool| {
-                    let (mut s, mut n) = ([0.0f32; 3], 0.0);
+                    let (mut s, mut k) = ([0.0f32; 3], 0.0);
                     for (i, c) in p.iter().enumerate() {
                         if (mask >> i & 1 == 1) == on {
-                            (0..3).for_each(|k| s[k] += c[k]);
-                            n += 1.0;
+                            (0..3).for_each(|j| s[j] += c[j]);
+                            k += 1.0;
                         }
                     }
-                    if n == 0.0 { s } else { s.map(|v| v / n) }
+                    if k == 0.0 { s } else { s.map(|v| v / k) }
                 };
                 let (fg, bk) = (mean(true), mean(false));
                 let err: f32 = p
@@ -277,7 +292,7 @@ fn quadrants(img: &image::RgbaImage, bg: [f32; 3]) -> Vec<Quad> {
                     .enumerate()
                     .map(|(i, c)| {
                         let m = if mask >> i & 1 == 1 { fg } else { bk };
-                        (0..3).map(|k| (c[k] - m[k]).powi(2)).sum::<f32>()
+                        (0..3).map(|j| (c[j] - m[j]).powi(2)).sum::<f32>()
                     })
                     .sum();
                 if err < best.0 {
@@ -285,7 +300,8 @@ fn quadrants(img: &image::RgbaImage, bg: [f32; 3]) -> Vec<Quad> {
                 }
             }
             let u8s = |c: [f32; 3]| c.map(|v| v.round().clamp(0.0, 255.0) as u8);
-            out.push(Quad { ch: QUADS[best.1], fg: u8s(best.2), bg: u8s(best.3) });
+            let ch = if rows == 3 { sextant(best.1) } else { QUADS[best.1] };
+            out.push(Quad { ch, fg: u8s(best.2), bg: u8s(best.3) });
         }
     }
     out
@@ -307,18 +323,31 @@ mod tests {
     fn quadrant_picks_the_exact_split() {
         let (w, k) = ([255, 255, 255, 255], [0, 0, 0, 255]);
         // White top-left + bottom-left, black right column: left half block.
-        let q = quadrants(&img([w, k, w, k]), [0.0; 3]);
+        let q = blocks(&img([w, k, w, k]), [0.0; 3], 2);
         assert_eq!(q, vec![Quad { ch: '▌', fg: [255; 3], bg: [0; 3] }]);
         // Diagonal.
-        assert_eq!(quadrants(&img([k, w, w, k]), [0.0; 3])[0].ch, '▞');
+        assert_eq!(blocks(&img([k, w, w, k]), [0.0; 3], 2)[0].ch, '▞');
         // Only bottom-right differs: the other three take the foreground.
-        assert_eq!(quadrants(&img([w, w, w, k]), [0.0; 3])[0], Quad { ch: '▛', fg: [255; 3], bg: [0; 3] });
+        assert_eq!(blocks(&img([w, w, w, k]), [0.0; 3], 2)[0], Quad { ch: '▛', fg: [255; 3], bg: [0; 3] });
+    }
+
+    #[test]
+    fn sextant_codepoints() {
+        assert_eq!(sextant(1), '\u{1FB00}'); // top-left only
+        assert_eq!(sextant(20), '\u{1FB13}'); // sextants 3+5
+        assert_eq!(sextant(22), '\u{1FB14}'); // 2+3+5, after the skipped left half
+        assert_eq!(sextant(62), '\u{1FB3B}');
+        // Top row white, rest black: upper third.
+        let mut i = image::RgbaImage::from_pixel(2, 3, image::Rgba([0, 0, 0, 255]));
+        i.put_pixel(0, 0, image::Rgba([255; 4]));
+        i.put_pixel(1, 0, image::Rgba([255; 4]));
+        assert_eq!(blocks(&i, [0.0; 3], 3)[0], Quad { ch: sextant(3), fg: [255; 3], bg: [0; 3] });
     }
 
     #[test]
     fn quadrant_flat_cell_is_a_space_and_alpha_shows_bg() {
         let clear = [9, 9, 9, 0];
-        let q = quadrants(&img([clear; 4]), [10.0, 20.0, 30.0]);
+        let q = blocks(&img([clear; 4]), [10.0, 20.0, 30.0], 2);
         assert_eq!(q, vec![Quad { ch: ' ', fg: [10, 20, 30], bg: [10, 20, 30] }]);
     }
 }
