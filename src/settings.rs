@@ -167,7 +167,7 @@ pub enum Graphics {
     Auto,
     /// The terminal's claimed protocol, always.
     Pixels,
-    /// Half-block characters, which work everywhere.
+    /// Quadrant-block characters, which work everywhere.
     Blocks,
     /// Captions only.
     Off,
@@ -321,7 +321,7 @@ pub const ITEMS: [Item; 35] = [
     Item { key: "mouse", label: "Mouse", section: "Behavior", help: "Off hands the mouse back to the terminal, so you can select text." },
     Item { key: "wheel_speed", label: "Wheel speed", section: "Behavior", help: "Entries per wheel notch. Text previews scroll three lines for each." },
     Item { key: "momentum", label: "Momentum", section: "Behavior", help: "How far a quick flick of the wheel glides on after you stop. Slow notches stay one step each." },
-    Item { key: "graphics", label: "Image previews", section: "Behavior", help: "Pixels if the terminal can, half-blocks anywhere, or off. i in a preview flips it for this run." },
+    Item { key: "graphics", label: "Image previews", section: "Behavior", help: "Pixels if the terminal can, blocks anywhere, or off. i in a preview flips it for this run." },
     Item { key: "preview", label: "Text preview", section: "Behavior", help: "Styled: glow for markdown, bat for code. Or bat for all, or plain text." },
     Item { key: "wrap", label: "Wrap lines", section: "Behavior", help: "Off cuts long lines at the edge of the preview." },
     Item { key: "remember", label: "Remember place", section: "Behavior", help: "Reopen the folders and selection you left, next time tb starts in the same folder." },

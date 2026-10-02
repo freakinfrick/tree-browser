@@ -1,10 +1,12 @@
 //! Image and PDF previews. Pixels go through ratatui-image, which uses kitty /
-//! sixel / iTerm2 graphics when the terminal answers the query, half-blocks otherwise.
+//! sixel / iTerm2 graphics when the terminal answers the query. Without pixels tb draws
+//! quadrant blocks itself: 2x2 sub-pixels per cell, twice the detail of half-blocks.
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use image::DynamicImage;
 use ratatui::layout::Rect;
+use ratatui::style::Color;
 use ratatui::Frame;
 use ratatui_image::picker::{Picker, ProtocolType};
 use ratatui_image::protocol::StatefulProtocol;
@@ -29,6 +31,8 @@ pub struct Media {
     /// Decoded current page; the protocol is built from it at draw time (needs the picker).
     img: Option<DynamicImage>,
     proto: Option<StatefulProtocol>,
+    /// Quadrant cells, built instead of `proto` when there are no pixels.
+    quads: Option<Vec<Quad>>,
     /// Area and cell size the protocol was built for.
     built: (Rect, Rect),
     /// Pixel size of the current page.
@@ -111,7 +115,7 @@ impl Media {
         }
         let pdf = ext(path) == "pdf";
         let mut m =
-            Media { path: path.to_path_buf(), pdf, pages: 1, page: 0, img: None, proto: None, built: Default::default(), dims: None, err: None };
+            Media { path: path.to_path_buf(), pdf, pages: 1, page: 0, img: None, proto: None, quads: None, built: Default::default(), dims: None, err: None };
         if pdf {
             m.pages = stdout(Command::new("pdfinfo").arg(path))
                 .ok()
@@ -142,10 +146,11 @@ impl Media {
     /// Drop the encoded page so the next draw re-encodes (protocol changed).
     pub fn reencode(&mut self) {
         self.proto = None;
+        self.quads = None;
     }
 
     fn load(&mut self) {
-        self.proto = None;
+        self.reencode();
         match self.decode() {
             Ok(img) => {
                 self.dims = Some((img.width(), img.height()));
@@ -184,9 +189,13 @@ impl Media {
         image::load_from_memory(&bytes).map_err(|e| format!("{e}"))
     }
 
-    /// Draw the current page scaled to fit `area`, centered.
-    pub fn render(&mut self, f: &mut Frame, area: Rect, picker: &Picker) {
-        if self.proto.is_none() || self.built.0 != area {
+    /// Draw the current page scaled to fit `area`, centered. `bg` shows through
+    /// transparent pixels in block mode.
+    pub fn render(&mut self, f: &mut Frame, area: Rect, picker: &Picker, bg: [f32; 3]) {
+        // ponytail: TB_BLOCKS=half keeps the crate's half-blocks for side-by-side comparison.
+        let quad = picker.protocol_type() == ProtocolType::Halfblocks && std::env::var("TB_BLOCKS").as_deref() != Ok("half");
+        let built = if quad { self.quads.is_some() } else { self.proto.is_some() };
+        if !built || self.built.0 != area {
             let Some(img) = &self.img else { return };
             // Scale to whole cells, cropping the sliver (< 1 cell) that doesn't fit:
             // a partly covered edge cell would otherwise blend with transparent black.
@@ -194,12 +203,122 @@ impl Media {
             let s = (area.width as f32 * fw / img.width() as f32).min(area.height as f32 * fh / img.height() as f32);
             let cw = ((img.width() as f32 * s / fw) as u16).clamp(1, area.width);
             let ch = ((img.height() as f32 * s / fh) as u16).clamp(1, area.height);
-            let fitted = img.resize_to_fill(cw as u32 * fw as u32, ch as u32 * fh as u32, FilterType::Triangle);
             let cells = Rect { x: area.x + (area.width - cw) / 2, y: area.y + (area.height - ch) / 2, width: cw, height: ch };
-            self.proto = Some(picker.new_resize_protocol(fitted));
+            if quad {
+                let fitted = img.resize_to_fill(cw as u32 * fw as u32, ch as u32 * fh as u32, FilterType::Lanczos3);
+                let sub = fitted.resize_exact(cw as u32 * 2, ch as u32 * 2, FilterType::Lanczos3);
+                self.quads = Some(quadrants(&sub.to_rgba8(), bg));
+            } else {
+                let fitted = img.resize_to_fill(cw as u32 * fw as u32, ch as u32 * fh as u32, FilterType::Triangle);
+                self.proto = Some(picker.new_resize_protocol(fitted));
+            }
             self.built = (area, cells);
         }
+        let r = self.built.1;
+        if quad {
+            let Some(quads) = &self.quads else { return };
+            let buf = f.buffer_mut();
+            for (i, q) in quads.iter().enumerate() {
+                let (x, y) = (r.x + (i % r.width as usize) as u16, r.y + (i / r.width as usize) as u16);
+                if let Some(c) = buf.cell_mut((x, y)) {
+                    let rgb = |p: [u8; 3]| Color::Rgb(p[0], p[1], p[2]);
+                    c.set_char(q.ch).set_fg(rgb(q.fg)).set_bg(rgb(q.bg));
+                }
+            }
+            return;
+        }
         let Some(proto) = &mut self.proto else { return };
-        f.render_stateful_widget(StatefulImage::default().resize(Resize::Fit(None)), self.built.1, proto);
+        f.render_stateful_widget(StatefulImage::default().resize(Resize::Fit(None)), r, proto);
+    }
+}
+
+/// One cell of a quadrant-block image.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Quad {
+    ch: char,
+    fg: [u8; 3],
+    bg: [u8; 3],
+}
+
+/// Quadrant glyphs by which sub-pixels take the foreground color: bit 0 top-left,
+/// 1 top-right, 2 bottom-left. Bottom-right is always background, which covers
+/// every split of the four into two groups without needing the complements.
+const QUADS: [char; 8] = [' ', '▘', '▝', '▀', '▖', '▌', '▞', '▛'];
+
+/// `img` at 2x2 pixels per cell -> one glyph and two colors per cell, choosing the
+/// split of the four sub-pixels whose two group averages leave the least error.
+fn quadrants(img: &image::RgbaImage, bg: [f32; 3]) -> Vec<Quad> {
+    let (w, h) = (img.width() / 2, img.height() / 2);
+    let px = |x: u32, y: u32| {
+        let p = img.get_pixel(x, y).0;
+        let a = p[3] as f32 / 255.0;
+        [0, 1, 2].map(|i| p[i] as f32 * a + bg[i] * (1.0 - a))
+    };
+    let mut out = Vec::with_capacity((w * h) as usize);
+    for cy in 0..h {
+        for cx in 0..w {
+            let (x, y) = (cx * 2, cy * 2);
+            let p = [px(x, y), px(x + 1, y), px(x, y + 1), px(x + 1, y + 1)];
+            let mut best = (f32::MAX, 0, [0.0; 3], [0.0; 3]);
+            for mask in 0..8 {
+                let mean = |on: bool| {
+                    let (mut s, mut n) = ([0.0f32; 3], 0.0);
+                    for (i, c) in p.iter().enumerate() {
+                        if (mask >> i & 1 == 1) == on {
+                            (0..3).for_each(|k| s[k] += c[k]);
+                            n += 1.0;
+                        }
+                    }
+                    if n == 0.0 { s } else { s.map(|v| v / n) }
+                };
+                let (fg, bk) = (mean(true), mean(false));
+                let err: f32 = p
+                    .iter()
+                    .enumerate()
+                    .map(|(i, c)| {
+                        let m = if mask >> i & 1 == 1 { fg } else { bk };
+                        (0..3).map(|k| (c[k] - m[k]).powi(2)).sum::<f32>()
+                    })
+                    .sum();
+                if err < best.0 {
+                    best = (err, mask, if mask == 0 { bk } else { fg }, bk);
+                }
+            }
+            let u8s = |c: [f32; 3]| c.map(|v| v.round().clamp(0.0, 255.0) as u8);
+            out.push(Quad { ch: QUADS[best.1], fg: u8s(best.2), bg: u8s(best.3) });
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn img(px: [[u8; 4]; 4]) -> image::RgbaImage {
+        let mut i = image::RgbaImage::new(2, 2);
+        for (n, p) in px.into_iter().enumerate() {
+            i.put_pixel(n as u32 % 2, n as u32 / 2, image::Rgba(p));
+        }
+        i
+    }
+
+    #[test]
+    fn quadrant_picks_the_exact_split() {
+        let (w, k) = ([255, 255, 255, 255], [0, 0, 0, 255]);
+        // White top-left + bottom-left, black right column: left half block.
+        let q = quadrants(&img([w, k, w, k]), [0.0; 3]);
+        assert_eq!(q, vec![Quad { ch: '▌', fg: [255; 3], bg: [0; 3] }]);
+        // Diagonal.
+        assert_eq!(quadrants(&img([k, w, w, k]), [0.0; 3])[0].ch, '▞');
+        // Only bottom-right differs: the other three take the foreground.
+        assert_eq!(quadrants(&img([w, w, w, k]), [0.0; 3])[0], Quad { ch: '▛', fg: [255; 3], bg: [0; 3] });
+    }
+
+    #[test]
+    fn quadrant_flat_cell_is_a_space_and_alpha_shows_bg() {
+        let clear = [9, 9, 9, 0];
+        let q = quadrants(&img([clear; 4]), [10.0, 20.0, 30.0]);
+        assert_eq!(q, vec![Quad { ch: ' ', fg: [10, 20, 30], bg: [10, 20, 30] }]);
     }
 }
