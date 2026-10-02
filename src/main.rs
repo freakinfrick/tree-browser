@@ -1339,7 +1339,7 @@ fn main() -> std::io::Result<()> {
             "treebeard: horizontal tree file browser\n\nusage: tb [--cwd-file PATH] [DIR]\n\nhjkl/arrows move · enter/l open · space fold · . dotfiles · - reroot up · c fold · C collapse others · r reload · ? help\n\
              ! run a command in the selected folder ($f = selection) · s shell there (exit returns) · q quit · esc quit\n\
              --cwd-file: on q, write the selected folder there (tb.bash turns that into cd)\n\
-             image/pdf preview: j/k page · i pixels <-> half-blocks · TB_GRAPHICS=halfblocks|kitty|sixel|iterm2|off\n\
+             image/pdf preview: j/k page · i pixels <-> blocks · TB_GRAPHICS=halfblocks|kitty|sixel|iterm2|off\n\
              audio preview: plays at once · space pause · left/right 5 s · shift 30 s · 0-9 jump · up/down volume · m mute\n\
              , opens the settings (saved to ~/.config/tb/config.toml, or $TB_CONFIG): layout, sort, colors, lines, mouse, previews, remember place\n\
              e explodes the selected folder: opens every folder inside (hidden and git-ignored ones stay closed) · esc stops it\n\

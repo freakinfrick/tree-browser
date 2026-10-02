@@ -260,6 +260,42 @@ const INK: Stops = [
     (5.0 * 365.0 * 86400.0, [150.0, 102.0, 50.0]),
 ];
 
+/// Vellum: rubric vermilion, then gold leaf and verdigris, down to iron-gall
+/// violet. On paper the oldest names carry the most ink.
+const MANUSCRIPT: Stops = [
+    (60.0, [196.0, 40.0, 30.0]),
+    (3600.0, [186.0, 74.0, 14.0]),
+    (86400.0, [164.0, 108.0, 0.0]),
+    (7.0 * 86400.0, [106.0, 112.0, 18.0]),
+    (30.0 * 86400.0, [38.0, 106.0, 60.0]),
+    (365.0 * 86400.0, [32.0, 80.0, 96.0]),
+    (5.0 * 365.0 * 86400.0, [46.0, 40.0, 70.0]),
+];
+
+/// Parchment: fresh edits glint gold, then cool into dark olive. Its tail
+/// stays olive, not moss, to keep clear of the forest-green path.
+const GILDED: Stops = [
+    (60.0, [160.0, 108.0, 0.0]),
+    (3600.0, [146.0, 110.0, 0.0]),
+    (86400.0, [128.0, 118.0, 10.0]),
+    (7.0 * 86400.0, [104.0, 112.0, 20.0]),
+    (30.0 * 86400.0, [86.0, 96.0, 22.0]),
+    (365.0 * 86400.0, [70.0, 76.0, 26.0]),
+    (5.0 * 365.0 * 86400.0, [54.0, 58.0, 28.0]),
+];
+
+/// Vellum: ink reversed. Iron-gall ink goes on pale and darkens as it
+/// oxidizes, so new names are light brown and the oldest near black.
+const IRON_GALL: Stops = [
+    (60.0, [150.0, 102.0, 50.0]),
+    (3600.0, [146.0, 94.0, 40.0]),
+    (86400.0, [136.0, 82.0, 30.0]),
+    (7.0 * 86400.0, [116.0, 66.0, 22.0]),
+    (30.0 * 86400.0, [88.0, 50.0, 24.0]),
+    (365.0 * 86400.0, [56.0, 36.0, 26.0]),
+    (5.0 * 365.0 * 86400.0, [28.0, 22.0, 18.0]),
+];
+
 pub fn stops_of(p: Palette) -> &'static Stops {
     match p {
         Palette::Ember => &EMBER,
@@ -271,6 +307,9 @@ pub fn stops_of(p: Palette) -> &'static Stops {
         Palette::Mono => &MONO,
         Palette::Growth => &GROWTH,
         Palette::Ink => &INK,
+        Palette::Manuscript => &MANUSCRIPT,
+        Palette::Gilded => &GILDED,
+        Palette::IronGall => &IRON_GALL,
     }
 }
 

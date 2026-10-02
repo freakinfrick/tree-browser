@@ -85,23 +85,44 @@ const PARCHMENT: GroundColors = GroundColors {
     default_fg: [40.0, 32.0, 24.0],
 };
 
+/// Pale calfskin under a lapis path.
+const VELLUM: GroundColors = GroundColors {
+    bg: [248.0, 242.0, 226.0],
+    bar: [229.0, 223.0, 208.0],
+    pop: [242.0, 236.0, 220.0],
+    text: [36.0, 30.0, 26.0],
+    route_text: [27.0, 46.0, 99.0],
+    flash: [18.0, 15.0, 13.0],
+    dot: [190.0, 30.0, 30.0],
+    muted: [153.0, 147.0, 136.0],
+    ignored: [71.0, 65.0, 58.0],
+    match_bg: [236.0, 204.0, 120.0],
+    ripple: [190.0, 70.0, 20.0],
+    ripple_bg: [240.0, 196.0, 160.0],
+    git: [[30.0, 118.0, 150.0], [40.0, 130.0, 50.0], [176.0, 120.0, 0.0], [180.0, 30.0, 60.0]],
+    default_fg: [36.0, 30.0, 26.0],
+};
+
+/// Every ground, in `Ground`'s declaration order, which the discriminant indexes.
+const GROUND_COLORS: [&GroundColors; 3] = [&DARK, &PARCHMENT, &VELLUM];
+
 static GROUND: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
 
 pub fn set_ground(g: crate::settings::Ground) {
     GROUND.store(g as u8, std::sync::atomic::Ordering::Relaxed);
 }
 
+fn ground() -> usize {
+    GROUND.load(std::sync::atomic::Ordering::Relaxed) as usize % GROUND_COLORS.len()
+}
+
 fn paper() -> bool {
-    GROUND.load(std::sync::atomic::Ordering::Relaxed) == crate::settings::Ground::Parchment as u8
+    ground() != crate::settings::Ground::Dark as usize
 }
 
 /// The ground in use.
 pub fn gr() -> &'static GroundColors {
-    if paper() {
-        &PARCHMENT
-    } else {
-        &DARK
-    }
+    GROUND_COLORS[ground()]
 }
 /// Line and selector colors for one accent.
 pub struct AccentColors {
@@ -128,9 +149,15 @@ const ACCENTS: [AccentColors; 5] = [
     AccentColors { dim: [44.0, 44.0, 50.0], active: [100.0, 100.0, 110.0], route: [212.0, 212.0, 222.0], pill: [46.0, 46.0, 54.0] },
 ];
 
-/// Parchment's only accent: bark lines, a forest-green path, a moss selector.
-const FOREST: AccentColors =
-    AccentColors { dim: [176.0, 158.0, 130.0], active: [96.0, 120.0, 70.0], route: [34.0, 92.0, 48.0], pill: [208.0, 222.0, 182.0] };
+/// Each paper's only accent, by ground (Dark's slot unused). Parchment: bark
+/// lines, a forest-green path, a moss selector.
+const PAPER_ACCENTS: [AccentColors; 3] = [
+    AccentColors { dim: [0.0; 3], active: [0.0; 3], route: [0.0; 3], pill: [0.0; 3] },
+    // Forest
+    AccentColors { dim: [176.0, 158.0, 130.0], active: [96.0, 120.0, 70.0], route: [34.0, 92.0, 48.0], pill: [208.0, 222.0, 182.0] },
+    // Lapis
+    AccentColors { dim: [184.0, 178.0, 166.0], active: [98.0, 113.0, 155.0], route: [34.0, 58.0, 124.0], pill: [204.0, 212.0, 230.0] },
+];
 
 static ACCENT: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
 
@@ -140,7 +167,7 @@ pub fn set_accent(a: crate::settings::Accent) {
 
 fn acc() -> &'static AccentColors {
     if paper() {
-        return &FOREST;
+        return &PAPER_ACCENTS[ground()];
     }
     &ACCENTS[ACCENT.load(std::sync::atomic::Ordering::Relaxed) as usize % ACCENTS.len()]
 }
@@ -630,7 +657,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             } else if let (Some(m), Some(picker), true) = (&mut pv.media, &app.picker, settled) {
                 f.render_widget(block, area);
                 if m.err.is_none() {
-                    m.render(f, area.inner(Margin { vertical: 1, horizontal: 1 }), picker);
+                    m.render(f, area.inner(Margin { vertical: 1, horizontal: 1 }), picker, app.settings.blocks, gr().pop);
                 } else {
                     f.render_widget(Paragraph::new(pv.text.clone()), area.inner(Margin { vertical: 1, horizontal: 1 }));
                 }
@@ -1462,12 +1489,11 @@ mod tests {
     #[test]
     fn every_palette_stays_readable_and_apart_from_ignored_and_cursor_colors() {
         use crate::anim::{heat_scaled, range_scale, stops_of};
-        use crate::settings::{Palette, Settings, PALETTES, PAPER_PALETTES};
+        use crate::settings::{Palette, Settings, GROUNDS};
         let d = Settings::default();
         let scale = range_scale(d.heat_range.secs());
         let ages = || std::iter::successors(Some(1.0_f32), |a| Some(a * 1.25)).take_while(|&a| a <= 1.5 * d.heat_range.secs());
-        let grounds = [(&DARK, &PALETTES[..]), (&PARCHMENT, &PAPER_PALETTES[..])];
-        for (g, p) in grounds.into_iter().flat_map(|(g, ps)| ps.iter().map(move |&p| (g, p))) {
+        for (g, p) in GROUNDS.into_iter().flat_map(|gd| gd.palettes().iter().map(move |&p| (GROUND_COLORS[gd as usize], p))) {
             for age in ages() {
                 let on = heat_scaled(stops_of(p), age, scale);
                 let off = off_line(g, on, d.focus_dim);
