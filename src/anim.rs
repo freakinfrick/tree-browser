@@ -272,18 +272,19 @@ const MANUSCRIPT: Stops = [
     (5.0 * 365.0 * 86400.0, [46.0, 40.0, 70.0]),
 ];
 
-/// Foxed: fresh edits glint gold, then cool through olive into deep moss.
+/// Parchment: fresh edits glint gold, then cool into dark olive. Its tail
+/// stays olive, not moss, to keep clear of the forest-green path.
 const GILDED: Stops = [
     (60.0, [160.0, 108.0, 0.0]),
     (3600.0, [146.0, 110.0, 0.0]),
-    (86400.0, [120.0, 118.0, 20.0]),
-    (7.0 * 86400.0, [68.0, 116.0, 40.0]),
-    (30.0 * 86400.0, [46.0, 98.0, 60.0]),
-    (365.0 * 86400.0, [38.0, 80.0, 66.0]),
-    (5.0 * 365.0 * 86400.0, [30.0, 62.0, 58.0]),
+    (86400.0, [128.0, 118.0, 10.0]),
+    (7.0 * 86400.0, [104.0, 112.0, 20.0]),
+    (30.0 * 86400.0, [86.0, 96.0, 22.0]),
+    (365.0 * 86400.0, [70.0, 76.0, 26.0]),
+    (5.0 * 365.0 * 86400.0, [54.0, 58.0, 28.0]),
 ];
 
-/// Ledger: ink reversed. Iron-gall ink goes on pale and darkens as it
+/// Vellum: ink reversed. Iron-gall ink goes on pale and darkens as it
 /// oxidizes, so new names are light brown and the oldest near black.
 const IRON_GALL: Stops = [
     (60.0, [150.0, 102.0, 50.0]),

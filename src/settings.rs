@@ -84,9 +84,9 @@ pub enum Palette {
     Ink,
     /// Vellum only: vermilion rubric, gold leaf, verdigris, then iron-gall ink.
     Manuscript,
-    /// Foxed only: a gold glint cooling through olive into deep moss.
+    /// Parchment only: a gold glint cooling into dark olive.
     Gilded,
-    /// Ledger only: pale brown ink darkening to black as it ages, like iron gall.
+    /// Vellum only: pale brown ink darkening to black as it ages, like iron gall.
     IronGall,
 }
 
@@ -98,10 +98,6 @@ pub enum Ground {
     Parchment,
     /// Pale calfskin with a lapis path: an illuminated book.
     Vellum,
-    /// Browned old paper with an oxblood path.
-    Foxed,
-    /// Green-ruled account book with a red-pencil path.
-    Ledger,
 }
 
 impl Ground {
@@ -114,10 +110,8 @@ impl Ground {
     pub fn palettes(self) -> &'static [Palette] {
         match self {
             Ground::Dark => &PALETTES,
-            Ground::Parchment => &[Palette::Growth, Palette::Ink],
-            Ground::Vellum => &[Palette::Manuscript, Palette::Ink],
-            Ground::Foxed => &[Palette::Gilded, Palette::Ink],
-            Ground::Ledger => &[Palette::IronGall],
+            Ground::Parchment => &[Palette::Growth, Palette::Ink, Palette::Gilded],
+            Ground::Vellum => &[Palette::Manuscript, Palette::Ink, Palette::IronGall],
         }
     }
 }
@@ -345,9 +339,9 @@ pub const ITEMS: [Item; 36] = [
     Item { key: "folders_first", label: "Folders first", section: "Order", help: "Folders above files, whatever the sort." },
     Item { key: "natural_sort", label: "Natural sort", section: "Order", help: "Numbers in names count up: file2 before file10." },
     Item { key: "show_hidden", label: "Dotfiles", section: "Order", help: "Same as . in the tree." },
-    Item { key: "ground", label: "Ground", section: "Look", help: "Dark, or a paper: parchment (the Ent look), vellum, foxed or ledger. Each paper has its own path color and heat colors." },
-    Item { key: "accent", label: "Accent", section: "Look", help: "Color of the lines, the selector and the highlights. Each paper has its own: forest, lapis, oxblood or red pencil." },
-    Item { key: "palette", label: "Heat colors", section: "Look", help: "Recency gradient. Magma and aurora avoid red-green; sepia and mono are brightness only. On paper: growth or ink (parchment), manuscript or ink (vellum), gilded or ink (foxed), iron gall (ledger)." },
+    Item { key: "ground", label: "Ground", section: "Look", help: "Dark, or a paper: parchment (the Ent look) or vellum. Each paper has its own path color and heat colors." },
+    Item { key: "accent", label: "Accent", section: "Look", help: "Color of the lines, the selector and the highlights. Each paper has its own: forest or lapis." },
+    Item { key: "palette", label: "Heat colors", section: "Look", help: "Recency gradient. Magma and aurora avoid red-green; sepia and mono are brightness only. On paper: growth, ink or gilded (parchment); manuscript, ink or iron gall (vellum)." },
     Item { key: "heat_range", label: "Heat range", section: "Look", help: "Age that gets the coldest color. Short ranges tell apart the files of one busy week." },
     Item { key: "focus_dim", label: "Off-line dim", section: "Look", help: "How bright names off the cursor's line stay: 0 nearly out, 10 full color." },
     Item { key: "lines", label: "Tree lines", section: "Look", help: "Corners and branches: double, heavy, rounded, square or plain ASCII. On double and heavy, branches git ignores draw thin." },
@@ -396,7 +390,7 @@ pub const ALL_PALETTES: [Palette; 12] = [
     Palette::Gilded,
     Palette::IronGall,
 ];
-pub const GROUNDS: [Ground; 5] = [Ground::Dark, Ground::Parchment, Ground::Vellum, Ground::Foxed, Ground::Ledger];
+pub const GROUNDS: [Ground; 3] = [Ground::Dark, Ground::Parchment, Ground::Vellum];
 const COLUMNS: [Columns; 2] = [Columns::Fit, Columns::Equal];
 const DETAILS: [Details; 4] = [Details::Off, Details::Age, Details::Size, Details::Both];
 const RANGES: [HeatRange; 5] = [HeatRange::Day, HeatRange::Week, HeatRange::Month, HeatRange::Year, HeatRange::Years5];
@@ -478,8 +472,6 @@ fn ground_word(g: Ground) -> &'static str {
         Ground::Dark => "dark",
         Ground::Parchment => "parchment",
         Ground::Vellum => "vellum",
-        Ground::Foxed => "foxed",
-        Ground::Ledger => "ledger",
     }
 }
 
@@ -488,8 +480,6 @@ fn paper_accent_word(g: Ground) -> &'static str {
     match g {
         Ground::Dark | Ground::Parchment => "forest",
         Ground::Vellum => "lapis",
-        Ground::Foxed => "oxblood",
-        Ground::Ledger => "red pencil",
     }
 }
 
@@ -771,7 +761,7 @@ impl Settings {
             "natural_sort" => self.natural_sort = flag()?,
             "show_hidden" => self.show_hidden = flag()?,
             "accent" => self.accent = find(&ACCENTS, v, accent_word).ok_or(bad("indigo, teal, violet, amber, mono"))?,
-            "ground" => self.ground = find(&GROUNDS, v, ground_word).ok_or(bad("dark, parchment, vellum, foxed, ledger"))?,
+            "ground" => self.ground = find(&GROUNDS, v, ground_word).ok_or(bad("dark, parchment, vellum"))?,
             "palette" => self.palette = find(&PALETTES, v, palette_word).ok_or(bad("ember, magma, neon, aurora, glacier, sepia, mono"))?,
             "paper_palette" => self.paper_palette = find(&PAPER_PALETTES, v, palette_word).ok_or(bad("growth, ink, manuscript, gilded, irongall"))?,
             "heat_range" => self.heat_range = find(&RANGES, v, range_word).ok_or(bad("day, week, month, year, 5y"))?,
@@ -931,13 +921,17 @@ mod tests {
     fn each_paper_offers_only_its_own_heat_colors() {
         let mut s = Settings { ground: Ground::Vellum, ..Settings::default() };
         assert_eq!(s.heat_palette(), Palette::Manuscript, "growth isn't offered on vellum, so its first palette stands in");
+        assert_eq!(s.show("accent"), "lapis");
+        s.adjust("palette", -1);
+        assert_eq!((s.heat_palette(), s.paper_palette), (Palette::IronGall, Palette::IronGall));
+        s.adjust("ground", -1);
+        assert_eq!((s.ground, s.heat_palette()), (Ground::Parchment, Palette::Growth), "iron gall isn't offered on parchment");
+        s.adjust("palette", -1);
+        s.adjust("ground", 1);
+        assert_eq!(s.heat_palette(), Palette::Manuscript, "nor gilded on vellum");
         s.adjust("palette", 1);
-        assert_eq!((s.heat_palette(), s.paper_palette), (Palette::Ink, Palette::Ink));
-        s.adjust("ground", 1);
-        assert_eq!((s.ground, s.heat_palette()), (Ground::Foxed, Palette::Ink), "ink carries over where it's offered");
-        s.adjust("ground", 1);
-        assert_eq!(s.heat_palette(), Palette::IronGall);
-        assert_eq!(s.show("accent"), "red pencil");
+        s.adjust("ground", -1);
+        assert_eq!(s.heat_palette(), Palette::Ink, "ink carries over where it's offered");
     }
 
     #[test]

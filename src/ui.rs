@@ -103,45 +103,8 @@ const VELLUM: GroundColors = GroundColors {
     default_fg: [36.0, 30.0, 26.0],
 };
 
-/// Browned old paper under an oxblood path. Its ignored grey runs cool so
-/// brown ink never reads as ignored.
-const FOXED: GroundColors = GroundColors {
-    bg: [230.0, 214.0, 178.0],
-    bar: [213.0, 197.0, 164.0],
-    pop: [224.0, 208.0, 173.0],
-    text: [42.0, 30.0, 20.0],
-    route_text: [99.0, 24.0, 24.0],
-    flash: [21.0, 15.0, 10.0],
-    dot: [190.0, 30.0, 30.0],
-    muted: [145.0, 131.0, 107.0],
-    ignored: [96.0, 92.0, 90.0],
-    match_bg: [236.0, 204.0, 120.0],
-    ripple: [190.0, 70.0, 20.0],
-    ripple_bg: [240.0, 196.0, 160.0],
-    git: [[30.0, 118.0, 150.0], [40.0, 130.0, 50.0], [176.0, 120.0, 0.0], [180.0, 30.0, 60.0]],
-    default_fg: [42.0, 30.0, 20.0],
-};
-
-/// A green-ruled account book under a red-pencil path.
-const LEDGER: GroundColors = GroundColors {
-    bg: [232.0, 238.0, 224.0],
-    bar: [213.0, 219.0, 207.0],
-    pop: [226.0, 232.0, 218.0],
-    text: [26.0, 32.0, 30.0],
-    route_text: [141.0, 24.0, 27.0],
-    flash: [13.0, 16.0, 15.0],
-    dot: [190.0, 30.0, 30.0],
-    muted: [139.0, 145.0, 137.0],
-    ignored: [69.0, 66.0, 59.0],
-    match_bg: [236.0, 204.0, 120.0],
-    ripple: [190.0, 70.0, 20.0],
-    ripple_bg: [240.0, 196.0, 160.0],
-    git: [[30.0, 118.0, 150.0], [40.0, 130.0, 50.0], [176.0, 120.0, 0.0], [180.0, 30.0, 60.0]],
-    default_fg: [26.0, 32.0, 30.0],
-};
-
 /// Every ground, in `Ground`'s declaration order, which the discriminant indexes.
-const GROUND_COLORS: [&GroundColors; 5] = [&DARK, &PARCHMENT, &VELLUM, &FOXED, &LEDGER];
+const GROUND_COLORS: [&GroundColors; 3] = [&DARK, &PARCHMENT, &VELLUM];
 
 static GROUND: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
 
@@ -188,16 +151,12 @@ const ACCENTS: [AccentColors; 5] = [
 
 /// Each paper's only accent, by ground (Dark's slot unused). Parchment: bark
 /// lines, a forest-green path, a moss selector.
-const PAPER_ACCENTS: [AccentColors; 5] = [
+const PAPER_ACCENTS: [AccentColors; 3] = [
     AccentColors { dim: [0.0; 3], active: [0.0; 3], route: [0.0; 3], pill: [0.0; 3] },
     // Forest
     AccentColors { dim: [176.0, 158.0, 130.0], active: [96.0, 120.0, 70.0], route: [34.0, 92.0, 48.0], pill: [208.0, 222.0, 182.0] },
     // Lapis
     AccentColors { dim: [184.0, 178.0, 166.0], active: [98.0, 113.0, 155.0], route: [34.0, 58.0, 124.0], pill: [204.0, 212.0, 230.0] },
-    // Oxblood
-    AccentColors { dim: [174.0, 159.0, 131.0], active: [156.0, 85.0, 74.0], route: [124.0, 30.0, 30.0], pill: [209.0, 177.0, 148.0] },
-    // Red pencil
-    AccentColors { dim: [170.0, 176.0, 166.0], active: [193.0, 92.0, 91.0], route: [176.0, 30.0, 34.0], pill: [221.0, 196.0, 186.0] },
 ];
 
 static ACCENT: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
