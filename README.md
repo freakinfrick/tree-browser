@@ -41,8 +41,8 @@ The command is `tb`.
   click or drag, and simple keys for pause, seek and volume.
 - **Git aware.** Changed files carry a marker, closed folders show what's changed inside, ignored
   build output fades back, the status bar names the branch, and `d` in a preview shows the diff.
-- **Yours to tune.** `,` opens 28 settings: spacing, column width, age and size after names, sort
-  order, accent and heat colors, heat range, line style and branch length, motion, previews, the mouse, reopening
+- **Yours to tune.** `,` opens 35 settings: spacing, column width, age and size after names, sort
+  order, a dark or parchment ground, accent and heat colors, heat range, line style and branch length, motion, previews, the mouse, reopening
   where you left off, and every feature switch, saved to a small config file.
 - **Shell without leaving.** `!` runs a command in the selected folder, `s` opens a shell there, and
   `q` can leave your shell `cd`'d to wherever you ended up.
@@ -200,7 +200,7 @@ Inside a git repo, each file with changes gets a one-letter marker after its nam
 
 A closed folder's `›` bud takes the color of the most urgent change anywhere inside it, so you can
 follow a change down from the top. Ignored files and folders (`target/`, `node_modules/`) are greyed out, and on double or heavy lines
-their branches draw thin. The dim floor setting sets how light that grey is, from near-black (0) to light grey (10).
+their branches draw thin. The dim floor setting sets how visible that grey is, from nearly the background (0) to plain grey (10).
 The status bar shows the branch with ahead/behind counts (`⎇ main ↑1`) and the selected entry's
 state. When a changed file is open in the preview, `d` switches between the file and its diff against
 `HEAD`, staged and unstaged changes together.
@@ -229,8 +229,9 @@ closes the panel.
 | Folders first | folders above files under every sort | off |
 | Natural sort | `file2` before `file10` | on |
 | Dotfiles | same as `.` | hidden |
-| Accent | indigo, teal, violet, amber, mono (lines, selector, highlights) | indigo |
-| Heat colors | ember (red → blue), magma (cream → violet), neon (raspberry → aqua), aurora (yellow → purple), glacier (ice → deep blue), sepia (warm brightness), mono; magma and aurora avoid red-green | ember |
+| Ground | dark, or parchment: ink colors on light paper, the Ent look (forest-green accent, its own heat colors) | dark |
+| Accent | indigo, teal, violet, amber, mono (lines, selector, highlights); parchment is always forest | indigo |
+| Heat colors | ember (red → blue), magma (cream → violet), neon (raspberry → aqua), aurora (yellow → purple), glacier (ice → deep blue), sepia (warm brightness), mono; magma and aurora avoid red-green. On parchment: growth (leaf green → bark), ink (black fading brown) | ember, growth |
 | Heat range | age that gets the coldest color: day, week, month, year, 5y | 5y |
 | Off-line dim | how bright names off the cursor's line stay, 0 (nearly out) to 10 (full color) | 6 |
 | Tree lines | double, heavy, rounded, square, ascii (on double and heavy, ignored branches draw thin) | double |
@@ -238,7 +239,7 @@ closes the panel.
 | Legend | the color key in the status bar | on |
 | Motion | slow, normal, fast, instant (no animation) | normal |
 | Live updates, Ripples, Git status, Dim ignored | on / off | on |
-| Dim floor | how light ignored names are, 0 (near-black) to 10 (light grey) | 5 |
+| Dim floor | how visible ignored names are, 0 (nearly the background) to 10 (plain grey) | 5 |
 | Explode ignored | let `e` open git-ignored folders too (a folder you explode directly always opens) | off |
 | Step through | what `j` `k` `J` `K` walk: folder (its own list), column (every open list in the column), tree (the whole open tree in reading order); `g` `G` always stay in the folder; arrows and `PgUp` `PgDn` move straight up and down the column, and the wheel scrolls the column under the pointer | tree |
 | Mouse | off gives the mouse back to the terminal for selecting text | on |
