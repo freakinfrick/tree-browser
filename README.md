@@ -36,7 +36,7 @@ The command is `tb`.
 - **Physics-driven motion.** Every node rides a critically damped spring: folders unfurl and fold back,
   siblings glide aside, and connectors re-route every frame. 60 fps while moving, zero frames when idle.
 - **Rich previews.** Markdown through `glow`, code through `bat`, and images and PDF pages as real pictures
-  over kitty, sixel or iTerm2 graphics, with a half-block fallback for any truecolor terminal.
+  over kitty, sixel or iTerm2 graphics, with a block-glyph fallback for any truecolor terminal.
 - **Sound.** Audio files play the moment you open them, over a waveform with a scrubber you can
   click or drag, and simple keys for pause, seek and volume.
 - **Git aware.** Changed files carry a marker, closed folders show what's changed inside, ignored
@@ -118,7 +118,7 @@ in the settings to select text with it instead.
 
 **In a preview:** `j` `k`, `Space` `PgDn`, `Ctrl-D` `Ctrl-U`, `g` `G` scroll text; for images and PDFs
 `j` `k` `Space` flip pages, `g` `G` jump to the first / last, and `↑` `↓` step to the previous / next
-image or PDF in the folder. `i` switches between pixels and half-blocks. `d` shows a changed file's
+image or PDF in the folder. `i` switches between pixels and blocks. `d` shows a changed file's
 git diff (and back). `q` `Esc` `h` close.
 
 **In an audio preview:**
@@ -245,7 +245,8 @@ closes the panel.
 | Mouse | off gives the mouse back to the terminal for selecting text | on |
 | Wheel speed | entries per wheel notch, 1, 2, 3, 5; text previews scroll three lines for each | 1 |
 | Momentum | how far a quick flick glides on after the last notch: off, short, medium, long | short |
-| Image previews | auto, pixels, blocks (half-blocks), off (captions only) | auto |
+| Image previews | auto, pixels, blocks, off (captions only) | auto |
+| Block glyphs | what blocks draw with: half (2 sub-pixels per cell), quadrants (2x2), sextants (2x3, needs a font that has them) | quadrants |
 | Text preview | styled (glow for markdown, bat for the rest), bat, plain | styled |
 | Wrap lines | off cuts long lines at the preview's edge | on |
 | Remember place | reopen the folders and selection you left, per starting folder | off |
@@ -312,9 +313,9 @@ page at a time. tb uses whatever graphics protocol the terminal answers to at st
 | Ghostty, Kitty | kitty graphics |
 | terminals with sixel support | sixel |
 | iTerm2 | iTerm2 inline images |
-| anything else with truecolor (tmux, Termius, …) | Unicode half-blocks |
+| anything else with truecolor (tmux, Termius, …) | Unicode blocks (quadrants by default) |
 
-Inside tmux the query is skipped and half-blocks are used. Inside herdr, tb starts in half-blocks
+Inside tmux the query is skipped and blocks are used. Inside herdr, tb starts in blocks
 because herdr claims kitty support for every attached client whatever terminal it draws into; press
 `i`, or set `TB_GRAPHICS=kitty`, when that terminal really is Ghostty or Kitty.
 

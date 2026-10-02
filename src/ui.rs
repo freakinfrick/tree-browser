@@ -630,7 +630,7 @@ pub fn frame(f: &mut Frame, app: &mut App, dt: f32) -> bool {
             } else if let (Some(m), Some(picker), true) = (&mut pv.media, &app.picker, settled) {
                 f.render_widget(block, area);
                 if m.err.is_none() {
-                    m.render(f, area.inner(Margin { vertical: 1, horizontal: 1 }), picker, gr().pop);
+                    m.render(f, area.inner(Margin { vertical: 1, horizontal: 1 }), picker, app.settings.blocks, gr().pop);
                 } else {
                     f.render_widget(Paragraph::new(pv.text.clone()), area.inner(Margin { vertical: 1, horizontal: 1 }));
                 }

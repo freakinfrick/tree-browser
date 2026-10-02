@@ -173,6 +173,17 @@ pub enum Graphics {
     Off,
 }
 
+/// Characters image previews draw with when there are no pixels.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BlockGlyphs {
+    /// Two sub-pixels per cell, stacked.
+    Half,
+    /// 2x2 per cell; drawn by most terminals themselves, so no font gaps.
+    Quadrants,
+    /// 2x3 per cell; needs a font with Unicode's legacy-computing symbols.
+    Sextants,
+}
+
 /// What j and k move through.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum StepThrough {
@@ -234,6 +245,7 @@ pub struct Settings {
     pub wheel_speed: u8,
     pub momentum: Momentum,
     pub graphics: Graphics,
+    pub blocks: BlockGlyphs,
     pub preview: TextPreview,
     pub wrap: bool,
     pub remember: bool,
@@ -274,6 +286,7 @@ impl Default for Settings {
             wheel_speed: 1,
             momentum: Momentum::Short,
             graphics: Graphics::Auto,
+            blocks: BlockGlyphs::Quadrants,
             preview: TextPreview::Styled,
             wrap: true,
             remember: false,
@@ -289,7 +302,7 @@ pub struct Item {
     pub help: &'static str,
 }
 
-pub const ITEMS: [Item; 35] = [
+pub const ITEMS: [Item; 36] = [
     Item { key: "row_spacing", label: "Row spacing", section: "Layout", help: "Blank rows between entries. More air, fewer entries on screen." },
     Item { key: "column_gap", label: "Column gap", section: "Layout", help: "Space between a column's longest name and the next column." },
     Item { key: "pipes", label: "Pipes", section: "Layout", help: "How lines reach a folder's contents. River: tracks only for what's on screen, nested, never crossing. Nested: one per open folder. Crossing: the first design. Capped: shared past a third of the width. Tidy: no tracks, folders move." },
@@ -322,6 +335,7 @@ pub const ITEMS: [Item; 35] = [
     Item { key: "wheel_speed", label: "Wheel speed", section: "Behavior", help: "Entries per wheel notch. Text previews scroll three lines for each." },
     Item { key: "momentum", label: "Momentum", section: "Behavior", help: "How far a quick flick of the wheel glides on after you stop. Slow notches stay one step each." },
     Item { key: "graphics", label: "Image previews", section: "Behavior", help: "Pixels if the terminal can, blocks anywhere, or off. i in a preview flips it for this run." },
+    Item { key: "blocks", label: "Block glyphs", section: "Behavior", help: "What images are drawn with when there are no pixels: half-blocks, quadrants (2x2 per cell), or sextants (2x3, needs a font that has them)." },
     Item { key: "preview", label: "Text preview", section: "Behavior", help: "Styled: glow for markdown, bat for code. Or bat for all, or plain text." },
     Item { key: "wrap", label: "Wrap lines", section: "Behavior", help: "Off cuts long lines at the edge of the preview." },
     Item { key: "remember", label: "Remember place", section: "Behavior", help: "Reopen the folders and selection you left, next time tb starts in the same folder." },
@@ -356,6 +370,7 @@ const RANGES: [HeatRange; 5] = [HeatRange::Day, HeatRange::Week, HeatRange::Mont
 const PIPES: [Pipes; 5] = [Pipes::River, Pipes::Nested, Pipes::Crossing, Pipes::Capped, Pipes::Tidy];
 const LINES: [LineStyle; 5] = [LineStyle::Double, LineStyle::Heavy, LineStyle::Rounded, LineStyle::Square, LineStyle::Ascii];
 const GRAPHICS: [Graphics; 4] = [Graphics::Auto, Graphics::Pixels, Graphics::Blocks, Graphics::Off];
+const BLOCKS: [BlockGlyphs; 3] = [BlockGlyphs::Half, BlockGlyphs::Quadrants, BlockGlyphs::Sextants];
 const STEPS: [StepThrough; 3] = [StepThrough::Folder, StepThrough::Column, StepThrough::Tree];
 const PREVIEWS: [TextPreview; 3] = [TextPreview::Styled, TextPreview::Bat, TextPreview::Plain];
 
@@ -484,6 +499,14 @@ fn graphics_word(g: Graphics) -> &'static str {
     }
 }
 
+fn blocks_word(b: BlockGlyphs) -> &'static str {
+    match b {
+        BlockGlyphs::Half => "half",
+        BlockGlyphs::Quadrants => "quadrants",
+        BlockGlyphs::Sextants => "sextants",
+    }
+}
+
 fn step_word(s: StepThrough) -> &'static str {
     match s {
         StepThrough::Folder => "folder",
@@ -563,6 +586,7 @@ impl Settings {
             "wheel_speed" => self.wheel_speed.to_string(),
             "momentum" => momentum_word(self.momentum).into(),
             "graphics" => graphics_word(self.graphics).into(),
+            "blocks" => blocks_word(self.blocks).into(),
             "preview" => preview_word(self.preview).into(),
             "wrap" => on_off(self.wrap),
             "remember" => on_off(self.remember),
@@ -622,6 +646,7 @@ impl Settings {
             "wheel_speed" => self.wheel_speed = nudge(&WHEEL_SPEEDS, self.wheel_speed, dir),
             "momentum" => self.momentum = cycle(&MOMENTA, self.momentum, dir),
             "graphics" => self.graphics = cycle(&GRAPHICS, self.graphics, dir),
+            "blocks" => self.blocks = cycle(&BLOCKS, self.blocks, dir),
             "preview" => self.preview = cycle(&PREVIEWS, self.preview, dir),
             "wrap" => self.wrap ^= true,
             "remember" => self.remember ^= true,
@@ -666,6 +691,7 @@ impl Settings {
             "wheel_speed" => self.wheel_speed = d.wheel_speed,
             "momentum" => self.momentum = d.momentum,
             "graphics" => self.graphics = d.graphics,
+            "blocks" => self.blocks = d.blocks,
             "preview" => self.preview = d.preview,
             "wrap" => self.wrap = d.wrap,
             "remember" => self.remember = d.remember,
@@ -714,6 +740,7 @@ impl Settings {
             "wheel_speed" => self.wheel_speed = v.parse().ok().filter(|n| WHEEL_SPEEDS.contains(n)).ok_or(bad("1, 2, 3, 5"))?,
             "momentum" => self.momentum = find(&MOMENTA, v, momentum_word).ok_or(bad("off, short, medium, long"))?,
             "graphics" => self.graphics = find(&GRAPHICS, v, graphics_word).ok_or(bad("auto, pixels, blocks, off"))?,
+            "blocks" => self.blocks = find(&BLOCKS, v, blocks_word).ok_or(bad("half, quadrants, sextants"))?,
             "preview" => self.preview = find(&PREVIEWS, v, preview_word).ok_or(bad("styled, bat, plain"))?,
             "wrap" => self.wrap = flag()?,
             "remember" => self.remember = flag()?,

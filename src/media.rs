@@ -1,6 +1,7 @@
 //! Image and PDF previews. Pixels go through ratatui-image, which uses kitty /
 //! sixel / iTerm2 graphics when the terminal answers the query. Without pixels tb draws
-//! quadrant blocks itself: 2x2 sub-pixels per cell, twice the detail of half-blocks.
+//! block glyphs itself: quadrants (2x2 sub-pixels per cell) or sextants (2x3), or
+//! leaves half-blocks to the crate.
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -11,6 +12,8 @@ use ratatui::Frame;
 use ratatui_image::picker::{Picker, ProtocolType};
 use ratatui_image::protocol::StatefulProtocol;
 use ratatui_image::{FilterType, Resize, StatefulImage};
+
+use crate::settings::BlockGlyphs;
 
 /// Extensions previewed as pictures. Anything the image crate can't decode goes
 /// through ImageMagick (svg, ico, heic, ...).
@@ -32,7 +35,7 @@ pub struct Media {
     img: Option<DynamicImage>,
     proto: Option<StatefulProtocol>,
     /// Quadrant cells, built instead of `proto` when there are no pixels.
-    quads: Option<Vec<Quad>>,
+    quads: Option<(BlockGlyphs, Vec<Quad>)>,
     /// Area and cell size the protocol was built for.
     built: (Rect, Rect),
     /// Pixel size of the current page.
@@ -191,12 +194,10 @@ impl Media {
 
     /// Draw the current page scaled to fit `area`, centered. `bg` shows through
     /// transparent pixels in block mode.
-    pub fn render(&mut self, f: &mut Frame, area: Rect, picker: &Picker, bg: [f32; 3]) {
-        // ponytail: TB_BLOCKS=half|sext picks the renderer for side-by-side comparison.
-        let pick = std::env::var("TB_BLOCKS").unwrap_or_default();
-        let quad = picker.protocol_type() == ProtocolType::Halfblocks && pick != "half";
-        let rows = if pick == "sext" { 3 } else { 2 };
-        let built = if quad { self.quads.is_some() } else { self.proto.is_some() };
+    pub fn render(&mut self, f: &mut Frame, area: Rect, picker: &Picker, glyphs: BlockGlyphs, bg: [f32; 3]) {
+        let quad = picker.protocol_type() == ProtocolType::Halfblocks && glyphs != BlockGlyphs::Half;
+        let rows = if glyphs == BlockGlyphs::Sextants { 3 } else { 2 };
+        let built = if quad { self.quads.as_ref().is_some_and(|q| q.0 == glyphs) } else { self.proto.is_some() };
         if !built || self.built.0 != area {
             let Some(img) = &self.img else { return };
             // Scale to whole cells, cropping the sliver (< 1 cell) that doesn't fit:
@@ -209,7 +210,7 @@ impl Media {
             if quad {
                 let fitted = img.resize_to_fill(cw as u32 * fw as u32, ch as u32 * fh as u32, FilterType::Lanczos3);
                 let sub = fitted.resize_exact(cw as u32 * 2, ch as u32 * rows, FilterType::Lanczos3);
-                self.quads = Some(blocks(&sub.to_rgba8(), bg, rows));
+                self.quads = Some((glyphs, blocks(&sub.to_rgba8(), bg, rows)));
             } else {
                 let fitted = img.resize_to_fill(cw as u32 * fw as u32, ch as u32 * fh as u32, FilterType::Triangle);
                 self.proto = Some(picker.new_resize_protocol(fitted));
@@ -218,7 +219,7 @@ impl Media {
         }
         let r = self.built.1;
         if quad {
-            let Some(quads) = &self.quads else { return };
+            let Some((_, quads)) = &self.quads else { return };
             let buf = f.buffer_mut();
             for (i, q) in quads.iter().enumerate() {
                 let (x, y) = (r.x + (i % r.width as usize) as u16, r.y + (i / r.width as usize) as u16);
