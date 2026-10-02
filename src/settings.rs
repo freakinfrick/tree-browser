@@ -80,8 +80,14 @@ pub enum Palette {
     Mono,
     /// Parchment only: leaf green through gold and rust to dark bark.
     Growth,
-    /// Parchment only: fresh black ink browning and fading with age.
+    /// Paper only: fresh black ink browning and fading with age.
     Ink,
+    /// Vellum only: vermilion rubric, gold leaf, verdigris, then iron-gall ink.
+    Manuscript,
+    /// Foxed only: a gold glint cooling through olive into deep moss.
+    Gilded,
+    /// Ledger only: pale brown ink darkening to black as it ages, like iron gall.
+    IronGall,
 }
 
 /// What the tree is drawn on.
@@ -90,6 +96,30 @@ pub enum Ground {
     Dark,
     /// Light parchment with ink colors: the Ent look.
     Parchment,
+    /// Pale calfskin with a lapis path: an illuminated book.
+    Vellum,
+    /// Browned old paper with an oxblood path.
+    Foxed,
+    /// Green-ruled account book with a red-pencil path.
+    Ledger,
+}
+
+impl Ground {
+    pub fn is_paper(self) -> bool {
+        self != Ground::Dark
+    }
+
+    /// The heat colors this ground offers, its default first. Each paper
+    /// keeps the ones that stay apart from its own cursor-path color.
+    pub fn palettes(self) -> &'static [Palette] {
+        match self {
+            Ground::Dark => &PALETTES,
+            Ground::Parchment => &[Palette::Growth, Palette::Ink],
+            Ground::Vellum => &[Palette::Manuscript, Palette::Ink],
+            Ground::Foxed => &[Palette::Gilded, Palette::Ink],
+            Ground::Ledger => &[Palette::IronGall],
+        }
+    }
 }
 
 /// How wide the tree's columns are.
@@ -223,7 +253,7 @@ pub struct Settings {
     pub accent: Accent,
     /// Heat colors on the dark ground.
     pub palette: Palette,
-    /// Heat colors on parchment.
+    /// Heat colors on the paper grounds, when the ground offers it.
     pub paper_palette: Palette,
     pub heat_range: HeatRange,
     /// How light ignored names are: 0 near black, 10 light grey.
@@ -315,9 +345,9 @@ pub const ITEMS: [Item; 36] = [
     Item { key: "folders_first", label: "Folders first", section: "Order", help: "Folders above files, whatever the sort." },
     Item { key: "natural_sort", label: "Natural sort", section: "Order", help: "Numbers in names count up: file2 before file10." },
     Item { key: "show_hidden", label: "Dotfiles", section: "Order", help: "Same as . in the tree." },
-    Item { key: "ground", label: "Ground", section: "Look", help: "Dark, or light parchment in ink colors: the Ent look. Each keeps its own heat colors." },
-    Item { key: "accent", label: "Accent", section: "Look", help: "Color of the lines, the selector and the highlights. Parchment always uses forest green." },
-    Item { key: "palette", label: "Heat colors", section: "Look", help: "Recency gradient. Magma and aurora avoid red-green; sepia and mono are brightness only. On parchment: growth (green to bark) or ink (black fading brown)." },
+    Item { key: "ground", label: "Ground", section: "Look", help: "Dark, or a paper: parchment (the Ent look), vellum, foxed or ledger. Each paper has its own path color and heat colors." },
+    Item { key: "accent", label: "Accent", section: "Look", help: "Color of the lines, the selector and the highlights. Each paper has its own: forest, lapis, oxblood or red pencil." },
+    Item { key: "palette", label: "Heat colors", section: "Look", help: "Recency gradient. Magma and aurora avoid red-green; sepia and mono are brightness only. On paper: growth or ink (parchment), manuscript or ink (vellum), gilded or ink (foxed), iron gall (ledger)." },
     Item { key: "heat_range", label: "Heat range", section: "Look", help: "Age that gets the coldest color. Short ranges tell apart the files of one busy week." },
     Item { key: "focus_dim", label: "Off-line dim", section: "Look", help: "How bright names off the cursor's line stay: 0 nearly out, 10 full color." },
     Item { key: "lines", label: "Tree lines", section: "Look", help: "Corners and branches: double, heavy, rounded, square or plain ASCII. On double and heavy, branches git ignores draw thin." },
@@ -349,10 +379,10 @@ const ACCENTS: [Accent; 5] = [Accent::Indigo, Accent::Teal, Accent::Violet, Acce
 /// Heat colors for the dark ground.
 pub const PALETTES: [Palette; 7] =
     [Palette::Ember, Palette::Magma, Palette::Neon, Palette::Aurora, Palette::Glacier, Palette::Sepia, Palette::Mono];
-/// Heat colors for parchment.
-pub const PAPER_PALETTES: [Palette; 2] = [Palette::Growth, Palette::Ink];
+/// Heat colors for the paper grounds, all of them.
+pub const PAPER_PALETTES: [Palette; 5] = [Palette::Growth, Palette::Ink, Palette::Manuscript, Palette::Gilded, Palette::IronGall];
 /// Every palette in `Palette`'s declaration order, which `anim` relies on.
-pub const ALL_PALETTES: [Palette; 9] = [
+pub const ALL_PALETTES: [Palette; 12] = [
     Palette::Ember,
     Palette::Magma,
     Palette::Neon,
@@ -362,8 +392,11 @@ pub const ALL_PALETTES: [Palette; 9] = [
     Palette::Mono,
     Palette::Growth,
     Palette::Ink,
+    Palette::Manuscript,
+    Palette::Gilded,
+    Palette::IronGall,
 ];
-const GROUNDS: [Ground; 2] = [Ground::Dark, Ground::Parchment];
+pub const GROUNDS: [Ground; 5] = [Ground::Dark, Ground::Parchment, Ground::Vellum, Ground::Foxed, Ground::Ledger];
 const COLUMNS: [Columns; 2] = [Columns::Fit, Columns::Equal];
 const DETAILS: [Details; 4] = [Details::Off, Details::Age, Details::Size, Details::Both];
 const RANGES: [HeatRange; 5] = [HeatRange::Day, HeatRange::Week, HeatRange::Month, HeatRange::Year, HeatRange::Years5];
@@ -434,6 +467,9 @@ fn palette_word(p: Palette) -> &'static str {
         Palette::Mono => "mono",
         Palette::Growth => "growth",
         Palette::Ink => "ink",
+        Palette::Manuscript => "manuscript",
+        Palette::Gilded => "gilded",
+        Palette::IronGall => "irongall",
     }
 }
 
@@ -441,6 +477,19 @@ fn ground_word(g: Ground) -> &'static str {
     match g {
         Ground::Dark => "dark",
         Ground::Parchment => "parchment",
+        Ground::Vellum => "vellum",
+        Ground::Foxed => "foxed",
+        Ground::Ledger => "ledger",
+    }
+}
+
+/// A paper's own accent, which the menu shows in place of the dark ones.
+fn paper_accent_word(g: Ground) -> &'static str {
+    match g {
+        Ground::Dark | Ground::Parchment => "forest",
+        Ground::Vellum => "lapis",
+        Ground::Foxed => "oxblood",
+        Ground::Ledger => "red pencil",
     }
 }
 
@@ -535,9 +584,11 @@ impl Settings {
     /// The value as the menu shows it.
     /// The heat colors the current ground uses.
     pub fn heat_palette(&self) -> Palette {
+        let offered = self.ground.palettes();
         match self.ground {
             Ground::Dark => self.palette,
-            Ground::Parchment => self.paper_palette,
+            _ if offered.contains(&self.paper_palette) => self.paper_palette,
+            _ => offered[0],
         }
     }
 
@@ -545,7 +596,7 @@ impl Settings {
     /// the paper palette, kept apart so the dark one survives the switch.
     pub fn file_key<'a>(&self, key: &'a str) -> &'a str {
         match key {
-            "palette" if self.ground == Ground::Parchment => "paper_palette",
+            "palette" if self.ground.is_paper() => "paper_palette",
             k => k,
         }
     }
@@ -565,7 +616,7 @@ impl Settings {
             "natural_sort" => on_off(self.natural_sort),
             "show_hidden" => if self.show_hidden { "shown".into() } else { "hidden".into() },
             "ground" => ground_word(self.ground).into(),
-            "accent" if self.ground == Ground::Parchment => "forest".into(),
+            "accent" if self.ground.is_paper() => paper_accent_word(self.ground).into(),
             "accent" => accent_word(self.accent).into(),
             "palette" => palette_word(self.heat_palette()).into(),
             "paper_palette" => palette_word(self.paper_palette).into(),
@@ -625,9 +676,9 @@ impl Settings {
             "natural_sort" => self.natural_sort ^= true,
             "show_hidden" => self.show_hidden ^= true,
             "ground" => self.ground = cycle(&GROUNDS, self.ground, dir),
-            "accent" if self.ground == Ground::Parchment => {}
+            "accent" if self.ground.is_paper() => {}
             "accent" => self.accent = cycle(&ACCENTS, self.accent, dir),
-            "palette" if self.ground == Ground::Parchment => self.paper_palette = cycle(&PAPER_PALETTES, self.paper_palette, dir),
+            "palette" if self.ground.is_paper() => self.paper_palette = cycle(self.ground.palettes(), self.heat_palette(), dir),
             "palette" => self.palette = cycle(&PALETTES, self.palette, dir),
             "heat_range" => self.heat_range = cycle(&RANGES, self.heat_range, dir),
             "dim_floor" => self.dim_floor = step(self.dim_floor, 0, 10, 1),
@@ -672,7 +723,7 @@ impl Settings {
             "show_hidden" => self.show_hidden = d.show_hidden,
             "ground" => self.ground = d.ground,
             "accent" => self.accent = d.accent,
-            "palette" if self.ground == Ground::Parchment => self.paper_palette = d.paper_palette,
+            "palette" if self.ground.is_paper() => self.paper_palette = d.paper_palette,
             "palette" => self.palette = d.palette,
             "heat_range" => self.heat_range = d.heat_range,
             "dim_floor" => self.dim_floor = d.dim_floor,
@@ -720,9 +771,9 @@ impl Settings {
             "natural_sort" => self.natural_sort = flag()?,
             "show_hidden" => self.show_hidden = flag()?,
             "accent" => self.accent = find(&ACCENTS, v, accent_word).ok_or(bad("indigo, teal, violet, amber, mono"))?,
-            "ground" => self.ground = find(&GROUNDS, v, ground_word).ok_or(bad("dark, parchment"))?,
+            "ground" => self.ground = find(&GROUNDS, v, ground_word).ok_or(bad("dark, parchment, vellum, foxed, ledger"))?,
             "palette" => self.palette = find(&PALETTES, v, palette_word).ok_or(bad("ember, magma, neon, aurora, glacier, sepia, mono"))?,
-            "paper_palette" => self.paper_palette = find(&PAPER_PALETTES, v, palette_word).ok_or(bad("growth, ink"))?,
+            "paper_palette" => self.paper_palette = find(&PAPER_PALETTES, v, palette_word).ok_or(bad("growth, ink, manuscript, gilded, irongall"))?,
             "heat_range" => self.heat_range = find(&RANGES, v, range_word).ok_or(bad("day, week, month, year, 5y"))?,
             "dim_floor" => self.dim_floor = num(0, 10)?,
             "focus_dim" => self.focus_dim = num(0, 10)?,
@@ -874,6 +925,19 @@ mod tests {
         let (back, errs) = Settings::load(Some(&p));
         assert!(errs.is_empty());
         assert_eq!((back.row_spacing, back.accent), (3, Accent::Amber));
+    }
+
+    #[test]
+    fn each_paper_offers_only_its_own_heat_colors() {
+        let mut s = Settings { ground: Ground::Vellum, ..Settings::default() };
+        assert_eq!(s.heat_palette(), Palette::Manuscript, "growth isn't offered on vellum, so its first palette stands in");
+        s.adjust("palette", 1);
+        assert_eq!((s.heat_palette(), s.paper_palette), (Palette::Ink, Palette::Ink));
+        s.adjust("ground", 1);
+        assert_eq!((s.ground, s.heat_palette()), (Ground::Foxed, Palette::Ink), "ink carries over where it's offered");
+        s.adjust("ground", 1);
+        assert_eq!(s.heat_palette(), Palette::IronGall);
+        assert_eq!(s.show("accent"), "red pencil");
     }
 
     #[test]

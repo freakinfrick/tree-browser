@@ -42,7 +42,7 @@ The command is `tb`.
 - **Git aware.** Changed files carry a marker, closed folders show what's changed inside, ignored
   build output fades back, the status bar names the branch, and `d` in a preview shows the diff.
 - **Yours to tune.** `,` opens 35 settings: spacing, column width, age and size after names, sort
-  order, a dark or parchment ground, accent and heat colors, heat range, line style and branch length, motion, previews, the mouse, reopening
+  order, a dark ground or one of four papers, accent and heat colors, heat range, line style and branch length, motion, previews, the mouse, reopening
   where you left off, and every feature switch, saved to a small config file.
 - **Shell without leaving.** `!` runs a command in the selected folder, `s` opens a shell there, and
   `q` can leave your shell `cd`'d to wherever you ended up.
@@ -229,9 +229,9 @@ closes the panel.
 | Folders first | folders above files under every sort | off |
 | Natural sort | `file2` before `file10` | on |
 | Dotfiles | same as `.` | hidden |
-| Ground | dark, or parchment: ink colors on light paper, the Ent look (forest-green accent, its own heat colors) | dark |
-| Accent | indigo, teal, violet, amber, mono (lines, selector, highlights); parchment is always forest | indigo |
-| Heat colors | ember (red → blue), magma (cream → violet), neon (raspberry → aqua), aurora (yellow → purple), glacier (ice → deep blue), sepia (warm brightness), mono; magma and aurora avoid red-green. On parchment: growth (leaf green → bark), ink (black fading brown) | ember, growth |
+| Ground | dark, or a paper with its own path color and heat colors: parchment (the Ent look, forest green), vellum (lapis), foxed (oxblood, browned paper), ledger (red pencil on green-ruled paper) | dark |
+| Accent | indigo, teal, violet, amber, mono (lines, selector, highlights); each paper keeps its own | indigo |
+| Heat colors | ember (red → blue), magma (cream → violet), neon (raspberry → aqua), aurora (yellow → purple), glacier (ice → deep blue), sepia (warm brightness), mono; magma and aurora avoid red-green. On paper: growth (leaf green → bark) or ink (black fading brown) on parchment; manuscript (vermilion → gold → verdigris → iron-gall violet) or ink on vellum; gilded (gold → olive → deep moss) or ink on foxed; irongall (pale brown darkening to black, so the oldest carry the most ink) on ledger | ember, growth |
 | Heat range | age that gets the coldest color: day, week, month, year, 5y | 5y |
 | Off-line dim | how bright names off the cursor's line stay, 0 (nearly out) to 10 (full color) | 6 |
 | Tree lines | double, heavy, rounded, square, ascii (on double and heavy, ignored branches draw thin) | double |
