@@ -1388,14 +1388,7 @@ fn main() -> std::io::Result<()> {
     if mouse {
         execute!(stdout(), EnableMouseCapture)?;
     }
-    // Query after entering the alternate screen, before reading events.
-    if let Some((p, detected)) = media::picker() {
-        app.graphics = Some((p.clone(), p.protocol_type()));
-        app.detected = detected;
-        app.graphics_forced = std::env::var("TB_GRAPHICS").is_ok_and(|v| !v.is_empty());
-        app.apply_graphics();
-    }
-
+    let mut queried = false;
     let mut dirty = true;
     let mut animating = false;
     let mut last = Instant::now();
@@ -1418,6 +1411,15 @@ fn main() -> std::io::Result<()> {
             }
             animating = moving;
             dirty = false;
+            // Query after the first frame (a terminal that never answers costs the
+            // crate's 1 s timeout; the tree is already on screen), before reading events.
+            if !std::mem::replace(&mut queried, true) && let Some((p, detected)) = media::picker() {
+                app.graphics = Some((p.clone(), p.protocol_type()));
+                app.detected = detected;
+                app.graphics_forced = std::env::var("TB_GRAPHICS").is_ok_and(|v| !v.is_empty());
+                app.apply_graphics();
+                dirty = true;
+            }
         }
         // Sleep until the next frame is due, or indefinitely-ish when idle
         // (wake periodically to pick up background mtime results).
